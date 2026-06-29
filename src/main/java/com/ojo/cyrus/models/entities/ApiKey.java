@@ -6,6 +6,7 @@ import com.ojo.cyrus.models.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
@@ -14,6 +15,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @Builder
 @AllArgsConstructor
+@Getter
 @Table(name = "api_keys",
         indexes = {@Index(name = "idx_api_key_hash", columnList = "key_hash")})
 public class ApiKey extends BaseEntity {
@@ -23,7 +25,7 @@ public class ApiKey extends BaseEntity {
     private Merchant merchant;
     @Column(name = "key_hash", nullable = false, unique = true, length = 255)
     private String keyHash;
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 100)
     private String prefix;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
