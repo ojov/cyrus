@@ -10,9 +10,9 @@ spring:
 
   # Database & JPA
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/cyrus}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:cyrusecret}
+    url: ${DB_URL:jdbc:postgresql://localhost:5438/cyrus}
+    username: ${DB_USERNAME:cyrus}
+    password: ${DB_PASSWORD:cyrus_password}
   jpa:
     hibernate:
       ddl-auto: update
@@ -20,6 +20,26 @@ spring:
     open-in-view: false
   flyway:
     enabled: false
+
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080/api}
+  cors:
+    allowed-origins:
+      - ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - Authorization
+      - Content-Type
+      - Accept
+
+rsa:
+  public-key: ${RSA_PUBLIC_KEY}
+  private-key: ${RSA_PRIVATE_KEY}
 
 resend:
   api-key: ${RESEND_API_KEY}

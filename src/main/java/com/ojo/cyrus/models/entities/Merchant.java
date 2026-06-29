@@ -20,7 +20,7 @@ import java.util.*;
 public class Merchant extends BaseEntity {
     @Column(nullable = false)
     private String businessName;
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String businessEmail;
     @ElementCollection
     @CollectionTable(name = "merchant_nomba_credentials",
@@ -36,7 +36,8 @@ public class Merchant extends BaseEntity {
     @ElementCollection
     @Builder.Default
     private Set<String> nombaSubAccountIds = new HashSet<>();
-
+    @Column(nullable = false)
+    private String passwordHash;
     @OneToMany(mappedBy = "merchant")
     private List<EndUser> customers;
     @Enumerated(EnumType.STRING)
