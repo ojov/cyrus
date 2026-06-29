@@ -1,0 +1,9 @@
+services:
+  postgres:
+    image: 'postgres:latest'
+    environment:
+      - 'POSTGRES_DB=cyrus'
+      - 'POSTGRES_PASSWORD=cyrusecret'
+      - 'POSTGRES_USER=postgres'
+    ports:
+      - '5432'

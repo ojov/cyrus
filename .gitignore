@@ -28,6 +28,6 @@ target/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
-
+build_output.txt
 ### VS Code ###
 .vscode/

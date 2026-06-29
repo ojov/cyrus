@@ -1,0 +1,26 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: ${SERVER_CONTEXT_PATH:/api}
+spring:
+  profiles:
+    active: ${APP_ENV:dev}
+  application:
+    name: cyrus
+
+  # Database & JPA
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/cyrus}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:cyrusecret}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+  flyway:
+    enabled: false
+
+resend:
+  api-key: ${RESEND_API_KEY}
+  from-email: onboarding@resend.dev

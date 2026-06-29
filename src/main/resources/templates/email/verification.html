@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #6b46c1;
+        }
+        .header h1 {
+            color: #6b46c1;
+            margin: 0;
+        }
+        .content {
+            padding: 30px 0;
+        }
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .button {
+            background-color: #6b46c1;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Cyrus</h1>
+        </div>
+        <div class="content">
+            <p>Hi <span th:text="${firstName}">User</span>,</p>
+            <p>Welcome to Cyrus! We're excited to have you on board. Please verify your email address to complete your registration and start exploring our platform.</p>
+            <div class="button-container">
+                <a th:href="${verificationUrl}" class="button">Verify Email Address</a>
+            </div>
+            <p>If you didn't create an account with us, you can safely ignore this email.</p>
+            <p>Best regards,<br>The Cyrus Team</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 Cyrus. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
