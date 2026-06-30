@@ -1,0 +1,52 @@
+# Build artifacts
+target/
+build/
+*.jar
+*.war
+*.ear
+
+# Frontend
+web/
+node_modules/
+.next/
+out/
+
+# IDEs and editors
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+.nbproject/
+
+# Version control
+.git/
+.gitignore
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+compose.yaml
+.dockerignore
+
+# Logs
+logs/
+*.log
+
+# Misc
+*.md
+# mvnw
+# mvnw.cmd
+# .mvn/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/wrapper/maven-wrapper.jar

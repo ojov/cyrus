@@ -1,6 +1,6 @@
 package com.ojo.cyrus.exception;
 
-import com.ojo.cyrus.common.CyrusApiResponse;
+import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.enums.ResponseCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

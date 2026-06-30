@@ -38,10 +38,8 @@ public class Merchant extends BaseEntity {
     private Set<String> nombaSubAccountIds = new HashSet<>();
     @Column(nullable = false)
     private String passwordHash;
-    @OneToMany(mappedBy = "merchant")
-    private List<EndUser> customers;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
-    private MerchantStatus status = MerchantStatus.ACTIVE;
+    private MerchantStatus status = MerchantStatus.PENDING_VERIFICATION;
 }
