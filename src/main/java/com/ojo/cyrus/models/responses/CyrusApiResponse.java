@@ -1,4 +1,4 @@
-package com.ojo.cyrus.common;
+package com.ojo.cyrus.models.responses;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ojo.cyrus.enums.ResponseCode;

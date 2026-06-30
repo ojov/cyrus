@@ -6,5 +6,8 @@ import java.util.UUID;
 @Builder
 public record MerchantRegistrationResponse(
         UUID merchantId,
-        String apiKey
+        String businessName,
+        String businessEmail,
+        String token,
+        GeneratedApiKeysResponse apiKey
 ) {}

@@ -1,4 +1,4 @@
-package com.ojo.cyrus.config;
+package com.ojo.cyrus.config.security;
 
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -11,6 +11,7 @@ import com.ojo.cyrus.config.properties.RsaKeyProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -27,6 +28,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -41,18 +43,32 @@ public class SecurityConfig {
 
     private final RsaKeyProperties rsaKeys;
     private final CorsProperties corsProperties;
-
-
+    private final ApiKeyFilter apiKeyFilter;
 
     private static final String[] PUBLIC_URLS = {
             "/v1/auth/login",
-            "/v1/auth/verify",
-            "/v1/merchants/register",
+            "/v1/auth/register",
+            "/v1/auth/verify-email",
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/v3/api-docs/**",
             "/actuator/health",
     };
+
+    @Bean
+    @Order(1)
+    SecurityFilterChain apiKeyChain(HttpSecurity http) throws Exception {
+        return http.securityMatcher("/api/v1/virtual-accounts/**", "/api/v1/customers/**")
+                .cors(withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .addFilterBefore(apiKeyFilter,
+                        AnonymousAuthenticationFilter.class)
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .build();
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {

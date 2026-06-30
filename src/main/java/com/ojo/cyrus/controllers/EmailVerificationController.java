@@ -1,7 +1,7 @@
 package com.ojo.cyrus.controllers;
 
 import com.ojo.cyrus.exception.InvalidTokenException;
-import com.ojo.cyrus.services.MerchantService;
+import com.ojo.cyrus.services.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -12,14 +12,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 @Controller
 @RequestMapping("/v1/auth")
 @RequiredArgsConstructor
-public class VerificationController {
+public class EmailVerificationController {
 
-    private final MerchantService merchantService;
+    private final AuthService authService;
 
-    @GetMapping("/verify")
+    @GetMapping("/verify-email")
     public String verify(@RequestParam String token, Model model) {
         try {
-            merchantService.verifyEmail(token);
+            authService.verifyEmail(token);
             return "auth/verified";
         } catch (InvalidTokenException e) {
             model.addAttribute("errorMessage", e.getMessage());
