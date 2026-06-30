@@ -41,7 +41,7 @@ jobs:
           cache: maven
       - name: Build and run tests
         run: |
-          mvn clean verify --batch-mode
+          ./mvnw clean verify --batch-mode
   deploy:
     name: Docker Build, Push & Deploy
     runs-on: ubuntu-latest
@@ -71,8 +71,7 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: github-deployer@nombacyrus.iam.gserviceaccount.com
-
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
@@ -102,9 +101,18 @@ jobs:
             --image $IMAGE:${{ steps.version.outputs.sha }} \
             --region $GCP_REGION \
             --platform managed \
+            --service-account cyrus-api-runtime@nombacyrus.iam.gserviceaccount.com \
             --allow-unauthenticated \
             --memory 512Mi \
             --cpu 1 \
             --min-instances 0 \
             --max-instances 3 \
             --timeout 60
+
+      - name: Show URL
+        run: |
+          gcloud run services describe $SERVICE_NAME \
+            --region=$GCP_REGION \
+            --format='value(status.url)'
+          
+          
