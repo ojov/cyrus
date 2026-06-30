@@ -1,6 +1,10 @@
 springdoc:
   swagger-ui:
-    enabled: false
+    enabled: true
 logging:
   level:
     root: info
+server:
+  forward-headers-strategy: framework
+resend:
+  from-email: ${RESEND_FROM:onboarding@resend.dev}

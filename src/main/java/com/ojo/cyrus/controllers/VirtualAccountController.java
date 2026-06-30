@@ -10,12 +10,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/virtual-accounts")
+@RequestMapping("/v1/virtual-accounts")
 @RequiredArgsConstructor
 @Tag(name = "Virtual Accounts", description = "Endpoints for managing virtual accounts via API Key")
 public class VirtualAccountController {
@@ -36,7 +37,7 @@ public class VirtualAccountController {
     )
     @PostMapping
     public CyrusApiResponse<VirtualAccountResponse> create(@AuthenticationPrincipal Merchant merchant,
-            @RequestBody CreateVirtualAccountRequest request){
+            @Valid @RequestBody CreateVirtualAccountRequest request){
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Virtual Account Created Successfully",
                 virtualAccountService.create(merchant, request));

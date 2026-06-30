@@ -36,7 +36,7 @@ RUN chown cyrus:cyrus app.jar
 
 USER cyrus
 
-ENV SPRING_PROFILES_ACTIVE=development
+ENV SPRING_PROFILES_ACTIVE=prod
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75"
 
 EXPOSE 8080

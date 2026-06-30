@@ -5,14 +5,19 @@ on:
     branches:
       - main
     paths:
-    - src/**
-    - pom.xml
-    - Dockerfile
-    - mvnw
-    - .mvn/**
-    - application*.yml
-    - .github/workflows/**
+      - src/**
+      - pom.xml
+      - Dockerfile
+      - mvnw
+      - .mvn/**
+      - src/main/resources/application*.yml
+      - .github/workflows/**
   workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   GCP_REGION: us-central1
   GCP_PROJECT_ID: nombacyrus
@@ -76,28 +81,23 @@ jobs:
           gcloud auth configure-docker \
           us-central1-docker.pkg.dev
 
-      - name: Build image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
+      - name: Build and push image
         run: |
 
           IMAGE="us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}"
 
-          docker build \
-          -t $IMAGE:${{ steps.version.outputs.sha }} \
-          -t $IMAGE:latest \
-          .
-      - name: Push image
-        run: |
-
-          IMAGE="us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}"
-
-          docker push $IMAGE:${{ steps.version.outputs.sha }}
-
-          docker push $IMAGE:latest
+          docker buildx build \
+            --platform linux/amd64 \
+            -t $IMAGE:${{ steps.version.outputs.sha }} \
+            -t $IMAGE:latest \
+            --push \
+            .
       - name: Deploy Cloud Run
         run: |
           IMAGE="us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}"
-
           gcloud run deploy $SERVICE_NAME \
             --image $IMAGE:${{ steps.version.outputs.sha }} \
             --region $GCP_REGION \

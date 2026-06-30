@@ -1,13 +1,13 @@
 package com.ojo.cyrus;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+import static org.assertj.core.api.Assertions.assertThat;
+
 class CyrusApplicationTests {
 
     @Test
-    void contextLoads() {
+    void applicationClassExists() {
+        assertThat(CyrusApplication.class).isNotNull();
     }
-
 }

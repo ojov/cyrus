@@ -78,7 +78,7 @@ public class AuthService {
                 .build();
         tokenService.saveVerificationToken(verificationToken);
 
-        String verificationUrl = baseUrl + "/v1/auth/verify?token=" + tokenValue;
+        String verificationUrl = baseUrl + "/v1/auth/verify-email?token=" + tokenValue;
         emailService.sendVerificationEmail(merchant.getBusinessEmail(), merchant.getBusinessName(), verificationUrl);
         log.info("Verification email sent to {}", merchant.getBusinessEmail());
     }
