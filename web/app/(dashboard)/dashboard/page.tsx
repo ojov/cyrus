@@ -95,7 +95,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-md bg-muted px-4 py-3 font-mono text-sm text-muted-foreground">
-              {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"}
+              {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}
             </div>
             <p className="text-xs text-muted-foreground">
               All requests must include{" "}

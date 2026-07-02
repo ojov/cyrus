@@ -82,7 +82,7 @@ export default function ApiKeysPage() {
               <p className="text-xs font-medium text-muted-foreground mb-2">Usage</p>
               <pre className="font-mono text-xs text-muted-foreground">
                 {`curl -H "Authorization: Bearer ${visible ? keyInfo.apiKey : masked}" \\
-  ${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"}/v1/virtual-accounts`}
+  ${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/v1/virtual-accounts`}
               </pre>
             </div>
           </CardContent>
