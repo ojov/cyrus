@@ -51,6 +51,7 @@ public class SecurityConfig {
             "/v1/auth/verify-email",
             "/swagger-ui/**",
             "/swagger-ui.html",
+            "/docs",
             "/v3/api-docs/**",
             "/actuator/health",
     };
