@@ -1,10 +1,10 @@
 package com.ojo.cyrus.services;
 
+import com.ojo.cyrus.config.properties.AppProperties;
 import com.ojo.cyrus.exception.InvalidTokenException;
 import com.ojo.cyrus.models.entities.VerificationToken;
 import com.ojo.cyrus.repositories.VerificationTokenRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -23,12 +23,7 @@ public class TokenService {
 
     private final JwtEncoder encoder;
     private final VerificationTokenRepository verificationTokenRepository;
-
-    @Value("${app.jwt.issuer:cyrus}")
-    private String issuer;
-
-    @Value("${app.jwt.expiry-hours:8}")
-    private int expiryHours;
+    private final AppProperties appProperties;
 
     public String generateToken(Authentication authentication) {
         return generateToken(authentication.getName(), authentication.getAuthorities().stream()
@@ -39,9 +34,9 @@ public class TokenService {
     public String generateToken(String subject, String scope) {
         Instant now = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
-                .issuer(issuer)
+                .issuer(appProperties.jwt().issuer())
                 .issuedAt(now)
-                .expiresAt(now.plus(expiryHours, ChronoUnit.HOURS))
+                .expiresAt(now.plus(appProperties.jwt().expiryHours(), ChronoUnit.HOURS))
                 .subject(subject)
                 .claim("scope", scope)
                 .build();

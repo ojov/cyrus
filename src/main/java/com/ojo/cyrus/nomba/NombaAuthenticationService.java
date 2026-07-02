@@ -8,10 +8,10 @@ import com.ojo.cyrus.nomba.dto.NombaApiResponse;
 import com.ojo.cyrus.nomba.dto.NombaRefreshTokenRequest;
 import com.ojo.cyrus.nomba.dto.NombaTokenData;
 import com.ojo.cyrus.nomba.dto.NombaTokenRequest;
+import com.ojo.cyrus.config.properties.AppProperties;
 import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -24,9 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class NombaAuthenticationService {
 
     private final RestClient nombaRestClient;
-
-    @Value("${app.encryption-key}")
-    private String encryptionKey;
+    private final AppProperties appProperties;
 
     private final ConcurrentHashMap<String, NombaTokenEntry> tokenCache = new ConcurrentHashMap<>();
 
@@ -81,7 +79,7 @@ public class NombaAuthenticationService {
                     "Please add your " + env.name().toLowerCase() + " Nomba credentials.");
         }
 
-        String decryptedSecret = CryptoUtil.decrypt(credential.encryptedClientSecret(), encryptionKey);
+        String decryptedSecret = CryptoUtil.decrypt(credential.encryptedClientSecret(), appProperties.encryptionKey());
         String baseUrl = Provider.NOMBA.getBaseUrl(env);
 
         NombaApiResponse<NombaTokenData> response = nombaRestClient.post()
