@@ -10,10 +10,10 @@ import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
 import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
 import com.ojo.cyrus.models.responses.LoginResponse;
 import com.ojo.cyrus.models.responses.MerchantRegistrationResponse;
+import com.ojo.cyrus.config.properties.AppProperties;
 import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -38,10 +38,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final ApiKeyService apiKeyService;
     private final EmailService emailService;
-    @Value("${app.base-url}")
-    private String baseUrl;
-    @Value("${app.encryption-key}")
-    private String encryptionKey;
+    private final AppProperties appProperties;
 
     public MerchantRegistrationResponse register(MerchantRegistrationRequest request) {
         merchantService.validateMerchantExists(request);
@@ -49,7 +46,7 @@ public class AuthService {
         Merchant merchantEntity = mapToMerchantEntity(request);
         merchantEntity.setPasswordHash(encodedPassword);
         if (request.nombaClientSecret() != null) {
-            String encrypted = CryptoUtil.encrypt(request.nombaClientSecret(), encryptionKey);
+            String encrypted = CryptoUtil.encrypt(request.nombaClientSecret(), appProperties.encryptionKey());
             merchantEntity.getNombaCredentials().put(Environment.TEST,
                     new NombaCredential(request.nombaClientId(), encrypted));
         }
@@ -87,7 +84,7 @@ public class AuthService {
                 .build();
         tokenService.saveVerificationToken(verificationToken);
 
-        String verificationUrl = baseUrl + "/v1/auth/verify-email?token=" + tokenValue;
+        String verificationUrl = appProperties.baseUrl() + "/v1/auth/verify-email?token=" + tokenValue;
         emailService.sendVerificationEmail(merchant.getBusinessEmail(), merchant.getBusinessName(), verificationUrl);
         log.info("Verification email sent to {}", merchant.getBusinessEmail());
     }
