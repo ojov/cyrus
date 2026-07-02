@@ -52,6 +52,13 @@ public class GlobalExceptionHandler {
         return CyrusApiResponse.failure(ResponseCode.INVALID_INPUT, message);
     }
 
+    @ExceptionHandler(NombaIntegrationException.class)
+    @ResponseStatus(HttpStatus.BAD_GATEWAY)
+    public CyrusApiResponse<Void> handleNombaIntegration(NombaIntegrationException ex) {
+        log.error("Nomba integration error", ex);
+        return CyrusApiResponse.failure(ResponseCode.NOMBA_INTEGRATION_ERROR, ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public CyrusApiResponse<Void> handleGeneral(Exception ex) {
