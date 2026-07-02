@@ -2,6 +2,7 @@ package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantStatus;
+import com.ojo.cyrus.models.NombaCredential;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.VerificationToken;
 import com.ojo.cyrus.models.requests.LoginRequest;
@@ -9,6 +10,7 @@ import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
 import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
 import com.ojo.cyrus.models.responses.LoginResponse;
 import com.ojo.cyrus.models.responses.MerchantRegistrationResponse;
+import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,12 +40,19 @@ public class AuthService {
     private final EmailService emailService;
     @Value("${app.base-url}")
     private String baseUrl;
+    @Value("${app.encryption-key}")
+    private String encryptionKey;
 
     public MerchantRegistrationResponse register(MerchantRegistrationRequest request) {
         merchantService.validateMerchantExists(request);
         String encodedPassword = passwordEncoder.encode(request.password());
         Merchant merchantEntity = mapToMerchantEntity(request);
         merchantEntity.setPasswordHash(encodedPassword);
+        if (request.nombaClientSecret() != null) {
+            String encrypted = CryptoUtil.encrypt(request.nombaClientSecret(), encryptionKey);
+            merchantEntity.getNombaCredentials().put(Environment.TEST,
+                    new NombaCredential(request.nombaClientId(), encrypted));
+        }
         Merchant merchant = merchantService.save(merchantEntity);
         GeneratedApiKeysResponse apiKeys = apiKeyService.createApiKey(merchant, Environment.TEST);
         sendVerificationEmail(merchant);

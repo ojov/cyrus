@@ -36,11 +36,12 @@
         }
         .button {
             background-color: #6b46c1;
-            color: white;
-            padding: 12px 24px;
+            color: #ffffff;
+            padding: 12px 32px;
             text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 15px;
             display: inline-block;
         }
         .footer {
@@ -61,7 +62,7 @@
             <p>Hi <span th:text="${firstName}">User</span>,</p>
             <p>Welcome to Cyrus! We're excited to have you on board. Please verify your email address to complete your registration and start exploring our platform.</p>
             <div class="button-container">
-                <a th:href="${verificationUrl}" class="button">Verify Email Address</a>
+                <a th:href="${verificationUrl}" class="button" style="background-color:#6b46c1;color:#ffffff;padding:12px 32px;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;display:inline-block;">Verify Email Address</a>
             </div>
             <p>If you didn't create an account with us, you can safely ignore this email.</p>
             <p>Best regards,<br>The Cyrus Team</p>

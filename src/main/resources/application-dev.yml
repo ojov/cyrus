@@ -1,2 +1,2 @@
 resend:
-  from-email: onboarding@resend.dev
+  from-email: ${FROM_EMAIL:Cyrus <noreply@trycyrus.app>}

@@ -7,4 +7,4 @@ logging:
 server:
   forward-headers-strategy: framework
 resend:
-  from-email: ${RESEND_FROM:onboarding@resend.dev}
+  from-email: ${FROM_EMAIL}

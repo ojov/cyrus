@@ -10,7 +10,5 @@ import java.util.UUID;
 @Repository
 public interface VirtualAccountRepository extends JpaRepository<VirtualAccount, UUID> {
 
-    boolean existsByMerchantIdAndCustomerReference(UUID merchantId, String customerReference);
-
-    Optional<VirtualAccount> findByMerchantIdAndCustomerReference(UUID merchantId, String customerReference);
+    Optional<VirtualAccount> findByCustomerId(UUID customerId);
 }
