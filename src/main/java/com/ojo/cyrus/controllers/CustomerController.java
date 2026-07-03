@@ -29,9 +29,7 @@ public class CustomerController {
             security = @SecurityRequirement(name = "ApiKeyAuth")
     )
     @PostMapping
-    public CyrusApiResponse<CustomerResponse> create(
-            @AuthenticationPrincipal Merchant merchant,
-            @RequestAttribute("ENVIRONMENT") Environment environment,
+    public CyrusApiResponse<CustomerResponse> create(@AuthenticationPrincipal Merchant merchant, @RequestAttribute("ENVIRONMENT") Environment environment,
             @Valid @RequestBody CreateCustomerRequest request) {
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customer created",
