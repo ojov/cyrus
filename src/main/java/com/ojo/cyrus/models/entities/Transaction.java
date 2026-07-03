@@ -43,6 +43,9 @@ public class Transaction extends BaseEntity {
     @Column(name = "provider_transaction_id", nullable = false)
     private String providerTransactionId;
 
+    // Nomba session id — used to reconcile/confirm via GET /v1/transactions/requery/{sessionId}.
+    private String sessionId;
+
     @Column(nullable = false)
     private BigInteger amount; // integer kobo (minor units)
 
