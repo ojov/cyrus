@@ -14,28 +14,33 @@ const FEATURES = [
   { icon: Webhook, title: "Normalised Webhooks", description: "One clean event schema regardless of what Nomba sends. No provider-specific payload parsing." },
 ];
 
-const QUICK_START = `# 1. Register your business
-POST /v1/merchants/register
+const QUICK_START = `# 1. Register your business (returns a dashboard token + test API key)
+POST /v1/auth/register
 {
   "businessName": "Acme Payments",
   "businessEmail": "dev@acme.ng",
   "password": "••••••••",
-  "nombaParentAccountId": "NMB-XXXX"
+  "nombaClientId": "...",
+  "nombaClientSecret": "...",
+  "nombaParentAccountId": "NMB-XXXX",
+  "subAccountIds": ["sub_acct_1"]
 }
 
-# 2. Login and receive your Bearer token
-POST /v1/auth/login
-→ { "token": "eyJ...", "merchantId": "uuid" }
-
-# 3. Create a customer
+# 2. Create a customer — a dedicated virtual account is provisioned automatically
 POST /v1/customers
-Authorization: Bearer <token>
-{ "customerRef": "user_123", "customerName": "John Doe" }
+Authorization: Bearer <your cyrus_test_ API key>
+{ "reference": "user_123", "firstName": "John", "lastName": "Doe" }
+→ {
+    "virtualAccount": {
+      "accountNumber": "0123456789",
+      "bankName": "Nomba MFB",
+      "status": "ACTIVE"
+    }
+  }
 
-# 4. Provision a dedicated virtual account
-POST /v1/virtual-accounts
-{ "customerRef": "user_123" }
-→ { "accountNumber": "0123456789", "status": "ACTIVE" }`;
+# 3. Fetch the customer + its account any time
+GET /v1/customers/user_123
+Authorization: Bearer <your cyrus_test_ API key>`;
 
 export default function LandingPage() {
   return (

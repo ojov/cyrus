@@ -44,10 +44,21 @@ export interface LoginResponse {
   };
 }
 
+export interface ApiKeyInfo {
+  apiKey: string;
+  environment: string;
+  createdAt: string;
+}
+
 export interface RegisterResponse {
   data: {
     merchantId: string;
-    apiKey: string;
+    businessName: string;
+    businessEmail: string;
+    token: string;
+    apiKey: {
+      apiKeys: ApiKeyInfo[];
+    };
   };
 }
 
@@ -63,5 +74,5 @@ export const authApi = {
     nombaClientSecret: string;
     nombaParentAccountId: string;
     subAccountIds: string[];
-  }) => api.post<RegisterResponse>("/v1/merchants/register", payload),
+  }) => api.post<RegisterResponse>("/v1/auth/register", payload),
 };

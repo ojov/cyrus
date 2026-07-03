@@ -102,10 +102,10 @@ export default function DashboardPage() {
               <code className="text-primary">Authorization: Bearer &lt;token&gt;</code>
             </p>
             <div className="rounded-md border border-border px-4 py-3 font-mono text-xs text-muted-foreground space-y-1">
-              <div><span className="text-primary">POST</span> /v1/virtual-accounts</div>
-              <div><span className="text-primary">GET</span>  /v1/virtual-accounts</div>
               <div><span className="text-primary">POST</span> /v1/customers</div>
-              <div><span className="text-primary">GET</span>  /v1/transactions</div>
+              <div><span className="text-primary">GET</span>  /v1/customers/{"{reference}"}</div>
+              <div><span className="text-primary">GET</span>  /v1/merchants/me/subaccounts/balances</div>
+              <div><span className="text-primary">POST</span> /v1/merchants/me/go-live</div>
             </div>
           </CardContent>
         </Card>

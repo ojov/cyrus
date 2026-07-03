@@ -18,6 +18,7 @@ const INIT = {
   nombaClientId: "",
   nombaClientSecret: "",
   nombaParentAccountId: "",
+  nombaSubAccountIds: "",
 };
 
 export default function RegisterPage() {
@@ -45,11 +46,19 @@ export default function RegisterPage() {
         nombaClientId: form.nombaClientId,
         nombaClientSecret: form.nombaClientSecret,
         nombaParentAccountId: form.nombaParentAccountId,
-        subAccountIds: [],
+        subAccountIds: form.nombaSubAccountIds
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
       });
+      const issuedKey = res.data.apiKey?.apiKeys?.[0];
       localStorage.setItem(
         "cyrus_api_key",
-        JSON.stringify({ apiKey: res.data.apiKey, merchantId: res.data.merchantId })
+        JSON.stringify({
+          apiKey: issuedKey?.apiKey ?? "",
+          environment: issuedKey?.environment ?? "TEST",
+          merchantId: res.data.merchantId,
+        })
       );
       toast.success("Account created! Check your email to verify before logging in.");
       router.push("/login");
@@ -130,6 +139,19 @@ export default function RegisterPage() {
                   onChange={field("nombaParentAccountId")}
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nombaSubAccountIds">Sub-account ID(s)</Label>
+                <Input
+                  id="nombaSubAccountIds"
+                  placeholder="sub-account id (comma-separated for multiple)"
+                  value={form.nombaSubAccountIds}
+                  onChange={field("nombaSubAccountIds")}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Virtual accounts are created under a sub-account. Required to provision accounts.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="nombaClientId">Client ID</Label>
