@@ -80,18 +80,15 @@ jobs:
             .
       - name: Deploy Cloud Run
         run: |
-          IMAGE="us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}"
-          gcloud run deploy $SERVICE_NAME \
-            --image $IMAGE:${{ steps.version.outputs.sha }} \
+          IMAGE="us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}:${{ steps.version.outputs.sha }}"
+          # Declarative deploy: service.yaml is the single source of truth for runtime config.
+          sed "s|IMAGE_PLACEHOLDER|${IMAGE}|g" .github/deploy/service.yaml | gcloud run services replace - --region $GCP_REGION
+          # services replace does not manage the IAM invoker policy; keep the service public.
+          gcloud run services add-iam-policy-binding $SERVICE_NAME \
             --region $GCP_REGION \
-            --platform managed \
-            --service-account cyrus-api-runtime@nombacyrus.iam.gserviceaccount.com \
-            --allow-unauthenticated \
-            --memory 512Mi \
-            --cpu 1 \
-            --min-instances 0 \
-            --max-instances 3 \
-            --timeout 60
+            --member="allUsers" \
+            --role="roles/run.invoker" \
+            --quiet
 
       - name: Show URL
         run: |

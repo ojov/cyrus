@@ -1,0 +1,73 @@
+# Declarative Cloud Run service spec — the single source of truth for cyrus-api's runtime config.
+# Applied by CI with:  sed "s|IMAGE_PLACEHOLDER|<image>|g" service.yaml | gcloud run services replace - --region us-central1
+# Secrets are Secret Manager references (values never live here or in logs). Non-secret config is plain env.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: cyrus-api
+  labels:
+    cloud.googleapis.com/location: us-central1
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: '0'
+        autoscaling.knative.dev/maxScale: '3'
+        run.googleapis.com/startup-cpu-boost: 'true'
+    spec:
+      serviceAccountName: cyrus-api-runtime@nombacyrus.iam.gserviceaccount.com
+      containerConcurrency: 80
+      timeoutSeconds: 60
+      containers:
+        - image: IMAGE_PLACEHOLDER
+          ports:
+            - name: http1
+              containerPort: 8080
+          resources:
+            limits:
+              cpu: '1'
+              memory: 512Mi
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 240
+            failureThreshold: 1
+            timeoutSeconds: 240
+          env:
+            # --- Non-secret config ---
+            - name: APP_ENV
+              value: prod
+            - name: APP_BASE_URL
+              value: https://api.trycyrus.app
+            - name: CORS_ALLOWED_ORIGINS
+              value: https://trycyrus.app,http://localhost:3000
+            # --- Secrets (Secret Manager references) ---
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef: { name: DB_URL, key: latest }
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef: { name: DB_USERNAME, key: latest }
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: DB_PASSWORD, key: latest }
+            - name: APP_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef: { name: APP_ENCRYPTION_KEY, key: latest }
+            - name: RSA_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef: { name: RSA_PRIVATE_KEY, key: latest }
+            - name: RSA_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef: { name: RSA_PUBLIC_KEY, key: latest }
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef: { name: RESEND_API_KEY, key: latest }
+            - name: NOMBA_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef: { name: NOMBA_WEBHOOK_SECRET, key: latest }
+  traffic:
+    - latestRevision: true
+      percent: 100

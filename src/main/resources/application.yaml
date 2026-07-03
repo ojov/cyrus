@@ -34,8 +34,10 @@ app:
     issuer: cyrus
     expiry-hours: 8
   cors:
-    allowed-origins:
-      - ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    # Comma-separated origins (Spring binds a comma-separated value to the list). No trailing
+    # slashes — each must match the browser Origin header exactly. Override via CORS_ALLOWED_ORIGINS
+    # (e.g. to add Vercel preview URLs).
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://trycyrus.app}
     allowed-methods:
       - GET
       - POST
@@ -57,4 +59,3 @@ rsa:
 
 resend:
   api-key: ${RESEND_API_KEY}
-  from-email: onboarding@resend.dev
