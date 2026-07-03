@@ -12,23 +12,14 @@ import java.time.Instant;
 public class CyrusPaymentEvent {
 
     private Provider provider;
-
     private String requestId;
-
     private String eventType;
-
     private String providerTransactionId;
-
     private String sessionId;
-
     private String virtualAccountNumber;
-
     private BigInteger amount; // minor units (kobo)
-
     private String currency;
-
     private Payer payer;
-
     private Instant eventTime;
 
     /**

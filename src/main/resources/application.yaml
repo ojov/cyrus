@@ -9,11 +9,11 @@ spring:
   # Database & JPA
   datasource:
     url: ${DB_URL}
-    username: ${DB_USERNAME:cyrus}
+    username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     show-sql: true
     open-in-view: false
   flyway:
