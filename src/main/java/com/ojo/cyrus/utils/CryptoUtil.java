@@ -81,6 +81,6 @@ public  class CryptoUtil {
     }
 
     private static SecretKeySpec aesKey(String base64Key) {
-        return new SecretKeySpec(Base64.getDecoder().decode(base64Key), "AES");
+        return new SecretKeySpec(Base64.getDecoder().decode(base64Key.trim()), "AES");
     }
 }

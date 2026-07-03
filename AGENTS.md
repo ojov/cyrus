@@ -43,7 +43,7 @@ docker compose up -d         # local Postgres (see compose.yaml)
 
 Set these before running (see `application.yaml` for the full list and defaults):
 
-- `APP_ENCRYPTION_KEY` — base64 AES key; **encrypts Nomba credentials at rest**. Required.
+- `APP_ENCRYPTION_KEY` — base64 AES key; **encrypts Nomba credentials at rest**. Required. Must Base64-decode to 16/24/32 bytes (`openssl rand -base64 32`); validated at startup (`AppProperties`) so a malformed key fails the boot, not the first register. Must be **identical everywhere and stable** — data encrypted under one key can't be decrypted under another. Set it via Secret Manager, not an unquoted shell var (a `$` in the value gets mangled by shell interpolation → invalid Base64).
 - `RSA_PUBLIC_KEY`, `RSA_PRIVATE_KEY` — RSA keypair used to sign/verify JWTs.
 - `RESEND_API_KEY` — transactional email.
 - `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `APP_ENV` (`dev` default) — optional overrides.
@@ -83,9 +83,9 @@ The API-key chain's `securityMatcher` currently lists only `/v1/customers/**`, b
 
 The scaffolding is ahead of the implementation in exactly the judged areas:
 
-- **`WebhookController` is entirely commented out.** Inbound Nomba webhook ingestion, signature verification, dedup/idempotency, `PaymentEvent` recording, async VA matching, and merchant webhook emission are **not implemented** — they exist only as a documented TODO in that file. The entities/enums (`PaymentEvent`, `Transaction`, `MatchStatus`, `EventStatus`) are placeholders for it.
-- **The reconciliation engine does not exist yet.** No job compares provider records vs. internal `Transaction`s for missing/duplicate/orphan/mismatched payments.
-- **Tests are effectively absent** — only `CyrusApplicationTests` (context-load smoke test). Add real coverage for anything reconciliation- or money-related.
+- **Webhook ingestion is implemented but unverified end-to-end (no live run yet).** `NombaWebhookController` → `NombaWebhookService` (HMAC verify → adapt → ingest) → `TransactionIngestionService` records a `PaymentEvent` (idempotent by `requestId`) and, only for a genuine VA credit, a `Transaction` (deduped by provider tx id + `sessionId` captured for requery-based reconciliation). Handles both payload shapes: `payment_success` VA transfers (attributed via `transaction.aliasAccountNumber`) and non-VA/failed events like POS `payment_failed` (recorded as `PaymentEvent` `IGNORED`, no transaction). Signature verification extracts all signed fields null-safely (some payloads omit `merchant.walletId`) using `nomba.webhook-secret`; the endpoint is public (HMAC-authenticated, in `PUBLIC_URLS`). Duplicates/orphans/non-credit events return 2xx (no retry storm); only transient failures return non-2xx. Merchant webhook emission (Cyrus → developer) is not built yet.
+- **The reconciliation engine does not exist yet.** No job compares provider records vs. internal `Transaction`s for missing/duplicate/orphan/mismatched payments (orphans are recorded as `PaymentEvent` `IGNORED`).
+- **Tests are effectively absent** — only `CyrusApplicationTests` (context-load smoke test) plus `CryptoUtilTest`. Add real coverage for anything reconciliation- or money-related.
 
 Treat webhook reliability + reconciliation as the priority surface, and don't describe them as working.
 

@@ -67,6 +67,12 @@ public class GlobalExceptionHandler {
                 "Account is not yet verified. Please check your email for the verification link.", ex);
     }
 
+    @ExceptionHandler(WebhookSignatureException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public CyrusApiResponse<ErrorDetails> handleWebhookSignature(WebhookSignatureException ex) {
+        return clientError(ResponseCode.UNAUTHORIZED, "Invalid webhook signature", ex);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public CyrusApiResponse<ErrorDetails> handleValidation(MethodArgumentNotValidException ex) {
