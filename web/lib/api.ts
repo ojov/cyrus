@@ -62,6 +62,43 @@ export interface RegisterResponse {
   };
 }
 
+// --- Dashboard (admin/ops, JWT-authed) ---
+export interface DashboardStats {
+  data: { customers: number; virtualAccounts: number };
+}
+
+export interface ApiKeyItem {
+  id: string;
+  prefix: string;
+  environment: string;
+  status: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface ApiKeyListResponse {
+  data: ApiKeyItem[];
+}
+
+// Shape returned when a key is issued (registration, create-key, or go-live).
+export interface CreatedApiKeyResponse {
+  data: { apiKeys: ApiKeyInfo[] };
+}
+
+export const dashboardApi = {
+  stats: () => api.get<DashboardStats>("/v1/merchants/me/stats"),
+  listApiKeys: () => api.get<ApiKeyListResponse>("/v1/merchants/me/api-keys"),
+  createApiKey: (environment: "TEST" | "LIVE") =>
+    api.post<CreatedApiKeyResponse>("/v1/merchants/me/api-keys", { environment }),
+  revokeApiKey: (id: string) =>
+    api.delete<{ data: null }>(`/v1/merchants/me/api-keys/${id}`),
+  goLive: (nombaClientId: string, nombaClientSecret: string) =>
+    api.post<CreatedApiKeyResponse>("/v1/merchants/me/go-live", {
+      nombaClientId,
+      nombaClientSecret,
+    }),
+};
+
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<LoginResponse>("/v1/auth/login", { email, password }),

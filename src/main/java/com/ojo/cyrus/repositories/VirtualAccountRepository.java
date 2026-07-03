@@ -13,4 +13,6 @@ public interface VirtualAccountRepository extends JpaRepository<VirtualAccount, 
     Optional<VirtualAccount> findByCustomerId(UUID customerId);
 
     Optional<VirtualAccount> findByAccountNumber(String accountNumber);
+
+    long countByMerchantId(UUID merchantId);
 }

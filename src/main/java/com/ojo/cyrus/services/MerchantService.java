@@ -9,14 +9,18 @@ import com.ojo.cyrus.models.NombaCredential;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.GoLiveRequest;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
+import com.ojo.cyrus.models.responses.ApiKeyListItem;
 import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
+import com.ojo.cyrus.models.responses.MerchantStatsResponse;
 import com.ojo.cyrus.models.responses.SubAccountBalanceResponse;
 import com.ojo.cyrus.nomba.CredentialMapper;
 import com.ojo.cyrus.nomba.NombaAuthenticationService;
 import com.ojo.cyrus.nomba.NombaClient;
 import com.ojo.cyrus.nomba.NombaCredentials;
 import com.ojo.cyrus.nomba.dto.NombaBalanceData;
+import com.ojo.cyrus.repositories.CustomerRepository;
 import com.ojo.cyrus.repositories.MerchantRepository;
+import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +50,8 @@ public class MerchantService {
     private final NombaAuthenticationService nombaAuthService;
     private final ApiKeyService apiKeyService;
     private final AppProperties appProperties;
+    private final CustomerRepository customerRepository;
+    private final VirtualAccountRepository virtualAccountRepository;
     private final PlatformTransactionManager transactionManager;
 
     @Transactional(readOnly = true)
@@ -140,6 +146,31 @@ public class MerchantService {
 
         log.info("Merchant {} activated live mode", email);
         return liveKeys;
+    }
+
+    @Transactional(readOnly = true)
+    public MerchantStatsResponse getStats(String email) {
+        Merchant merchant = findByBusinessEmail(email);
+        return new MerchantStatsResponse(
+                customerRepository.countByMerchantId(merchant.getId()),
+                virtualAccountRepository.countByMerchantId(merchant.getId()));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ApiKeyListItem> listApiKeys(String email) {
+        return apiKeyService.listKeys(findByBusinessEmail(email).getId());
+    }
+
+    public GeneratedApiKeysResponse createApiKey(String email, Environment environment) {
+        Merchant merchant = findByBusinessEmail(email);
+        if (environment == Environment.LIVE && !merchant.getNombaCredentials().containsKey(Environment.LIVE)) {
+            throw new NombaVerificationException("Activate live mode before creating a live API key.");
+        }
+        return apiKeyService.createApiKey(merchant, environment);
+    }
+
+    public void revokeApiKey(String email, UUID keyId) {
+        apiKeyService.revokeKey(findByBusinessEmail(email).getId(), keyId);
     }
 
     public void updateSubAccounts(String email, Set<String> subAccountIds) {
