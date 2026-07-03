@@ -76,7 +76,7 @@ public class GlobalExceptionHandler {
         String message = "One or more fields are invalid";
         log.warn("{} -> {}: {}", ex.getClass().getSimpleName(), ResponseCode.INVALID_INPUT.name(), fieldErrors, ex);
         return CyrusApiResponse.failure(ResponseCode.INVALID_INPUT, message,
-                ErrorDetails.validation(ResponseCode.INVALID_INPUT.name(), message, fieldErrors));
+                ErrorDetails.ofFieldErrors(fieldErrors));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -117,12 +117,13 @@ public class GlobalExceptionHandler {
 
     private CyrusApiResponse<ErrorDetails> clientError(ResponseCode code, String message, Throwable ex) {
         log.warn("{} -> {}: {}", ex.getClass().getSimpleName(), code.name(), message, ex);
-        return CyrusApiResponse.failure(code, message, ErrorDetails.of(code.name(), message));
+        // Plain client errors are fully described by the envelope — no extra ErrorDetails payload.
+        return CyrusApiResponse.failure(code, message);
     }
 
     private CyrusApiResponse<ErrorDetails> serverError(ResponseCode code, String friendlyMessage, Throwable ex) {
         String traceId = UUID.randomUUID().toString().substring(0, 8);
         log.error("[{}] {} -> {}: {}", traceId, ex.getClass().getSimpleName(), code.name(), ex.getMessage(), ex);
-        return CyrusApiResponse.failure(code, friendlyMessage, ErrorDetails.of(code.name(), friendlyMessage, traceId));
+        return CyrusApiResponse.failure(code, friendlyMessage, ErrorDetails.ofTrace(traceId));
     }
 }
