@@ -222,7 +222,7 @@ gcloud secrets add-iam-policy-binding SOME_NEW_KEY \
 
 ## 📞 Support & Contact
 
-- **Support Email:** [support@cyrusmobile.com](mailto:support@cyrusmobile.com)
+- **Support Email:** [oticconsults@gmail.com](mailto:support@cyrusmobile.com)
 - **Website:** [https://trycyrus.app](https://trycyrus.app)
 - **Status Page:** [https://status.trycyrus.app](https://status.trycyrus.app)
 
@@ -233,4 +233,4 @@ gcloud secrets add-iam-policy-binding SOME_NEW_KEY \
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
-<p align="center">Built with ❤️ by the Cyrus Team</p>
+<p align="center">Built with ❤️ by the Otic Technologies</p>
