@@ -2,16 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Key, LogOut, CreditCard, Users, Activity } from "lucide-react";
+import { LayoutDashboard, Key, LogOut, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearSession, getSession } from "@/lib/auth";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/api-keys", label: "API Keys", icon: Key, exact: false },
-  { href: "/dashboard/virtual-accounts", label: "Virtual Accounts", icon: CreditCard, exact: false },
-  { href: "/dashboard/customers", label: "Customers", icon: Users, exact: false },
-  { href: "/dashboard/transactions", label: "Transactions", icon: Activity, exact: false },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings, exact: false },
 ];
 
 export function DashboardSidebar() {

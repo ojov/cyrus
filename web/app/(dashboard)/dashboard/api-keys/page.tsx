@@ -1,121 +1,181 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Copy, Eye, EyeOff, Key } from "lucide-react";
+import { Copy, Key, Plus, Trash2, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { dashboardApi, type ApiKeyItem } from "@/lib/api";
 
-interface StoredKeyInfo {
-  apiKey: string;
-  merchantId: string;
-  environment?: string;
+const ENVS = ["TEST", "LIVE"] as const;
+type Env = (typeof ENVS)[number];
+
+function statusVariant(status: string): "secondary" | "outline" | "destructive" {
+  if (status === "ACTIVE") return "secondary";
+  if (status === "REVOKED") return "destructive";
+  return "outline";
 }
 
 export default function ApiKeysPage() {
-  const [keyInfo, setKeyInfo] = useState<StoredKeyInfo | null>(null);
-  const [visible, setVisible] = useState(false);
+  const [keys, setKeys] = useState<ApiKeyItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [env, setEnv] = useState<Env>("TEST");
+  const [creating, setCreating] = useState(false);
+  const [newKey, setNewKey] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     try {
-      const raw = localStorage.getItem("cyrus_api_key");
-      if (raw) setKeyInfo(JSON.parse(raw));
-    } catch {
-      // ignore
+      const res = await dashboardApi.listApiKeys();
+      setKeys(res.data ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load API keys");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  function copyKey() {
-    if (!keyInfo) return;
-    navigator.clipboard.writeText(keyInfo.apiKey);
-    toast.success("API key copied to clipboard");
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function create() {
+    setCreating(true);
+    try {
+      const res = await dashboardApi.createApiKey(env);
+      setNewKey(res.data?.apiKeys?.[0]?.apiKey ?? "");
+      toast.success(`${env} API key created`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create key");
+    } finally {
+      setCreating(false);
+    }
   }
 
-  const masked = keyInfo
-    ? keyInfo.apiKey.slice(0, 10) + "••••••••••••••••••••" + keyInfo.apiKey.slice(-4)
-    : "";
+  async function revoke(id: string) {
+    try {
+      await dashboardApi.revokeApiKey(id);
+      toast.success("API key revoked");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to revoke key");
+    }
+  }
+
+  function copy(value: string) {
+    navigator.clipboard.writeText(value);
+    toast.success("Copied to clipboard");
+  }
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-8 max-w-3xl">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">API Keys</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Use these keys to authenticate requests to the Cyrus API.
+          Create and revoke the keys your developers use to authenticate with the Cyrus API.
         </p>
       </div>
 
-      {keyInfo ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Key className="size-4 text-primary" />
-                  {(keyInfo.environment ?? "TEST") === "LIVE" ? "Live" : "Test"} API Key
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Generated at registration. Store it securely — this is the only time it
-                  is shown in full.
-                </CardDescription>
-              </div>
-              <Badge variant="secondary">{keyInfo.environment ?? "TEST"}</Badge>
-            </div>
+      {newKey && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck className="size-4 text-primary" />
+              Copy your new key now
+            </CardTitle>
+            <CardDescription>
+              This is the only time the full key is shown. Store it securely.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded-md bg-muted px-4 py-2.5 font-mono text-sm text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
-                {visible ? keyInfo.apiKey : masked}
-              </code>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setVisible((v) => !v)}
-                title={visible ? "Hide" : "Reveal"}
-              >
-                {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </Button>
-              <Button variant="outline" size="icon" onClick={copyKey} title="Copy">
-                <Copy className="size-4" />
-              </Button>
-            </div>
-            <div className="rounded-md border border-border px-4 py-3">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Usage</p>
-              <pre className="font-mono text-xs text-muted-foreground whitespace-pre-wrap">
-                {`curl -X POST "${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/v1/customers" \\
-  -H "Authorization: Bearer ${visible ? keyInfo.apiKey : masked}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"reference":"user_123","firstName":"John","lastName":"Doe"}'`}
-              </pre>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
-            <div className="size-10 rounded-full bg-muted flex items-center justify-center">
-              <Key className="size-5 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">No API key found</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Your API key is issued when you register. If you registered in a previous
-                session, contact support to rotate your key.
-              </p>
-            </div>
+          <CardContent className="flex items-center gap-2">
+            <code className="flex-1 rounded-md bg-background border border-border px-4 py-2.5 font-mono text-sm overflow-x-auto whitespace-nowrap">
+              {newKey}
+            </code>
+            <Button variant="outline" size="icon" onClick={() => copy(newKey)} title="Copy">
+              <Copy className="size-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setNewKey(null)}>
+              Done
+            </Button>
           </CardContent>
         </Card>
       )}
 
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="pt-5">
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            <span className="font-medium text-foreground">Keep your key secret.</span> Never
-            commit it to version control or expose it client-side. Use environment variables
-            ({" "}
-            <code className="text-primary">CYRUS_API_KEY</code>
-            {" "}) in your backend services.
-          </p>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Create a key</CardTitle>
+          <CardDescription>Live keys require live mode to be activated first.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center gap-3">
+          <div className="inline-flex rounded-md border border-border p-0.5">
+            {ENVS.map((e) => (
+              <button
+                key={e}
+                onClick={() => setEnv(e)}
+                className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                  env === e
+                    ? "bg-primary text-primary-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+          <Button onClick={create} disabled={creating}>
+            <Plus className="size-4" />
+            {creating ? "Creating…" : "Generate key"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Key className="size-4 text-primary" />
+            Your keys
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-4">Loading…</p>
+          ) : keys.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No API keys yet. Generate one above.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {keys.map((k) => (
+                <div key={k.id} className="flex items-center justify-between py-3 gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <code className="font-mono text-sm text-foreground truncate">
+                        {k.prefix}••••••••
+                      </code>
+                      <Badge variant="outline" className="text-xs">{k.environment}</Badge>
+                      <Badge variant={statusVariant(k.status)} className="text-xs">{k.status}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Created {new Date(k.createdAt).toLocaleDateString()}
+                      {k.lastUsedAt
+                        ? ` · last used ${new Date(k.lastUsedAt).toLocaleDateString()}`
+                        : " · never used"}
+                    </p>
+                  </div>
+                  {k.status === "ACTIVE" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive shrink-0"
+                      onClick={() => revoke(k.id)}
+                    >
+                      <Trash2 className="size-4" />
+                      Revoke
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
