@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 interface StoredKeyInfo {
   apiKey: string;
   merchantId: string;
+  environment?: string;
 }
 
 export default function ApiKeysPage() {
@@ -51,14 +52,14 @@ export default function ApiKeysPage() {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Key className="size-4 text-primary" />
-                  Production API Key
+                  {(keyInfo.environment ?? "TEST") === "LIVE" ? "Live" : "Test"} API Key
                 </CardTitle>
                 <CardDescription className="mt-1">
                   Generated at registration. Store it securely — this is the only time it
                   is shown in full.
                 </CardDescription>
               </div>
-              <Badge variant="secondary">Active</Badge>
+              <Badge variant="secondary">{keyInfo.environment ?? "TEST"}</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -80,9 +81,11 @@ export default function ApiKeysPage() {
             </div>
             <div className="rounded-md border border-border px-4 py-3">
               <p className="text-xs font-medium text-muted-foreground mb-2">Usage</p>
-              <pre className="font-mono text-xs text-muted-foreground">
-                {`curl -H "Authorization: Bearer ${visible ? keyInfo.apiKey : masked}" \\
-  ${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/v1/virtual-accounts`}
+              <pre className="font-mono text-xs text-muted-foreground whitespace-pre-wrap">
+                {`curl -X POST "${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/v1/customers" \\
+  -H "Authorization: Bearer ${visible ? keyInfo.apiKey : masked}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"reference":"user_123","firstName":"John","lastName":"Doe"}'`}
               </pre>
             </div>
           </CardContent>

@@ -73,6 +73,12 @@ public class GlobalExceptionHandler {
         return clientError(ResponseCode.UNAUTHORIZED, "Invalid webhook signature", ex);
     }
 
+    @ExceptionHandler(NombaVerificationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public CyrusApiResponse<ErrorDetails> handleNombaVerification(NombaVerificationException ex) {
+        return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public CyrusApiResponse<ErrorDetails> handleValidation(MethodArgumentNotValidException ex) {
