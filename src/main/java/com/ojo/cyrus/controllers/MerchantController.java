@@ -2,10 +2,13 @@ package com.ojo.cyrus.controllers;
 
 import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.ResponseCode;
+import com.ojo.cyrus.models.requests.CreateApiKeyRequest;
 import com.ojo.cyrus.models.requests.GoLiveRequest;
 import com.ojo.cyrus.models.requests.UpdateSubAccountsRequest;
+import com.ojo.cyrus.models.responses.ApiKeyListItem;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
+import com.ojo.cyrus.models.responses.MerchantStatsResponse;
 import com.ojo.cyrus.models.responses.SubAccountBalanceResponse;
 import com.ojo.cyrus.services.MerchantService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +22,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -73,5 +77,44 @@ public class MerchantController {
         String email = jwt.getSubject();
         return CyrusApiResponse.success(ResponseCode.CREATED, "Live mode activated",
                 merchantService.goLive(email, request));
+    }
+
+    @Operation(summary = "Dashboard stats",
+            description = "Customer and virtual-account counts for the admin dashboard.",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @GetMapping("/me/stats")
+    public CyrusApiResponse<MerchantStatsResponse> stats(@AuthenticationPrincipal Jwt jwt) {
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Stats retrieved",
+                merchantService.getStats(jwt.getSubject()));
+    }
+
+    @Operation(summary = "List API keys",
+            description = "Lists the merchant's API keys (metadata only — the raw key is shown once, at creation).",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @GetMapping("/me/api-keys")
+    public CyrusApiResponse<List<ApiKeyListItem>> listApiKeys(@AuthenticationPrincipal Jwt jwt) {
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "API keys retrieved",
+                merchantService.listApiKeys(jwt.getSubject()));
+    }
+
+    @Operation(summary = "Create an API key",
+            description = "Generates a new API key for the given environment. The raw key is returned once.",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @PostMapping("/me/api-keys")
+    public CyrusApiResponse<GeneratedApiKeysResponse> createApiKey(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody CreateApiKeyRequest request) {
+        return CyrusApiResponse.success(ResponseCode.CREATED, "API key created",
+                merchantService.createApiKey(jwt.getSubject(), request.environment()));
+    }
+
+    @Operation(summary = "Revoke an API key",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @DeleteMapping("/me/api-keys/{id}")
+    public CyrusApiResponse<Void> revokeApiKey(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id) {
+        merchantService.revokeApiKey(jwt.getSubject(), id);
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "API key revoked", null);
     }
 }

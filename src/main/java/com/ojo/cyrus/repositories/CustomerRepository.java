@@ -13,4 +13,6 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     boolean existsByMerchantIdAndReference(UUID merchantId, String reference);
 
     Optional<Customer> findByMerchantIdAndReference(UUID merchantId, String reference);
+
+    long countByMerchantId(UUID merchantId);
 }

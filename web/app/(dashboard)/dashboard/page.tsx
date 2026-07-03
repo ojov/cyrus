@@ -2,23 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CreditCard, Users, ArrowDownLeft, Activity } from "lucide-react";
+import { CreditCard, Users } from "lucide-react";
 import { getSession, type MerchantSession } from "@/lib/auth";
-
-const STAT_CARDS = [
-  { title: "Virtual Accounts", value: "—", icon: CreditCard, badge: "Active" },
-  { title: "Customers", value: "—", icon: Users, badge: null },
-  { title: "Transactions Today", value: "—", icon: ArrowDownLeft, badge: null },
-  { title: "Pending Events", value: "—", icon: Activity, badge: null },
-];
+import { dashboardApi } from "@/lib/api";
 
 export default function DashboardPage() {
   const [session, setSession] = useState<MerchantSession | null>(null);
+  const [stats, setStats] = useState<{ customers: number; virtualAccounts: number } | null>(null);
 
   useEffect(() => {
     setSession(getSession());
+    dashboardApi
+      .stats()
+      .then((res) => setStats(res.data))
+      .catch(() => setStats(null));
   }, []);
+
+  const cards = [
+    { title: "Virtual Accounts", value: stats?.virtualAccounts, icon: CreditCard },
+    { title: "Customers", value: stats?.customers, icon: Users },
+  ];
 
   return (
     <div className="space-y-8">
@@ -31,8 +34,8 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {STAT_CARDS.map((card) => (
+      <div className="grid grid-cols-2 gap-4 max-w-lg">
+        {cards.map((card) => (
           <Card key={card.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -41,14 +44,7 @@ export default function DashboardPage() {
               <card.icon className="size-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-2">
-                <span className="text-2xl font-bold text-foreground">{card.value}</span>
-                {card.badge && (
-                  <Badge variant="secondary" className="mb-0.5 text-xs">
-                    {card.badge}
-                  </Badge>
-                )}
-              </div>
+              <span className="text-2xl font-bold text-foreground">{card.value ?? "—"}</span>
             </CardContent>
           </Card>
         ))}
