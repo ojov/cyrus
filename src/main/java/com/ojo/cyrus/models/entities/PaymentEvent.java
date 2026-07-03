@@ -1,33 +1,42 @@
-//package com.ojo.cyrus.models.entities;
-//
-//import com.ojo.cyrus.enums.EventStatus;
-//import jakarta.persistence.*;
-//
-//import java.util.UUID;
-//
-//@Entity
-//@Table(
-//        uniqueConstraints={
-//                @UniqueConstraint(columnNames="requestId")
-//        }
-//)
-//public class PaymentEvent {
-//
-//    @Id
-//    @GeneratedValue
-//    private UUID id;
-//
-//
-//    private String requestId;
-//
-//
-//    private String eventType;
-//
-//
-//    @Lob
-//    private String payload;
-//
-//
-//    @Enumerated(EnumType.STRING)
-//    private EventStatus status;
-//}
+package com.ojo.cyrus.models.entities;
+
+import com.ojo.cyrus.enums.EventStatus;
+import com.ojo.cyrus.enums.Provider;
+import com.ojo.cyrus.models.BaseEntity;
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "payment_events",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_payment_event_request_id", columnNames = {"request_id"})
+        }
+)
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+public class PaymentEvent extends BaseEntity {
+
+    @Column(name = "request_id", nullable = false)
+    private String requestId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Provider provider;
+
+    private String eventType;
+
+    @Lob
+    @Column(columnDefinition = "TEXT", nullable = false)
+    private String payload;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private EventStatus status = EventStatus.PENDING;
+
+    private String statusDetails;
+}

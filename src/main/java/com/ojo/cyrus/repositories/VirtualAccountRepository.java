@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface VirtualAccountRepository extends JpaRepository<VirtualAccount, UUID> {
 
     Optional<VirtualAccount> findByCustomerId(UUID customerId);
+
+    Optional<VirtualAccount> findByAccountNumber(String accountNumber);
 }
