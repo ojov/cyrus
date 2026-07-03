@@ -8,8 +8,8 @@ import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
 import com.ojo.cyrus.models.responses.CustomerResponse;
-import com.ojo.cyrus.nomba.CredentialMapper;
 import com.ojo.cyrus.nomba.NombaClient;
+import com.ojo.cyrus.nomba.NombaCredentials;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
 import com.ojo.cyrus.repositories.CustomerRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
@@ -17,21 +17,22 @@ import com.ojo.cyrus.utils.Mapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final VirtualAccountRepository virtualAccountRepository;
     private final MerchantService merchantService;
     private final NombaClient nombaClient;
-    private final CredentialMapper credentialMapper;
+    private final PlatformTransactionManager transactionManager;
 
     public CustomerResponse create(UUID merchantId, Environment env, CreateCustomerRequest request) {
         if (customerRepository.existsByMerchantIdAndReference(merchantId, request.reference())) {
@@ -40,17 +41,29 @@ public class CustomerService {
 
         Merchant merchant = merchantService.findById(merchantId);
 
-        Customer customer = customerRepository.save(Mapper.toCustomer(merchant, request));
+        // Build the customer in memory (not yet persisted) so we can provision at the
+        // provider first and write nothing if provisioning fails.
+        Customer customer = Mapper.toCustomer(merchant, request);
 
+        // Provision the virtual account at Nomba BEFORE opening a DB transaction — never
+        // hold a database connection or row locks open across an external HTTP call.
+        // Credentials are resolved inside a read-only tx so the merchant's lazy
+        // @ElementCollections are materialized while the persistence context is open.
+        NombaCredentials creds = merchantService.getNombaCredentials(merchantId);
         NombaVirtualAccountData nombaData = nombaClient.createVirtualAccount(
-                credentialMapper.fromMerchant(merchant),
-                Mapper.toNombaRequest(customer, request.bvn()),
-                env);
+                creds, Mapper.toNombaRequest(customer, request.bvn()), env);
 
-        VirtualAccount va = virtualAccountRepository.save(Mapper.toVirtualAccount(merchant, customer, nombaData));
-
-        log.info("Created customer {} with account {}", customer.getReference(), va.getAccountNumber());
-        return Mapper.toCustomerResponse(customer, va);
+        // Persist the customer and its virtual account together in one short transaction.
+        // TransactionTemplate goes through the transaction manager directly, avoiding the
+        // self-invocation proxy pitfall of an @Transactional method called from this bean.
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            Customer saved = customerRepository.save(customer);
+            VirtualAccount va = virtualAccountRepository.save(
+                    Mapper.toVirtualAccount(merchant, saved, nombaData));
+            log.info("Created customer {} for merchant {} with virtual account {}",
+                    saved.getReference(), merchantId, va.getAccountNumber());
+            return Mapper.toCustomerResponse(saved, va);
+        });
     }
 
     @Transactional(readOnly = true)

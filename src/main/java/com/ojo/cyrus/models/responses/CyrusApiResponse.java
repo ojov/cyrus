@@ -30,7 +30,7 @@ public record CyrusApiResponse<T>(
         return new CyrusApiResponse<>(
                 responseCode.getCode(),
                 responseCode.getDescription(),
-                responseCode.getDescription(),
+                message,
                 true,
                 data,
                 Instant.now()
@@ -39,12 +39,16 @@ public record CyrusApiResponse<T>(
 
 
     public static <T> CyrusApiResponse<T> failure(ResponseCode responseCode, String message) {
+        return failure(responseCode, message, null);
+    }
+
+    public static <T> CyrusApiResponse<T> failure(ResponseCode responseCode, String message, T data) {
         return new CyrusApiResponse<>(
                 responseCode.getCode(),
                 responseCode.getDescription(),
                 message,
                 false,
-                null,
+                data,
                 Instant.now()
         );
     }

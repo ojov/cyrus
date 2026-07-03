@@ -14,7 +14,10 @@ import com.ojo.cyrus.repositories.MerchantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,11 +34,21 @@ public class MerchantService {
     private final MerchantRepository merchantRepository;
     private final NombaClient nombaClient;
     private final CredentialMapper credentialMapper;
+    private final PlatformTransactionManager transactionManager;
 
     @Transactional(readOnly = true)
     public Merchant findById(UUID id) {
         return merchantRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Merchant not found"));
+    }
+
+    /**
+     * Resolves a merchant's Nomba credentials into a detached, fully-materialized value so
+     * callers can perform the external Nomba call without holding a DB transaction open.
+     */
+    @Transactional(readOnly = true)
+    public NombaCredentials getNombaCredentials(UUID merchantId) {
+        return credentialMapper.fromMerchant(findById(merchantId));
     }
 
     public Merchant findByBusinessEmail(String email) {
@@ -46,22 +59,29 @@ public class MerchantService {
         return merchantRepository.save(merchant);
     }
 
-    @Transactional(readOnly = true)
+    // NOT_SUPPORTED opts this method out of the class-level @Transactional so the external
+    // Nomba calls do not run inside a DB transaction. Credentials (incl. parent + sub-account
+    // ids) are materialized in a short read-only transaction first, then the connection is
+    // released before the HTTP calls.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<SubAccountBalanceResponse> getSubAccountBalances(String email, Environment env) {
-        Merchant merchant = findByBusinessEmail(email);
-        NombaCredentials creds = credentialMapper.fromMerchant(merchant);
+        TransactionTemplate readOnlyTx = new TransactionTemplate(transactionManager);
+        readOnlyTx.setReadOnly(true);
+        NombaCredentials creds = readOnlyTx.execute(status ->
+                credentialMapper.fromMerchant(findByBusinessEmail(email)));
+
         List<SubAccountBalanceResponse> balances = new ArrayList<>();
 
         NombaBalanceData parentBalance = nombaClient.getParentAccountBalance(creds, env);
         balances.add(new SubAccountBalanceResponse(
-                merchant.getNombaParentAccountId(), "PARENT",
-                parentBalance.parsedAmount(), parentBalance.currency(), Instant.now()));
+                creds.parentAccountId(), "PARENT",
+                parentBalance.amountInKobo(), parentBalance.currency(), Instant.now()));
 
-        for (String subAccountId : merchant.getNombaSubAccountIds()) {
+        for (String subAccountId : creds.subAccountIds()) {
             NombaBalanceData data = nombaClient.getSubAccountBalance(creds, subAccountId, env);
             balances.add(new SubAccountBalanceResponse(
                     subAccountId, "SUB",
-                    data.parsedAmount(), data.currency(), Instant.now()));
+                    data.amountInKobo(), data.currency(), Instant.now()));
         }
 
         return balances;
