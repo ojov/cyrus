@@ -1,25 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner";
-import { QueryProvider } from "@/providers/query-provider";
 import "./globals.css";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-
 export const metadata: Metadata = {
-  title: "Cyrus — Virtual Account Infrastructure",
+  title: "Cyrus — Customer Payment Identity Infrastructure",
   description:
-    "Dedicated virtual account infrastructure platform for Nigerian fintechs and software businesses.",
+    "Dedicated virtual account infrastructure for Nigerian fintechs. Persistent customer payment identities through a clean developer API.",
 };
+
+// Runs before hydration so dark-mode users don't see a flash of the light theme —
+// ThemeToggle's own effect (post-mount) can't run early enough to prevent that flash.
+const THEME_INIT_SCRIPT = `(function(){try{var s=localStorage.getItem('cyrus-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark')}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full bg-background text-foreground">
-        <QueryProvider>{children}</QueryProvider>
-        <Toaster position="top-right" />
-      </body>
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
+      <body className="min-h-full bg-background text-foreground">{children}</body>
     </html>
   );
 }

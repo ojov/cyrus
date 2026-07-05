@@ -49,6 +49,8 @@ public class Transaction extends BaseEntity {
     @Column(nullable = false)
     private BigInteger amount; // integer kobo (minor units)
 
+    private BigInteger fee; // integer kobo (minor units)
+
     @Column(nullable = false)
     private String currency;
 

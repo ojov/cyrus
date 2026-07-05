@@ -3,12 +3,10 @@ services:
     image: postgres:17
     container_name: cyrus-postgres
     restart: unless-stopped
-
     environment:
       POSTGRES_DB: cyrus
       POSTGRES_USER: cyrus
       POSTGRES_PASSWORD: cyrus_password
-
     ports:
       - "5438:5432"
 

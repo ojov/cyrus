@@ -1,27 +1,23 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PROTECTED = ["/dashboard"];
-const PUBLIC_AUTH = ["/login", "/register"];
-
+/**
+ * Server-side gate for /dashboard/** — runs before any rendering, so an unauthenticated
+ * request never reaches the dashboard shell (no flash of protected UI, no wasted data
+ * fetches). AuthGuard stays as a client-side fallback for a session that goes stale
+ * without a full navigation (e.g. logout in another tab), but this is the primary gate.
+ */
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
   const token = request.cookies.get("cyrus_token")?.value;
-
-  const isProtected = PROTECTED.some((p) => pathname.startsWith(p));
-  const isPublicAuth = PUBLIC_AUTH.some((p) => pathname.startsWith(p));
-
-  if (isProtected && !token) {
+  if (!token) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-
-  if (isPublicAuth && token) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
   return NextResponse.next();
 }
 
+// Next 16.2.10 still reads the matcher from an export named `config` (verified against
+// node_modules/next/dist/build/analysis/get-page-static-info.js) — only the function name
+// changed from `middleware` to `proxy`.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public/).*)"],
+  matcher: ["/dashboard/:path*"],
 };

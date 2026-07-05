@@ -13,6 +13,9 @@ public record AppProperties(
         @NotBlank(message = "app.base-url must be configured (APP_BASE_URL)")
         String baseUrl,
 
+        @NotBlank(message = "app.frontend-url must be configured (APP_FRONTEND_URL)")
+        String frontendUrl,
+
         @NotBlank(message = "app.encryption-key must be configured (APP_ENCRYPTION_KEY)")
         String encryptionKey,
 

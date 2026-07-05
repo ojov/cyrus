@@ -18,6 +18,7 @@ public class CyrusPaymentEvent {
     private String sessionId;
     private String virtualAccountNumber;
     private BigInteger amount; // minor units (kobo)
+    private BigInteger fee; // minor units (kobo)
     private String currency;
     private Payer payer;
     private Instant eventTime;
@@ -30,6 +31,16 @@ public class CyrusPaymentEvent {
     public boolean isVirtualAccountCredit() {
         return "payment_success".equalsIgnoreCase(eventType)
                 && virtualAccountNumber != null && !virtualAccountNumber.isBlank();
+    }
+
+    /** A previously successful payment reversed back to the payer — must flip the original transaction. */
+    public boolean isReversal() {
+        return "payment_reversal".equalsIgnoreCase(eventType);
+    }
+
+    /** A payment attempt that never credited us — recorded for visibility, never a transaction. */
+    public boolean isFailure() {
+        return "payment_failed".equalsIgnoreCase(eventType);
     }
 
     @Builder
