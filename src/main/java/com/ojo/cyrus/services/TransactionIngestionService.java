@@ -7,35 +7,41 @@ import com.ojo.cyrus.models.entities.Customer;
 import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
+import com.ojo.cyrus.repositories.PaymentEventRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Records a Nomba payment event and attributes it to a customer's virtual account. Idempotent and
  * atomic: the raw event and the derived transaction are persisted in one transaction.
  *
- * <p>Failure handling is tuned for Nomba's retry policy (it retries any non-2xx):
+ * <p>Failure handling is tuned for Nomba's retry policy (exponential backoff, 5 retries):
  * <ul>
- *   <li>Duplicate delivery (by requestId) or duplicate transaction → recorded/ignored, no error.</li>
- *   <li>Orphan payment (no matching virtual account) → recorded as {@code IGNORED} for reconciliation;
- *       we do NOT throw, because retrying will not create the account.</li>
- *   <li>Transient failures (e.g. DB) propagate → non-2xx → Nomba retries.</li>
+ *   <li>Duplicate delivery (by requestId) -> recorded/ignored, returns 2xx to stop retries.</li>
+ *   <li>Duplicate transaction (by providerTransactionId) -> recorded/ignored, returns 2xx.</li>
+ *   <li>Orphan payment (no matching virtual account) -> recorded as {@code IGNORED} for reconciliation;
+ *       returns 2xx because retrying will not resolve the missing account.</li>
+ *   <li>Transient failures (e.g. DB connection) propagate -> non-2xx -> Nomba retries.</li>
  * </ul>
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class TransactionIngestionService {
-
+    
     private final TransactionRepository transactionRepository;
     private final VirtualAccountRepository virtualAccountRepository;
+    private final PaymentEventRepository paymentEventRepository;
     private final PaymentEventService paymentEventService;
+    private final NombaWebhookAdapter nombaAdapter;
 
     @Transactional
     public void ingest(CyrusPaymentEvent event, String rawPayload) {
@@ -114,5 +120,23 @@ public class TransactionIngestionService {
 
         log.info("Ingested Nomba payment tx {} for customer {} on VA {}",
                 event.getProviderTransactionId(), customer.getReference(), va.getAccountNumber());
+    }
+
+    /**
+     * Replays a specific event by triggering its ingestion again.
+     */
+    @Transactional
+    public void replayEvent(UUID id) {
+        PaymentEvent event = paymentEventRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("PaymentEvent not found: " + id));
+
+        log.info("Replaying payment event: {}", id);
+
+        if (event.getProvider() == com.ojo.cyrus.enums.Provider.NOMBA) {
+            CyrusPaymentEvent cyrusEvent = nombaAdapter.toCyrusEvent(event.getPayload());
+            this.ingest(cyrusEvent, event.getPayload());
+        } else {
+            throw new UnsupportedOperationException("Replay not implemented for provider: " + event.getProvider());
+        }
     }
 }

@@ -17,8 +17,8 @@ export default function GettingStartedPage() {
           <b>Create your Cyrus account</b>
           <span>
             Sign up with your business email and your Nomba sandbox credentials (client ID and secret, parent account,
-            sub-account). You instantly receive your API keys — a <code>cyrus_test_</code> key that authenticates every
-            request to Cyrus.
+            sub-account). After signup, open Dashboard → API keys, generate a <code>cyrus_test_</code> key, and copy it
+            immediately. Full keys are shown only once.
           </span>
         </li>
         <li>
@@ -36,7 +36,8 @@ export default function GettingStartedPage() {
           <b>Go live</b>
           <span>
             When you are ready, add your live Nomba credentials in the dashboard (Settings → Go live) to unlock{" "}
-            <code>cyrus_live_</code> keys. Nothing else in your integration changes.
+            <code>cyrus_live_</code> key generation. Create and copy your live key from Dashboard → API keys. Nothing else
+            in your integration changes.
           </span>
         </li>
       </ol>
@@ -61,7 +62,10 @@ Authorization: Bearer cyrus_test_9f2a…
 }`}</Code>
 
       <h3>Authenticate every request</h3>
-      <p>Cyrus authenticates with API keys — there is no separate API login. Send your key as a bearer token; the prefix picks the environment.</p>
+      <p>
+        Cyrus authenticates with API keys — there is no separate API login. Generate keys in the dashboard and copy the
+        full value when it is shown. Send your key as a bearer token; the prefix picks the environment.
+      </p>
       <Code>{`Authorization: Bearer cyrus_test_…   # sandbox
 Authorization: Bearer cyrus_live_…   # production`}</Code>
       <p className="text-sm text-muted-foreground">

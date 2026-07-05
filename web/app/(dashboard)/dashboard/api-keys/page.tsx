@@ -59,7 +59,7 @@ export default function ApiKeysPage() {
       <div>
         <h1 className="text-2xl font-semibold">API keys</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create and revoke the keys your developers use to authenticate with the Cyrus API.
+          Generate, copy, and revoke the keys your developers use to authenticate with the Cyrus API.
         </p>
       </div>
 
@@ -75,6 +75,9 @@ export default function ApiKeysPage() {
             <b className="text-sm">Copy your key now</b>
             <span className="db db-warn">shown once</span>
           </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Store this full key in your secret manager before closing this message. Cyrus cannot show it again later.
+          </p>
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border border-border bg-background px-3 py-2 font-mono text-sm">
               {newKey}
@@ -100,8 +103,10 @@ export default function ApiKeysPage() {
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <b className="text-sm">Create a key</b>
-            <div className="text-xs text-muted-foreground">Live keys require live mode to be activated first.</div>
+            <b className="text-sm">Generate a key</b>
+            <div className="text-xs text-muted-foreground">
+              Copy the full key when it appears. Existing keys only show their prefix.
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="inline-flex rounded-md border border-border p-0.5">
@@ -136,7 +141,9 @@ export default function ApiKeysPage() {
         {loading ? (
           <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
         ) : keys.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-muted-foreground">No API keys yet. Generate one above.</p>
+          <p className="px-4 py-6 text-sm text-muted-foreground">
+            No API keys yet. Generate one above and copy it immediately.
+          </p>
         ) : (
           <div className="divide-y divide-border">
             {keys.map((k) => (

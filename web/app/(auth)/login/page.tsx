@@ -78,7 +78,7 @@ export default function LoginPage() {
         Create an account
       </Link>
       <p className="mt-3 text-center text-xs text-muted-foreground">
-        Signing up gives you the API keys you use for every Cyrus request.
+        After signup, generate your API key from the dashboard and copy it when it appears.
       </p>
     </div>
   );

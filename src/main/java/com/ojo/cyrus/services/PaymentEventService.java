@@ -24,7 +24,6 @@ public class PaymentEventService {
 
     private final PaymentEventRepository paymentEventRepository;
     private final NombaWebhookAdapter nombaAdapter;
-    private final TransactionIngestionService ingestionService;
 
     /**
      * Records a raw webhook event.
@@ -76,28 +75,6 @@ public class PaymentEventService {
         return paymentEventRepository.findAll(Example.of(probe), pageable);
     }
 
-    /**
-     * Replays a specific event by triggering its ingestion again.
-     */
-    @Transactional
-    public void replayEvent(UUID id) {
-        PaymentEvent event = paymentEventRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("PaymentEvent not found: " + id));
-        
-        log.info("Replaying payment event: {}", id);
-        
-        if (event.getProvider() == Provider.NOMBA) {
-            CyrusPaymentEvent cyrusEvent = nombaAdapter.toCyrusEvent(event.getPayload());
-            // Note: IngestionService checks for requestId existence, but we want to re-process.
-            // We might need a 'forceIngest' or similar in IngestionService if it's strictly idempotent by requestId.
-            // However, TransactionIngestionService.ingest checks paymentEventRepository.existsByRequestId.
-            // If we are replaying an ALREADY recorded event, it will skip.
-            // TO DO: Refactor IngestionService to allow re-processing of an existing PaymentEvent.
-            ingestionService.ingest(cyrusEvent, event.getPayload());
-        } else {
-            throw new UnsupportedOperationException("Replay not implemented for provider: " + event.getProvider());
-        }
-    }
 
     /**
      * Updates the status of an event.

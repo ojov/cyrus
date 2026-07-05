@@ -53,6 +53,12 @@ public class GlobalExceptionHandler {
         return clientError(ResponseCode.INVALID_TOKEN, ex.getMessage(), ex);
     }
 
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public CyrusApiResponse<ErrorDetails> handleEmailNotVerified(EmailNotVerifiedException ex) {
+        return clientError(ResponseCode.ACCOUNT_NOT_VERIFIED, ex.getMessage(), ex);
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public CyrusApiResponse<ErrorDetails> handleBadCredentials(BadCredentialsException ex) {

@@ -172,10 +172,11 @@ Developers live in Docs and never sign in; the ops team signs in to reach the Da
   ```
   *Getting Started* walks a dev through signing up with a business email + Nomba **sandbox** credentials,
   creating a customer, and later adding **live** credentials in the dashboard.
-  **Auth model (keep these unmixed):** the **API** is authenticated with an **API key** issued at signup
-  (`cyrus_test_`/`cyrus_live_`, used on every request); the **dashboard** uses a separate email+password
-  login for the ops team only. There is no standalone "Authentication" page — the API-key story lives in
-  Getting Started and the *API Reference → Authentication* reference.
+  **Auth model (keep these unmixed):** the **API** is authenticated with an **API key** generated from
+  Dashboard → API Keys (`cyrus_test_`/`cyrus_live_`, used on every request and shown only once); the
+  **dashboard** uses a separate email+password login for the ops team only. There is no standalone
+  "Authentication" page — the API-key story lives in Getting Started and the *API Reference → Authentication*
+  reference.
 - **Dashboard** (`/dashboard`, **login-gated**): choosing "Dashboard" while signed out shows a **sign-in
   screen**; only after login does the ops nav appear → **Overview · Customers · Transactions ·
   Reconciliation · API Keys · Settings**. (Today the live app is only Overview / API Keys / Settings and

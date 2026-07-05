@@ -7,6 +7,7 @@ import com.ojo.cyrus.nomba.dto.NombaApiResponse;
 import com.ojo.cyrus.nomba.dto.NombaBalanceData;
 import com.ojo.cyrus.nomba.dto.NombaCreateVirtualAccountRequest;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -27,13 +28,15 @@ public class NombaClient {
         String accessToken = authService.getAccessToken(creds, env);
         String baseUrl = Provider.NOMBA.getBaseUrl(env);
         String path = resolveVirtualAccountPath(creds, baseUrl);
+        String idempotentKey = UUID.randomUUID().toString();
 
-        log.info("Creating virtual account on Nomba via {}", path);
+        log.info("Creating virtual account on Nomba via {} [idempotency: {}]", path, idempotentKey);
 
         NombaApiResponse<NombaVirtualAccountData> response = nombaRestClient.post()
                 .uri(path)
                 .header("accountId", creds.parentAccountId())
                 .header("Authorization", "Bearer " + accessToken)
+                .header("X-Idempotent-key", idempotentKey)
                 .body(request)
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});

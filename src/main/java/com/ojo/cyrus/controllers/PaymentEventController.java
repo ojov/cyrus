@@ -6,6 +6,7 @@ import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.services.PaymentEventService;
+import com.ojo.cyrus.services.TransactionIngestionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class PaymentEventController {
 
     private final PaymentEventService paymentEventService;
+    private final TransactionIngestionService ingestionService;
 
     @Operation(summary = "List payment events", description = "Retrieve a paginated list of payment events with optional filtering.")
     @GetMapping
@@ -52,7 +54,7 @@ public class PaymentEventController {
     @PostMapping("/{id}/replay")
     @PreAuthorize("hasRole('ADMIN')")
     public CyrusApiResponse<Void> replayEvent(@PathVariable UUID id) {
-        paymentEventService.replayEvent(id);
+        ingestionService.replayEvent(id);
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Payment event replay triggered", null);
     }
 }

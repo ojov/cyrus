@@ -21,7 +21,7 @@ export default function SettingsPage() {
     setMsg(null);
     try {
       await dashboardApi.goLive(clientId, clientSecret);
-      setMsg({ ok: true, text: "Live mode activated — your cyrus_live_ key is ready under API keys." });
+      setMsg({ ok: true, text: "Live mode activated. Go to API keys, generate a cyrus_live_ key, and copy it immediately — full keys are shown once." });
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Go-live failed" });
     } finally {

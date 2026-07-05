@@ -11,5 +11,4 @@ public class CyrusApplication {
     static void main(String[] args) {
         SpringApplication.run(CyrusApplication.class, args);
     }
-
 }

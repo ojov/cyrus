@@ -19,8 +19,8 @@ export default function AuthenticationReferencePage() {
     >
       <h2>API Reference · Authentication</h2>
       <p className="lede">
-        Every request to the Cyrus API is authenticated with an API key. Your keys appear in Dashboard → API keys as soon as
-        your account exists — there is no separate API login.
+        Every request to the Cyrus API is authenticated with an API key. Generate keys in Dashboard → API keys and copy
+        the full value when it appears — there is no separate API login.
       </p>
       <h3>Authorize a request</h3>
       <p>
@@ -31,7 +31,7 @@ export default function AuthenticationReferencePage() {
       <h3>Keep keys safe</h3>
       <ul>
         <li>Use keys only from your backend — never in browser or mobile code.</li>
-        <li>Create, reveal-once, and revoke keys in the dashboard. A revoked key is rejected with <code>401</code>.</li>
+        <li>Create, copy immediately, and revoke keys in the dashboard. Full keys are revealed once; a revoked key is rejected with <code>401</code>.</li>
         <li>The ops dashboard login (email and password) is separate and governs only the dashboard.</li>
       </ul>
     </TwoCol>

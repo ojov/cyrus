@@ -33,8 +33,9 @@ export default function EnvironmentsPage() {
       <h3>Switching to live</h3>
       <p>
         You do not re-register. In the dashboard, open Settings → Go live and paste your live client ID and secret. Cyrus
-        verifies them against Nomba and issues your first <code>cyrus_live_</code> key. Because the account IDs are reused,
-        your customers and their account numbers carry straight over.
+        verifies them against Nomba and unlocks <code>cyrus_live_</code> key generation. Then open Dashboard → API keys,
+        generate a live key, and copy it immediately. Because the account IDs are reused, your customers and their account
+        numbers carry straight over.
       </p>
       <div className="callout">
         <b>Sandbox limit.</b> Nomba sandbox caps you at 2 virtual accounts per account holder. Live has no such cap.

@@ -39,7 +39,7 @@ export function DashboardSidebar() {
 
   function logout() {
     clearSession();
-    router.push("/login");
+    router.push("/");
   }
 
   return (

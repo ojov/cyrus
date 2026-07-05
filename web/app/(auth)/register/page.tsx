@@ -64,8 +64,8 @@ export default function RegisterPage() {
         </div>
       </div>
       <p className="mb-5 mt-3 text-sm text-muted-foreground">
-        Use your Nomba <b className="text-foreground">sandbox (test)</b> credentials — not live. You instantly receive a{" "}
-        <span className="font-mono text-primary">cyrus_test_</span> API key; add live credentials later from the dashboard.
+        Use your Nomba <b className="text-foreground">sandbox (test)</b> credentials — not live. After signup, generate your{" "}
+        <span className="font-mono text-primary">cyrus_test_</span> API key from the dashboard and copy it immediately.
       </p>
 
       <form onSubmit={submit} className="space-y-3">
