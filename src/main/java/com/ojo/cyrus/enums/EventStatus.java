@@ -4,5 +4,6 @@ public enum EventStatus {
     PENDING,
     PROCESSED,
     FAILED,
-    IGNORED
+    IGNORED,
+    PROCESSED_DUPLICATE
 }

@@ -4,5 +4,6 @@ public enum MatchStatus {
     MATCHED,
     UNMATCHED,
     PARTIAL,
-    ORPHANED
+    ORPHANED,
+    MANUAL_REVIEW
 }

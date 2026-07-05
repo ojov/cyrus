@@ -1,6 +1,8 @@
 package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.EventStatus;
+import com.ojo.cyrus.enums.MatchStatus;
+import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
 import com.ojo.cyrus.models.entities.Customer;
@@ -21,9 +23,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.ojo.cyrus.utils.Mapper.buildTransaction;
+
 /**
  * Records a Nomba payment event and attributes it to a customer's virtual account. Idempotent and
  * atomic: the raw event and the derived transaction are persisted in one transaction.
+ *
+ * <p>A webhook is a notification, not proof — a genuine VA credit is recorded as
+ * {@link TransactionStatus#PENDING} with {@code matchStatus=UNMATCHED}, never {@code SUCCESSFUL},
+ * regardless of what the event claims. Only {@link ReconciliationService}, via Nomba's own
+ * requery endpoint, promotes it to {@code SUCCESSFUL}.
  *
  * <p>Failure handling is tuned for Nomba's retry policy (exponential backoff, 5 retries):
  * <ul>
@@ -51,22 +60,12 @@ public class TransactionIngestionService {
         // Two concurrent deliveries of the same requestId can both miss the lookup below,
         // so we catch the unique-constraint violation on insert and re-fetch the winner's row.
         PaymentEvent paymentEvent;
-        Optional<PaymentEvent> existing = paymentEventService.findByRequestId(event.getRequestId());
-
-        if (existing.isPresent()) {
-            paymentEvent = existing.get();
-            log.info("Processing existing PaymentEvent requestId={}", event.getRequestId());
-        } else {
-            try {
-                paymentEvent = paymentEventService.recordEvent(event.getRequestId(), event.getProvider(),
-                        event.getEventType(), rawPayload);
-            } catch (DataIntegrityViolationException e) {
-                log.info("Concurrent insert won for requestId={}, re-fetching", event.getRequestId());
-                paymentEvent = paymentEventService.findByRequestId(event.getRequestId())
-                        .orElseThrow(() -> new IllegalStateException(
-                                "Concurrent insert failed and event not found for requestId="
-                                        + event.getRequestId()));
-            }
+        try{
+        paymentEvent = paymentEventService.findByRequestId(event.getRequestId()).orElseGet(() -> paymentEventService
+                .recordEvent(event.getRequestId(), event.getProvider(), event.getEventType(), rawPayload));
+        } catch (DataIntegrityViolationException e) {
+        log.info("Concurrent insert won for requestId={}, re-fetching", event.getRequestId());
+        paymentEvent = paymentEventService.getByRequestId(event.getRequestId());
         }
 
         // 2. Reversal — a previously successful payment clawed back. This must flip the original
@@ -100,7 +99,7 @@ public class TransactionIngestionService {
         // 5. Transaction-level idempotency — same underlying transfer seen before.
         if (transactionRepository.existsByProviderAndProviderTransactionId(
                 event.getProvider(), event.getProviderTransactionId())) {
-            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.IGNORED,
+            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.PROCESSED_DUPLICATE,
                     "Duplicate transaction " + event.getProviderTransactionId());
             return;
         }
@@ -121,23 +120,7 @@ public class TransactionIngestionService {
         Customer customer = va.getCustomer();
         CyrusPaymentEvent.Payer payer = event.getPayer();
 
-        Transaction tx = Transaction.builder()
-                .merchant(customer.getMerchant())
-                .customer(customer)
-                .virtualAccount(va)
-                .provider(event.getProvider())
-                .providerTransactionId(event.getProviderTransactionId())
-                .sessionId(event.getSessionId())
-                .amount(event.getAmount())
-                .fee(event.getFee())
-                .currency(event.getCurrency())
-                .payerName(payer != null ? payer.getName() : null)
-                .payerAccountNumber(payer != null ? payer.getAccountNumber() : null)
-                .payerBank(payer != null ? payer.getBankName() : null)
-                .status(TransactionStatus.SUCCESSFUL)
-                .receivedAt(event.getEventTime())
-                .rawPayload(rawPayload)
-                .build();
+        Transaction tx = buildTransaction(event, rawPayload, customer, va, payer);
         transactionRepository.save(tx);
 
         paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.PROCESSED, null);
@@ -184,7 +167,7 @@ public class TransactionIngestionService {
 
         log.info("Replaying payment event: {}", id);
 
-        if (event.getProvider() == com.ojo.cyrus.enums.Provider.NOMBA) {
+        if (event.getProvider() == Provider.NOMBA) {
             CyrusPaymentEvent cyrusEvent = nombaAdapter.toCyrusEvent(event.getPayload());
             this.ingest(cyrusEvent, event.getPayload());
         } else {

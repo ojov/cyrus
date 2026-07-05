@@ -36,6 +36,15 @@ app:
   jwt:
     issuer: cyrus
     expiry-hours: 8
+  reconciliation:
+    # How old an UNMATCHED transaction must be before we requery it against Nomba — gives a
+    # normal webhook delivery time to arrive before we treat it as possibly missing.
+    grace-minutes: 10
+    # Balance drift beyond this (kobo) before flagging a possible missing payment.
+    drift-tolerance-kobo: 100
+    enabled: true
+    # Scheduled sweep cadence, in ms. Default 15 minutes.
+    sweep-interval-ms: 900000
   cors:
     # Comma-separated origins (Spring binds a comma-separated value to the list). No trailing
     # slashes — each must match the browser Origin header exactly. Override via CORS_ALLOWED_ORIGINS

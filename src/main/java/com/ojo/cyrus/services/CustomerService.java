@@ -59,7 +59,7 @@ public class CustomerService {
         return new TransactionTemplate(transactionManager).execute(status -> {
             Customer saved = customerRepository.save(customer);
             VirtualAccount va = virtualAccountRepository.save(
-                    Mapper.toVirtualAccount(merchant, saved, nombaData));
+                    Mapper.toVirtualAccount(merchant, saved, nombaData, env));
             log.info("Created customer {} for merchant {} with virtual account {}",
                     saved.getReference(), merchantId, va.getAccountNumber());
             return Mapper.toCustomerResponse(saved, va);

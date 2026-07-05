@@ -1,5 +1,6 @@
 package com.ojo.cyrus.models.entities;
 
+import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.enums.TransactionStatus;
@@ -54,6 +55,13 @@ public class Transaction extends BaseEntity {
     @Column(nullable = false)
     private String currency;
 
+    // Denormalized from the virtual account at ingestion time (not read via the lazy
+    // `virtualAccount` association) so ReconciliationService can pick the right Nomba credential
+    // set without touching a lazy proxy outside a transaction (open-in-view is disabled).
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(255) default 'TEST'")
+    private Environment environment;
+
     private String payerName;
 
     private String payerAccountNumber;
@@ -68,6 +76,14 @@ public class Transaction extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private MatchStatus matchStatus = MatchStatus.UNMATCHED;
+
+    // Why matchStatus is what it is — set by ReconciliationService (e.g. "Nomba reports 45000
+    // kobo, we have 50000"), same pattern as PaymentEvent.statusDetails.
+    private String matchStatusDetails;
+
+    // When ReconciliationService last requeried this transaction against Nomba. Null until the
+    // first reconciliation sweep picks it up.
+    private Instant lastReconciledAt;
 
     private Instant receivedAt;
 
