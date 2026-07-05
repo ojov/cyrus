@@ -7,15 +7,17 @@ export interface MerchantSession {
   businessEmail: string;
 }
 
+const STORAGE_KEY = "cyrus_merchant";
+
 export function saveSession(session: MerchantSession) {
-  const maxAge = 60 * 60 * 8; // 8 hours, matches backend token expiry
+  const maxAge = 60 * 60 * 8; // 8h, matches backend token expiry
   document.cookie = `cyrus_token=${encodeURIComponent(session.token)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-  localStorage.setItem("cyrus_merchant", JSON.stringify(session));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
 
 export function getSession(): MerchantSession | null {
   try {
-    const raw = localStorage.getItem("cyrus_merchant");
+    const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as MerchantSession) : null;
   } catch {
     return null;
@@ -24,5 +26,5 @@ export function getSession(): MerchantSession | null {
 
 export function clearSession() {
   document.cookie = "cyrus_token=; path=/; max-age=0";
-  localStorage.removeItem("cyrus_merchant");
+  localStorage.removeItem(STORAGE_KEY);
 }

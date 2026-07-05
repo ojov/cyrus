@@ -7,7 +7,6 @@ import com.ojo.cyrus.models.entities.Customer;
 import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
-import com.ojo.cyrus.repositories.PaymentEventRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,30 +35,33 @@ public class TransactionIngestionService {
 
     private final TransactionRepository transactionRepository;
     private final VirtualAccountRepository virtualAccountRepository;
-    private final PaymentEventRepository paymentEventRepository;
+    private final PaymentEventService paymentEventService;
 
     @Transactional
     public void ingest(CyrusPaymentEvent event, String rawPayload) {
         // 1. Event-level idempotency — same webhook delivered twice (Nomba retries).
-        if (paymentEventRepository.existsByRequestId(event.getRequestId())) {
-            log.info("Duplicate Nomba webhook requestId={}, skipping", event.getRequestId());
-            return;
+        // If replaying, we might want to bypass this check. 
+        // For now, let's just find the existing one if it exists or record a new one.
+        PaymentEvent paymentEvent;
+        Optional<PaymentEvent> existing = paymentEventService.findByRequestId(event.getRequestId());
+        
+        if (existing.isPresent()) {
+            paymentEvent = existing.get();
+            log.info("Processing existing PaymentEvent requestId={}", event.getRequestId());
+        } else {
+            paymentEvent = paymentEventService.recordEvent(
+                    event.getRequestId(),
+                    event.getProvider(),
+                    event.getEventType(),
+                    rawPayload
+            );
         }
-
-        PaymentEvent paymentEvent = PaymentEvent.builder()
-                .requestId(event.getRequestId())
-                .provider(event.getProvider())
-                .eventType(event.getEventType())
-                .payload(rawPayload)
-                .status(EventStatus.PENDING)
-                .build();
 
         // 2. Relevance gate — only successful VA credits become transactions. Failures and non-VA
         //    events (e.g. POS purchases) are recorded for audit but never minted as a transaction.
         if (!event.isVirtualAccountCredit()) {
-            paymentEvent.setStatus(EventStatus.IGNORED);
-            paymentEvent.setStatusDetails("Non-credit event: " + event.getEventType());
-            paymentEventRepository.save(paymentEvent);
+            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.IGNORED,
+                    "Non-credit event: " + event.getEventType());
             log.info("Ignoring non-credit Nomba event requestId={} type={}",
                     event.getRequestId(), event.getEventType());
             return;
@@ -68,9 +70,8 @@ public class TransactionIngestionService {
         // 3. Transaction-level idempotency — same underlying transfer seen before.
         if (transactionRepository.existsByProviderAndProviderTransactionId(
                 event.getProvider(), event.getProviderTransactionId())) {
-            paymentEvent.setStatus(EventStatus.IGNORED);
-            paymentEvent.setStatusDetails("Duplicate transaction " + event.getProviderTransactionId());
-            paymentEventRepository.save(paymentEvent);
+            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.IGNORED,
+                    "Duplicate transaction " + event.getProviderTransactionId());
             return;
         }
 
@@ -78,9 +79,8 @@ public class TransactionIngestionService {
         Optional<VirtualAccount> vaOpt =
                 virtualAccountRepository.findByAccountNumber(event.getVirtualAccountNumber());
         if (vaOpt.isEmpty()) {
-            paymentEvent.setStatus(EventStatus.IGNORED);
-            paymentEvent.setStatusDetails("No virtual account for " + event.getVirtualAccountNumber());
-            paymentEventRepository.save(paymentEvent);
+            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.IGNORED,
+                    "No virtual account for " + event.getVirtualAccountNumber());
             log.warn("Orphan Nomba payment: no VA for accountNumber={} (tx {})",
                     event.getVirtualAccountNumber(), event.getProviderTransactionId());
             return;
@@ -99,6 +99,7 @@ public class TransactionIngestionService {
                 .providerTransactionId(event.getProviderTransactionId())
                 .sessionId(event.getSessionId())
                 .amount(event.getAmount())
+                .fee(event.getFee())
                 .currency(event.getCurrency())
                 .payerName(payer != null ? payer.getName() : null)
                 .payerAccountNumber(payer != null ? payer.getAccountNumber() : null)
@@ -109,8 +110,7 @@ public class TransactionIngestionService {
                 .build();
         transactionRepository.save(tx);
 
-        paymentEvent.setStatus(EventStatus.PROCESSED);
-        paymentEventRepository.save(paymentEvent);
+        paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.PROCESSED, null);
 
         log.info("Ingested Nomba payment tx {} for customer {} on VA {}",
                 event.getProviderTransactionId(), customer.getReference(), va.getAccountNumber());

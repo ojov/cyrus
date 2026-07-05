@@ -43,6 +43,7 @@ public class NombaWebhookAdapter {
                     // purchases) omit it → null → gated out in ingestion.
                     .virtualAccountNumber(text(tx, "aliasAccountNumber"))
                     .amount(toKobo(tx.path("transactionAmount")))            // Nomba sends naira → store kobo
+                    .fee(toKobo(tx.path("fee")))
                     .currency(tx.hasNonNull("currency") ? tx.get("currency").asText() : "NGN")
                     .eventTime(parseTime(text(tx, "time")))
                     .payer(CyrusPaymentEvent.Payer.builder()

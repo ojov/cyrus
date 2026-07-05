@@ -6,10 +6,7 @@ function getToken(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -18,22 +15,26 @@ async function request<T>(
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
-  const body = await res.json();
-
+  const body = await res.json().catch(() => null);
   if (!res.ok) {
     throw new Error(body?.message ?? `Request failed: ${res.status}`);
   }
-  return body;
+  return body as T;
 }
 
-export const api = {
-  post: <T>(path: string, data: unknown) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(data) }),
+const api = {
+  post: <T>(path: string, data: unknown) => request<T>(path, { method: "POST", body: JSON.stringify(data) }),
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
-// --- Auth ---
+// ---- Auth ----
+export interface ApiKeyInfo {
+  apiKey: string;
+  environment: string;
+  createdAt: string;
+}
+
 export interface LoginResponse {
   data: {
     token: string;
@@ -44,25 +45,30 @@ export interface LoginResponse {
   };
 }
 
-export interface ApiKeyInfo {
-  apiKey: string;
-  environment: string;
-  createdAt: string;
-}
-
 export interface RegisterResponse {
   data: {
     merchantId: string;
     businessName: string;
     businessEmail: string;
     token: string;
-    apiKey: {
-      apiKeys: ApiKeyInfo[];
-    };
+    apiKey: { apiKeys: ApiKeyInfo[] };
   };
 }
 
-// --- Dashboard (admin/ops, JWT-authed) ---
+export const authApi = {
+  login: (email: string, password: string) => api.post<LoginResponse>("/v1/auth/login", { email, password }),
+  register: (payload: {
+    businessName: string;
+    businessEmail: string;
+    password: string;
+    nombaClientId: string;
+    nombaClientSecret: string;
+    nombaParentAccountId: string;
+    subAccountIds: string[];
+  }) => api.post<RegisterResponse>("/v1/auth/register", payload),
+};
+
+// ---- Dashboard (JWT-authed) ----
 export interface DashboardStats {
   data: { customers: number; virtualAccounts: number };
 }
@@ -80,7 +86,6 @@ export interface ApiKeyListResponse {
   data: ApiKeyItem[];
 }
 
-// Shape returned when a key is issued (registration, create-key, or go-live).
 export interface CreatedApiKeyResponse {
   data: { apiKeys: ApiKeyInfo[] };
 }
@@ -90,26 +95,9 @@ export const dashboardApi = {
   listApiKeys: () => api.get<ApiKeyListResponse>("/v1/merchants/me/api-keys"),
   createApiKey: (environment: "TEST" | "LIVE") =>
     api.post<CreatedApiKeyResponse>("/v1/merchants/me/api-keys", { environment }),
-  revokeApiKey: (id: string) =>
-    api.delete<{ data: null }>(`/v1/merchants/me/api-keys/${id}`),
+  revokeApiKey: (id: string) => api.delete<{ data: null }>(`/v1/merchants/me/api-keys/${id}`),
   goLive: (nombaClientId: string, nombaClientSecret: string) =>
-    api.post<CreatedApiKeyResponse>("/v1/merchants/me/go-live", {
-      nombaClientId,
-      nombaClientSecret,
-    }),
+    api.post<CreatedApiKeyResponse>("/v1/merchants/me/go-live", { nombaClientId, nombaClientSecret }),
 };
 
-export const authApi = {
-  login: (email: string, password: string) =>
-    api.post<LoginResponse>("/v1/auth/login", { email, password }),
-
-  register: (payload: {
-    businessName: string;
-    businessEmail: string;
-    password: string;
-    nombaClientId: string;
-    nombaClientSecret: string;
-    nombaParentAccountId: string;
-    subAccountIds: string[];
-  }) => api.post<RegisterResponse>("/v1/auth/register", payload),
-};
+export const API_BASE_URL = API_URL;

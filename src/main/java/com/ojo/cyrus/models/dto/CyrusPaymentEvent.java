@@ -18,6 +18,7 @@ public class CyrusPaymentEvent {
     private String sessionId;
     private String virtualAccountNumber;
     private BigInteger amount; // minor units (kobo)
+    private BigInteger fee; // minor units (kobo)
     private String currency;
     private Payer payer;
     private Instant eventTime;

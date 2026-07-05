@@ -1,108 +1,106 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
-import { Copy, Rocket, ShieldCheck } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { dashboardApi } from "@/lib/api";
+
+const field =
+  "w-full rounded-lg border border-border bg-muted px-3 py-2 font-mono text-[13px] outline-none focus:border-primary";
 
 export default function SettingsPage() {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [liveKey, setLiveKey] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  async function activate(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+  async function goLive() {
+    if (!clientId.trim() || !clientSecret.trim()) {
+      setMsg({ ok: false, text: "Enter your live client ID and secret." });
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
     try {
-      const res = await dashboardApi.goLive(clientId, clientSecret);
-      setLiveKey(res.data?.apiKeys?.[0]?.apiKey ?? "");
-      toast.success("Live mode activated");
-      setClientId("");
-      setClientSecret("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not activate live mode");
+      await dashboardApi.goLive(clientId, clientSecret);
+      setMsg({ ok: true, text: "Live mode activated — your cyrus_live_ key is ready under API keys." });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "Go-live failed" });
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
-  function copy(value: string) {
-    navigator.clipboard.writeText(value);
-    toast.success("Copied to clipboard");
-  }
-
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Activate live mode with your production Nomba credentials.
-        </p>
+        <h1 className="text-2xl font-semibold">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Connect your Nomba account, configure webhooks, and take Cyrus live.</p>
       </div>
 
-      {liveKey && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ShieldCheck className="size-4 text-primary" />
-              Your live API key
-            </CardTitle>
-            <CardDescription>Shown once — copy and store it securely.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center gap-2">
-            <code className="flex-1 rounded-md bg-background border border-border px-4 py-2.5 font-mono text-sm overflow-x-auto whitespace-nowrap">
-              {liveKey}
-            </code>
-            <Button variant="outline" size="icon" onClick={() => copy(liveKey)} title="Copy">
-              <Copy className="size-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="mb-3.5 flex items-center justify-between">
+            <b className="text-sm">Provider connection</b>
+            <span className="db db-good dot">Nomba · sandbox</span>
+          </div>
+          <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-2.5 text-sm">
+            <dt className="text-muted-foreground">Provider</dt>
+            <dd>Nomba</dd>
+            <dt className="text-muted-foreground">Parent account</dt>
+            <dd className="font-mono">NMB-48210</dd>
+            <dt className="text-muted-foreground">Sub-accounts</dt>
+            <dd className="font-mono">sub_acct_1</dd>
+            <dt className="text-muted-foreground">Environment</dt>
+            <dd><span className="db db-info">TEST</span></dd>
+          </dl>
+          <div className="my-4 border-t border-border" />
+          <div className="mb-2 flex items-center justify-between">
+            <b className="text-sm">Webhook</b>
+            <button type="button" className="rounded-md border border-border px-2.5 py-1 text-xs font-medium transition hover:bg-accent">
+              Send test event
+            </button>
+          </div>
+          <input className={field} defaultValue="https://acme.ng/webhooks/cyrus" />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Signing secret · <span className="font-mono">whsec_••••4f2a</span>
+          </p>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Rocket className="size-4 text-primary" />
-            Go live
-          </CardTitle>
-          <CardDescription>
-            We verify these with Nomba before issuing your live key. Parent and sub-account IDs are
-            shared with test — only the client credentials change.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={activate} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="clientId">Live Nomba client ID</Label>
-              <Input
-                id="clientId"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="clientSecret">Live Nomba client secret</Label>
-              <Input
-                id="clientSecret"
-                type="password"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Verifying…" : "Activate live mode"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="mb-1.5 flex items-center justify-between">
+            <b className="text-sm">Go live</b>
+            <span className="db db-warn dot">Not activated</span>
+          </div>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Add your live Nomba credentials. Parent and sub-accounts are reused — only the client keys differ.
+          </p>
+          <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Live client ID</label>
+          <input
+            className={`${field} mb-3`}
+            placeholder="nomba_live_client_id"
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+          />
+          <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Live client secret</label>
+          <input
+            className={`${field} mb-4`}
+            type="password"
+            placeholder="••••••••"
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={goLive}
+            disabled={busy}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
+          >
+            {busy ? "Activating…" : "Activate live mode"}
+          </button>
+          {msg && (
+            <p className={`mt-3 text-sm ${msg.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>{msg.text}</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

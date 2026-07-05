@@ -1,15 +1,35 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Key, LogOut, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearSession, getSession } from "@/lib/auth";
+import {
+  IconGrid,
+  IconUsers,
+  IconSwap,
+  IconChecklist,
+  IconKey,
+  IconSettings,
+  IconLogOut,
+} from "@/components/icons";
 
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
-  { href: "/dashboard/api-keys", label: "API Keys", icon: Key, exact: false },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings, exact: false },
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: (props: { className?: string }) => ReactNode;
+  exact?: boolean;
+  badge?: string;
+};
+
+const NAV: NavItem[] = [
+  { href: "/dashboard", label: "Overview", Icon: IconGrid, exact: true },
+  { href: "/dashboard/customers", label: "Customers", Icon: IconUsers },
+  { href: "/dashboard/transactions", label: "Transactions", Icon: IconSwap },
+  { href: "/dashboard/reconciliation", label: "Reconciliation", Icon: IconChecklist, badge: "2" },
+  { href: "/dashboard/api-keys", label: "API keys", Icon: IconKey },
+  { href: "/dashboard/settings", label: "Settings", Icon: IconSettings },
 ];
 
 export function DashboardSidebar() {
@@ -17,54 +37,52 @@ export function DashboardSidebar() {
   const router = useRouter();
   const session = getSession();
 
-  function handleLogout() {
+  function logout() {
     clearSession();
     router.push("/login");
   }
 
   return (
-    <aside className="w-56 shrink-0 border-r border-border flex flex-col">
-      <div className="px-5 py-5 border-b border-border">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="size-7 rounded bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground text-xs font-bold">C</span>
-          </div>
-          <span className="font-semibold text-foreground">Cyrus</span>
+    <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+      <div className="border-b border-border px-5 py-5">
+        <Link href="/" className="flex items-center gap-2.5">
+          <span className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">C</span>
+          <span className="font-semibold">Cyrus</span>
         </Link>
-        {session && (
-          <p className="text-xs text-muted-foreground mt-1 truncate">{session.businessName}</p>
-        )}
+        <p suppressHydrationWarning className="mt-1 truncate text-xs text-muted-foreground">
+          {session?.businessName ?? ""}
+        </p>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {NAV_ITEMS.map((item) => {
-          const active = item.exact
-            ? pathname === item.href
-            : pathname.startsWith(item.href);
+      <nav className="flex-1 space-y-0.5 px-3 py-4">
+        {NAV.map((item) => {
+          const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-2 py-2 rounded text-sm transition-colors",
+                "flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors",
                 active
-                  ? "bg-primary/15 text-primary font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  ? "bg-primary/15 font-medium text-primary"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
-              <item.icon className="size-4 shrink-0" />
+              <item.Icon className="size-4 shrink-0" />
               {item.label}
+              {item.badge && <span className="db db-crit ml-auto px-1.5 py-0 text-[10px]">{item.badge}</span>}
             </Link>
           );
         })}
       </nav>
 
-      <div className="px-3 py-4 border-t border-border">
+      <div className="border-t border-border px-3 py-4">
         <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 px-2 py-2 rounded text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors w-full"
+          type="button"
+          onClick={logout}
+          className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <LogOut className="size-4 shrink-0" />
+          <IconLogOut className="size-4 shrink-0" />
           Sign out
         </button>
       </div>

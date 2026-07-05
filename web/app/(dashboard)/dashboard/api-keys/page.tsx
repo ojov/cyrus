@@ -1,183 +1,171 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
-import { Copy, Key, Plus, Trash2, ShieldCheck } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { dashboardApi, type ApiKeyItem } from "@/lib/api";
+import { cn, statusClass } from "@/lib/utils";
 
 const ENVS = ["TEST", "LIVE"] as const;
-type Env = (typeof ENVS)[number];
-
-function statusVariant(status: string): "secondary" | "outline" | "destructive" {
-  if (status === "ACTIVE") return "secondary";
-  if (status === "REVOKED") return "destructive";
-  return "outline";
-}
 
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [env, setEnv] = useState<Env>("TEST");
+  const [env, setEnv] = useState<(typeof ENVS)[number]>("TEST");
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const res = await dashboardApi.listApiKeys();
       setKeys(res.data ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load API keys");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load API keys");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    load();
+    // Defer off the synchronous effect body; load() sets state after its await.
+    Promise.resolve().then(load);
   }, [load]);
 
   async function create() {
     setCreating(true);
+    setError(null);
     try {
       const res = await dashboardApi.createApiKey(env);
       setNewKey(res.data?.apiKeys?.[0]?.apiKey ?? "");
-      toast.success(`${env} API key created`);
       await load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create key");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create key");
     } finally {
       setCreating(false);
     }
   }
 
   async function revoke(id: string) {
+    setError(null);
     try {
       await dashboardApi.revokeApiKey(id);
-      toast.success("API key revoked");
       await load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to revoke key");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to revoke key");
     }
   }
 
-  function copy(value: string) {
-    navigator.clipboard.writeText(value);
-    toast.success("Copied to clipboard");
-  }
-
   return (
-    <div className="space-y-8 max-w-3xl">
+    <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">API Keys</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="text-2xl font-semibold">API keys</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Create and revoke the keys your developers use to authenticate with the Cyrus API.
         </p>
       </div>
 
-      {newKey && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ShieldCheck className="size-4 text-primary" />
-              Copy your new key now
-            </CardTitle>
-            <CardDescription>
-              This is the only time the full key is shown. Store it securely.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center gap-2">
-            <code className="flex-1 rounded-md bg-background border border-border px-4 py-2.5 font-mono text-sm overflow-x-auto whitespace-nowrap">
-              {newKey}
-            </code>
-            <Button variant="outline" size="icon" onClick={() => copy(newKey)} title="Copy">
-              <Copy className="size-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setNewKey(null)}>
-              Done
-            </Button>
-          </CardContent>
-        </Card>
+      {error && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          {error}
+        </div>
       )}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Create a key</CardTitle>
-          <CardDescription>Live keys require live mode to be activated first.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center gap-3">
-          <div className="inline-flex rounded-md border border-border p-0.5">
-            {ENVS.map((e) => (
-              <button
-                key={e}
-                onClick={() => setEnv(e)}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                  env === e
-                    ? "bg-primary text-primary-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {e}
-              </button>
-            ))}
+      {newKey && (
+        <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <b className="text-sm">Copy your key now</b>
+            <span className="db db-warn">shown once</span>
           </div>
-          <Button onClick={create} disabled={creating}>
-            <Plus className="size-4" />
-            {creating ? "Creating…" : "Generate key"}
-          </Button>
-        </CardContent>
-      </Card>
+          <div className="flex items-center gap-2">
+            <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border border-border bg-background px-3 py-2 font-mono text-sm">
+              {newKey}
+            </code>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(newKey)}
+              className="shrink-0 rounded-md border border-border px-3 py-2 text-sm transition hover:bg-accent"
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewKey(null)}
+              className="shrink-0 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Key className="size-4 text-primary" />
-            Your keys
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground py-4">Loading…</p>
-          ) : keys.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">No API keys yet. Generate one above.</p>
-          ) : (
-            <div className="divide-y divide-border">
-              {keys.map((k) => (
-                <div key={k.id} className="flex items-center justify-between py-3 gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <code className="font-mono text-sm text-foreground truncate">
-                        {k.prefix}••••••••
-                      </code>
-                      <Badge variant="outline" className="text-xs">{k.environment}</Badge>
-                      <Badge variant={statusVariant(k.status)} className="text-xs">{k.status}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Created {new Date(k.createdAt).toLocaleDateString()}
-                      {k.lastUsedAt
-                        ? ` · last used ${new Date(k.lastUsedAt).toLocaleDateString()}`
-                        : " · never used"}
-                    </p>
-                  </div>
-                  {k.status === "ACTIVE" && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive shrink-0"
-                      onClick={() => revoke(k.id)}
-                    >
-                      <Trash2 className="size-4" />
-                      Revoke
-                    </Button>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <b className="text-sm">Create a key</b>
+            <div className="text-xs text-muted-foreground">Live keys require live mode to be activated first.</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-md border border-border p-0.5">
+              {ENVS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => setEnv(e)}
+                  className={cn(
+                    "rounded px-3 py-1.5 text-sm transition",
+                    env === e ? "bg-primary font-medium text-primary-foreground" : "text-muted-foreground hover:text-foreground",
                   )}
-                </div>
+                >
+                  {e}
+                </button>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <button
+              type="button"
+              onClick={create}
+              disabled={creating}
+              className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
+            >
+              {creating ? "Creating…" : "+ Generate key"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card">
+        <div className="border-b border-border px-4 py-3 text-sm font-semibold">Your keys</div>
+        {loading ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
+        ) : keys.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">No API keys yet. Generate one above.</p>
+        ) : (
+          <div className="divide-y divide-border">
+            {keys.map((k) => (
+              <div key={k.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <code className="truncate font-mono text-sm">{k.prefix}••••••••</code>
+                    <span className="db">{k.environment}</span>
+                    <span className={`db dot ${statusClass(k.status)}`}>{k.status}</span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Created {new Date(k.createdAt).toLocaleDateString()}
+                    {k.lastUsedAt ? ` · last used ${new Date(k.lastUsedAt).toLocaleDateString()}` : " · never used"}
+                  </p>
+                </div>
+                {k.status === "ACTIVE" && (
+                  <button
+                    type="button"
+                    onClick={() => revoke(k.id)}
+                    className="shrink-0 rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/10"
+                  >
+                    Revoke
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
