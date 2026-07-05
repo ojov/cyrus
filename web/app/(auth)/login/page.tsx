@@ -14,6 +14,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
+  const [resending, setResending] = useState(false);
+  const isUnverified = error?.toLowerCase().includes("not yet verified") ?? false;
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,6 +60,27 @@ export default function LoginPage() {
           <input className={field} type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
+        {isUnverified && !resent && (
+          <button
+            type="button"
+            disabled={resending}
+            onClick={async () => {
+              setResending(true);
+              try {
+                await authApi.resendVerification(email);
+                setResent(true);
+              } catch {
+                setError("Failed to resend. Please try again.");
+              } finally {
+                setResending(false);
+              }
+            }}
+            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-primary"
+          >
+            {resending ? "Sending…" : "Resend verification email"}
+          </button>
+        )}
+        {resent && <p className="text-xs text-muted-foreground">Verification email resent. Please check your inbox.</p>}
         <button
           type="submit"
           disabled={busy}

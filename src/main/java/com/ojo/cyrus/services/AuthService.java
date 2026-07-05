@@ -7,7 +7,7 @@ import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.VerificationToken;
 import com.ojo.cyrus.models.requests.LoginRequest;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
-import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
+import com.ojo.cyrus.repositories.VerificationTokenRepository;
 import com.ojo.cyrus.models.responses.LoginResponse;
 import com.ojo.cyrus.models.responses.MerchantRegistrationResponse;
 import com.ojo.cyrus.config.properties.AppProperties;
@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 import static com.ojo.cyrus.utils.Mapper.mapToMerchantEntity;
@@ -36,9 +37,9 @@ public class AuthService {
     private final TokenService tokenService;
     private final MerchantService merchantService;
     private final PasswordEncoder passwordEncoder;
-    private final ApiKeyService apiKeyService;
     private final EmailService emailService;
     private final AppProperties appProperties;
+    private final VerificationTokenRepository verificationTokenRepository;
 
     public MerchantRegistrationResponse register(MerchantRegistrationRequest request) {
         merchantService.validateMerchantExists(request);
@@ -51,11 +52,10 @@ public class AuthService {
                     new NombaCredential(request.nombaClientId(), encrypted));
         }
         Merchant merchant = merchantService.save(merchantEntity);
-        GeneratedApiKeysResponse apiKeys = apiKeyService.createApiKey(merchant, Environment.TEST);
         sendVerificationEmail(merchant);
         String jwt = tokenService.generateToken(merchant.getBusinessEmail(), "ROLE_MERCHANT");
         return new MerchantRegistrationResponse(merchant.getId(), merchant.getBusinessName(),
-                merchant.getBusinessEmail(), jwt, apiKeys);
+                merchant.getBusinessEmail(), jwt);
     }
 
     public void verifyEmail(String tokenValue) {
@@ -73,6 +73,18 @@ public class AuthService {
         String jwt = tokenService.generateToken(authentication);
         Merchant merchant = merchantService.findByBusinessEmail(request.email());
        return new LoginResponse(jwt, "Bearer", merchant.getId(), merchant.getBusinessName(), merchant.getBusinessEmail());
+    }
+
+    public void resendVerificationEmail(String email) {
+        Merchant merchant = merchantService.findByBusinessEmail(email);
+        if (merchant.getStatus() == MerchantStatus.ACTIVE) {
+            log.warn("Resend-verification requested for already-active merchant {}", email);
+            return;
+        }
+        List<VerificationToken> oldTokens = verificationTokenRepository.findByMerchantIdAndUsedFalse(merchant.getId());
+        oldTokens.forEach(t -> t.setUsed(true));
+
+        sendVerificationEmail(merchant);
     }
 
     private void sendVerificationEmail(Merchant merchant) {

@@ -163,9 +163,11 @@ public class MerchantService {
     @Transactional(readOnly = true)
     public MerchantStatsResponse getStats(String email) {
         Merchant merchant = findByBusinessEmail(email);
+        boolean liveModeActive = merchant.getNombaCredentials().containsKey(Environment.LIVE);
         return new MerchantStatsResponse(
                 customerRepository.countByMerchantId(merchant.getId()),
-                virtualAccountRepository.countByMerchantId(merchant.getId()));
+                virtualAccountRepository.countByMerchantId(merchant.getId()),
+                liveModeActive);
     }
 
     @Transactional(readOnly = true)

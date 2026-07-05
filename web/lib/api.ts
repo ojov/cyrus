@@ -51,12 +51,12 @@ export interface RegisterResponse {
     businessName: string;
     businessEmail: string;
     token: string;
-    apiKey: { apiKeys: ApiKeyInfo[] };
   };
 }
 
 export const authApi = {
   login: (email: string, password: string) => api.post<LoginResponse>("/v1/auth/login", { email, password }),
+  resendVerification: (email: string) => api.post<{ data: null }>("/v1/auth/resend-verification", { email }),
   register: (payload: {
     businessName: string;
     businessEmail: string;
@@ -70,7 +70,7 @@ export const authApi = {
 
 // ---- Dashboard (JWT-authed) ----
 export interface DashboardStats {
-  data: { customers: number; virtualAccounts: number };
+  data: { customers: number; virtualAccounts: number; liveModeActive: boolean };
 }
 
 export interface ApiKeyItem {

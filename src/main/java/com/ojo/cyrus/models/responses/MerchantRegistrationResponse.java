@@ -16,7 +16,5 @@ public record MerchantRegistrationResponse(
         String businessEmail,
 
         @Schema(example = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...", description = "JWT for immediate dashboard access")
-        String token,
-
-        GeneratedApiKeysResponse apiKey
+        String token
 ) {}

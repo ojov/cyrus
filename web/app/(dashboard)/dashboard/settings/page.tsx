@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { dashboardApi } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { dashboardApi, DashboardStats } from "@/lib/api";
 
 const field =
   "w-full rounded-lg border border-border bg-muted px-3 py-2 font-mono text-[13px] outline-none focus:border-primary";
@@ -11,6 +11,13 @@ export default function SettingsPage() {
   const [clientSecret, setClientSecret] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [liveMode, setLiveMode] = useState(false);
+
+  useEffect(() => {
+    Promise.resolve().then(() =>
+      dashboardApi.stats().then((r: DashboardStats) => setLiveMode(r.data.liveModeActive)).catch(() => {})
+    );
+  }, []);
 
   async function goLive() {
     if (!clientId.trim() || !clientSecret.trim()) {
@@ -21,6 +28,7 @@ export default function SettingsPage() {
     setMsg(null);
     try {
       await dashboardApi.goLive(clientId, clientSecret);
+      setLiveMode(true);
       setMsg({ ok: true, text: "Live mode activated. Go to API keys, generate a cyrus_live_ key, and copy it immediately — full keys are shown once." });
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Go-live failed" });
@@ -40,7 +48,7 @@ export default function SettingsPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <div className="mb-3.5 flex items-center justify-between">
             <b className="text-sm">Provider connection</b>
-            <span className="db db-good dot">Nomba · sandbox</span>
+            <span className={`db ${liveMode ? "db-good" : "db-info"} dot`}>{liveMode ? "Nomba · live" : "Nomba · sandbox"}</span>
           </div>
           <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-2.5 text-sm">
             <dt className="text-muted-foreground">Provider</dt>
@@ -50,7 +58,7 @@ export default function SettingsPage() {
             <dt className="text-muted-foreground">Sub-accounts</dt>
             <dd className="font-mono">sub_acct_1</dd>
             <dt className="text-muted-foreground">Environment</dt>
-            <dd><span className="db db-info">TEST</span></dd>
+            <dd><span className={`db ${liveMode ? "db-good" : "db-info"}`}>{liveMode ? "LIVE" : "TEST"}</span></dd>
           </dl>
           <div className="my-4 border-t border-border" />
           <div className="mb-2 flex items-center justify-between">
@@ -68,36 +76,42 @@ export default function SettingsPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <div className="mb-1.5 flex items-center justify-between">
             <b className="text-sm">Go live</b>
-            <span className="db db-warn dot">Not activated</span>
+            <span className={`db ${liveMode ? "db-good" : "db-warn"} dot`}>{liveMode ? "Activated" : "Not activated"}</span>
           </div>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Add your live Nomba credentials. Parent and sub-accounts are reused — only the client keys differ.
-          </p>
-          <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Live client ID</label>
-          <input
-            className={`${field} mb-3`}
-            placeholder="nomba_live_client_id"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-          />
-          <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Live client secret</label>
-          <input
-            className={`${field} mb-4`}
-            type="password"
-            placeholder="••••••••"
-            value={clientSecret}
-            onChange={(e) => setClientSecret(e.target.value)}
-          />
-          <button
-            type="button"
-            onClick={goLive}
-            disabled={busy}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
-          >
-            {busy ? "Activating…" : "Activate live mode"}
-          </button>
-          {msg && (
-            <p className={`mt-3 text-sm ${msg.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>{msg.text}</p>
+          {liveMode ? (
+            <p className="text-sm text-green-600 dark:text-green-400">Live mode is active. You can create live API keys from the API keys page.</p>
+          ) : (
+            <>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Add your live Nomba credentials. Parent and sub-accounts are reused — only the client keys differ.
+              </p>
+              <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Live client ID</label>
+              <input
+                className={`${field} mb-3`}
+                placeholder="nomba_live_client_id"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+              />
+              <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Live client secret</label>
+              <input
+                className={`${field} mb-4`}
+                type="password"
+                placeholder="••••••••"
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={goLive}
+                disabled={busy}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
+              >
+                {busy ? "Activating…" : "Activate live mode"}
+              </button>
+              {msg && (
+                <p className={`mt-3 text-sm ${msg.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>{msg.text}</p>
+              )}
+            </>
           )}
         </div>
       </div>
