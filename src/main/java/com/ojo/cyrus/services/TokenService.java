@@ -1,9 +1,11 @@
 package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.config.properties.AppProperties;
+import com.ojo.cyrus.enums.TokenType;
 import com.ojo.cyrus.exception.InvalidTokenException;
-import com.ojo.cyrus.models.entities.VerificationToken;
-import com.ojo.cyrus.repositories.VerificationTokenRepository;
+import com.ojo.cyrus.models.entities.Merchant;
+import com.ojo.cyrus.models.entities.Token;
+import com.ojo.cyrus.repositories.TokenRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -12,8 +14,10 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -22,7 +26,7 @@ import java.util.stream.Collectors;
 public class TokenService {
 
     private final JwtEncoder encoder;
-    private final VerificationTokenRepository verificationTokenRepository;
+    private final TokenRepository tokenRepository;
     private final AppProperties appProperties;
 
     public String generateToken(Authentication authentication) {
@@ -43,27 +47,49 @@ public class TokenService {
         return encoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
     }
 
-    public VerificationToken validateVerificationToken(String tokenValue){
-        VerificationToken verificationToken = getVerificationByTokenValue(tokenValue);
-        if (verificationToken.isUsed()) {
-            throw new InvalidTokenException("This verification link has already been used");
+    /** Mints a single-use token of the given type, valid for {@code validity}. */
+    public Token createToken(Merchant merchant, TokenType type, Duration validity) {
+        Token token = Token.builder()
+                .token(UUID.randomUUID().toString())
+                .type(type)
+                .merchant(merchant)
+                .expiresAt(Instant.now().plus(validity))
+                .build();
+        return tokenRepository.save(token);
+    }
+
+    /** Validates a token value against the expected type, throwing on unknown/used/expired. */
+    public Token validateToken(String tokenValue, TokenType type) {
+        Token token = tokenRepository.findByTokenAndType(tokenValue, type)
+                .orElseThrow(() -> new InvalidTokenException(invalidMessage(type)));
+        if (token.isUsed()) {
+            throw new InvalidTokenException(usedMessage(type));
         }
-        if (verificationToken.getExpiresAt().isBefore(Instant.now())) {
-            throw new InvalidTokenException("Verification link has expired. Please register again");
+        if (token.getExpiresAt().isBefore(Instant.now())) {
+            throw new InvalidTokenException(expiredMessage(type));
         }
-        return verificationToken;
+        return token;
     }
 
-    public VerificationToken getVerificationByTokenValue(String tokenValue){
-        return verificationTokenRepository.findByToken(tokenValue)
-                .orElseThrow(() -> new InvalidTokenException("Invalid verification link"));
+    /** Marks every outstanding, unused token of this type for the merchant as used, before issuing a new one. */
+    public void invalidateOutstanding(UUID merchantId, TokenType type) {
+        List<Token> outstanding = tokenRepository.findByMerchantIdAndTypeAndUsedFalse(merchantId, type);
+        outstanding.forEach(t -> t.setUsed(true));
     }
 
-    public VerificationToken saveVerificationToken(VerificationToken verificationToken){
-        return verificationTokenRepository.save(verificationToken);
+    private static String invalidMessage(TokenType type) {
+        return type == TokenType.PASSWORD_RESET ? "Invalid or expired reset link" : "Invalid verification link";
     }
 
-    public void deleteVerificationToken(UUID tokenValue){
-        verificationTokenRepository.deleteById(tokenValue);
+    private static String usedMessage(TokenType type) {
+        return type == TokenType.PASSWORD_RESET
+                ? "This reset link has already been used"
+                : "This verification link has already been used";
+    }
+
+    private static String expiredMessage(TokenType type) {
+        return type == TokenType.PASSWORD_RESET
+                ? "Reset link has expired. Please request a new one"
+                : "Verification link has expired. Please register again";
     }
 }

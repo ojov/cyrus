@@ -2,7 +2,7 @@ package com.ojo.cyrus.controllers;
 
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
-import com.ojo.cyrus.services.NombaWebhookService;
+import com.ojo.cyrus.nomba.NombaWebhookService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

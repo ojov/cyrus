@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { dashboardApi, DashboardStats } from "@/lib/api";
+import { authApi, dashboardApi, DashboardStats } from "@/lib/api";
+import { getSession } from "@/lib/auth";
 
 const field =
   "w-full rounded-lg border border-border bg-muted px-3 py-2 font-mono text-[13px] outline-none focus:border-primary";
@@ -12,6 +13,8 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [liveMode, setLiveMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     Promise.resolve().then(() =>
@@ -114,6 +117,34 @@ export default function SettingsPage() {
             </>
           )}
         </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="mb-1.5 flex items-center justify-between">
+          <b className="text-sm">Change password</b>
+        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          A reset link will be sent to your business email. It expires in 15 minutes.
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            setResetting(true);
+            try {
+              const session = getSession();
+              await authApi.forgotPassword(session!.businessEmail);
+              setResetSent(true);
+            } catch {
+              setResetSent(false);
+            } finally {
+              setResetting(false);
+            }
+          }}
+          disabled={resetting || resetSent}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
+        >
+          {resetting ? "Sending…" : resetSent ? "Email sent" : "Send reset link"}
+        </button>
       </div>
     </div>
   );

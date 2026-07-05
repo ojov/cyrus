@@ -7,7 +7,7 @@ import com.ojo.cyrus.nomba.dto.NombaApiResponse;
 import com.ojo.cyrus.nomba.dto.NombaBalanceData;
 import com.ojo.cyrus.nomba.dto.NombaCreateVirtualAccountRequest;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
-import java.util.UUID;
+import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -28,7 +28,11 @@ public class NombaClient {
         String accessToken = authService.getAccessToken(creds, env);
         String baseUrl = Provider.NOMBA.getBaseUrl(env);
         String path = resolveVirtualAccountPath(creds, baseUrl);
-        String idempotentKey = UUID.randomUUID().toString();
+        // Deterministic, not random: a retry of the same logical create (e.g. the developer's
+        // client retries POST /v1/customers after losing the response to a network blip) must
+        // reuse the same key so Nomba recognizes it as a retry instead of provisioning a second
+        // virtual account for the same customer.
+        String idempotentKey = CryptoUtil.sha256("va-create:" + creds.cacheKey() + ":" + request.accountRef());
 
         log.info("Creating virtual account on Nomba via {} [idempotency: {}]", path, idempotentKey);
 

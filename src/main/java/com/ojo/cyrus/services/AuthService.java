@@ -1,16 +1,17 @@
 package com.ojo.cyrus.services;
 
+import com.ojo.cyrus.config.properties.AppProperties;
 import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantStatus;
+import com.ojo.cyrus.enums.TokenType;
+import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.models.NombaCredential;
 import com.ojo.cyrus.models.entities.Merchant;
-import com.ojo.cyrus.models.entities.VerificationToken;
+import com.ojo.cyrus.models.entities.Token;
 import com.ojo.cyrus.models.requests.LoginRequest;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
-import com.ojo.cyrus.repositories.VerificationTokenRepository;
 import com.ojo.cyrus.models.responses.LoginResponse;
 import com.ojo.cyrus.models.responses.MerchantRegistrationResponse;
-import com.ojo.cyrus.config.properties.AppProperties;
 import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,10 +22,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.UUID;
+import java.time.Duration;
 
 import static com.ojo.cyrus.utils.Mapper.mapToMerchantEntity;
 
@@ -39,7 +37,6 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final AppProperties appProperties;
-    private final VerificationTokenRepository verificationTokenRepository;
 
     public MerchantRegistrationResponse register(MerchantRegistrationRequest request) {
         merchantService.validateMerchantExists(request);
@@ -59,13 +56,12 @@ public class AuthService {
     }
 
     public void verifyEmail(String tokenValue) {
-       VerificationToken verificationToken = tokenService.validateVerificationToken(tokenValue);
+        Token verificationToken = tokenService.validateToken(tokenValue, TokenType.EMAIL_VERIFICATION);
         Merchant merchant = verificationToken.getMerchant();
         merchant.setStatus(MerchantStatus.ACTIVE);
         verificationToken.setUsed(true);
         log.info("Merchant {} verified and activated", merchant.getBusinessEmail());
     }
-
 
     public LoginResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.
@@ -81,22 +77,36 @@ public class AuthService {
             log.warn("Resend-verification requested for already-active merchant {}", email);
             return;
         }
-        List<VerificationToken> oldTokens = verificationTokenRepository.findByMerchantIdAndUsedFalse(merchant.getId());
-        oldTokens.forEach(t -> t.setUsed(true));
-
+        tokenService.invalidateOutstanding(merchant.getId(), TokenType.EMAIL_VERIFICATION);
         sendVerificationEmail(merchant);
     }
 
-    private void sendVerificationEmail(Merchant merchant) {
-        String tokenValue = UUID.randomUUID().toString();
-        VerificationToken verificationToken = VerificationToken.builder()
-                .token(tokenValue)
-                .merchant(merchant)
-                .expiresAt(Instant.now().plus(24, ChronoUnit.HOURS))
-                .build();
-        tokenService.saveVerificationToken(verificationToken);
+    public void forgotPassword(String email) {
+        try {
+            Merchant merchant = merchantService.findByBusinessEmail(email);
+            tokenService.invalidateOutstanding(merchant.getId(), TokenType.PASSWORD_RESET);
+            Token resetToken = tokenService.createToken(merchant, TokenType.PASSWORD_RESET, Duration.ofMinutes(15));
+            String resetUrl = appProperties.frontendUrl() + "/reset-password?token=" + resetToken.getToken();
+            emailService.sendPasswordResetEmail(merchant.getBusinessEmail(), merchant.getBusinessName(), resetUrl);
+            log.info("Password reset email sent to {}", email);
+        } catch (EntityNotFoundException e) {
+            // Deliberately swallowed: the caller always sees the same generic "if an account exists"
+            // response, whether or not the email matches a merchant — never reveal which.
+            log.warn("Password reset requested for unknown email {}", email);
+        }
+    }
 
-        String verificationUrl = appProperties.baseUrl() + "/v1/auth/verify-email?token=" + tokenValue;
+    public void resetPassword(String tokenValue, String newPassword) {
+        Token resetToken = tokenService.validateToken(tokenValue, TokenType.PASSWORD_RESET);
+        Merchant merchant = resetToken.getMerchant();
+        merchant.setPasswordHash(passwordEncoder.encode(newPassword));
+        resetToken.setUsed(true);
+        log.info("Password reset completed for merchant {}", merchant.getBusinessEmail());
+    }
+
+    private void sendVerificationEmail(Merchant merchant) {
+        Token verificationToken = tokenService.createToken(merchant, TokenType.EMAIL_VERIFICATION, Duration.ofHours(24));
+        String verificationUrl = appProperties.frontendUrl() + "/verify-email?token=" + verificationToken.getToken();
         emailService.sendVerificationEmail(merchant.getBusinessEmail(), merchant.getBusinessName(), verificationUrl);
         log.info("Verification email sent to {}", merchant.getBusinessEmail());
     }

@@ -56,7 +56,10 @@ export interface RegisterResponse {
 
 export const authApi = {
   login: (email: string, password: string) => api.post<LoginResponse>("/v1/auth/login", { email, password }),
+  forgotPassword: (email: string) => api.post<{ data: null }>("/v1/auth/forgot-password", { email }),
+  resetPassword: (token: string, newPassword: string) => api.post<{ data: null }>("/v1/auth/reset-password", { token, newPassword }),
   resendVerification: (email: string) => api.post<{ data: null }>("/v1/auth/resend-verification", { email }),
+  verifyEmail: (token: string) => api.post<{ data: null }>("/v1/auth/verify-email", { token }),
   register: (payload: {
     businessName: string;
     businessEmail: string;

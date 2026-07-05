@@ -2,9 +2,12 @@ package com.ojo.cyrus.controllers;
 
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.enums.ResponseCode;
+import com.ojo.cyrus.models.requests.ForgotPasswordRequest;
 import com.ojo.cyrus.models.requests.LoginRequest;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
 import com.ojo.cyrus.models.requests.ResendVerificationRequest;
+import com.ojo.cyrus.models.requests.ResetPasswordRequest;
+import com.ojo.cyrus.models.requests.VerifyEmailRequest;
 import com.ojo.cyrus.models.responses.LoginResponse;
 import com.ojo.cyrus.models.responses.MerchantRegistrationResponse;
 import com.ojo.cyrus.services.AuthService;
@@ -59,5 +62,23 @@ public class AuthController {
     public CyrusApiResponse<Void> resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
         authService.resendVerificationEmail(request.email());
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Verification email sent successfully", null);
+    }
+    @Operation(summary = "Request password reset", description = "Sends a password reset email with a 15-minute expiry.")
+    @PostMapping("/forgot-password")
+    public CyrusApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request.email());
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "If an account with that email exists, a reset link has been sent", null);
+    }
+    @Operation(summary = "Reset password", description = "Resets the password using a valid reset token.")
+    @PostMapping("/reset-password")
+    public CyrusApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.token(), request.newPassword());
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Password reset successfully", null);
+    }
+    @Operation(summary = "Verify email", description = "Activates the merchant account using a valid email verification token.")
+    @PostMapping("/verify-email")
+    public CyrusApiResponse<Void> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+        authService.verifyEmail(request.token());
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Email verified successfully", null);
     }
 }

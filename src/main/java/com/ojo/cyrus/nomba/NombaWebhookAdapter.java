@@ -1,4 +1,4 @@
-package com.ojo.cyrus.services;
+package com.ojo.cyrus.nomba;
 
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.exception.NombaIntegrationException;

@@ -7,6 +7,7 @@ import com.ojo.cyrus.models.entities.Customer;
 import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
+import com.ojo.cyrus.nomba.NombaWebhookAdapter;
 import com.ojo.cyrus.repositories.PaymentEventRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
@@ -68,8 +69,26 @@ public class TransactionIngestionService {
             }
         }
 
-        // 2. Relevance gate — only successful VA credits become transactions. Failures and non-VA
-        //    events (e.g. POS purchases) are recorded for audit but never minted as a transaction.
+        // 2. Reversal — a previously successful payment clawed back. This must flip the original
+        //    transaction's status, not just get filed away as a generic non-credit event (that would
+        //    leave the original sitting as SUCCESSFUL forever, wrong for reconciliation).
+        if (event.isReversal()) {
+            handleReversal(event, paymentEvent);
+            return;
+        }
+
+        // 3. Failure — a payment attempt that never credited us. Distinguished from IGNORED (which
+        //    means "not actionable") so it stays visible in reconciliation/exception views.
+        if (event.isFailure()) {
+            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.FAILED,
+                    "Payment failed: " + event.getEventType());
+            log.info("Recording failed Nomba payment requestId={} tx={}",
+                    event.getRequestId(), event.getProviderTransactionId());
+            return;
+        }
+
+        // 4. Relevance gate — only successful VA credits become transactions. Everything else we
+        //    don't act on (e.g. POS purchases, payouts) is recorded for audit but never minted as one.
         if (!event.isVirtualAccountCredit()) {
             paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.IGNORED,
                     "Non-credit event: " + event.getEventType());
@@ -78,7 +97,7 @@ public class TransactionIngestionService {
             return;
         }
 
-        // 3. Transaction-level idempotency — same underlying transfer seen before.
+        // 5. Transaction-level idempotency — same underlying transfer seen before.
         if (transactionRepository.existsByProviderAndProviderTransactionId(
                 event.getProvider(), event.getProviderTransactionId())) {
             paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.IGNORED,
@@ -86,7 +105,7 @@ public class TransactionIngestionService {
             return;
         }
 
-        // 4. Attribute to a virtual account. Unknown VA = orphan payment: record, don't retry.
+        // 6. Attribute to a virtual account. Unknown VA = orphan payment: record, don't retry.
         Optional<VirtualAccount> vaOpt =
                 virtualAccountRepository.findByAccountNumber(event.getVirtualAccountNumber());
         if (vaOpt.isEmpty()) {
@@ -97,7 +116,7 @@ public class TransactionIngestionService {
             return;
         }
 
-        // 5. Record the transaction, attributed to the customer.
+        // 7. Record the transaction, attributed to the customer.
         VirtualAccount va = vaOpt.get();
         Customer customer = va.getCustomer();
         CyrusPaymentEvent.Payer payer = event.getPayer();
@@ -125,6 +144,34 @@ public class TransactionIngestionService {
 
         log.info("Ingested Nomba payment tx {} for customer {} on VA {}",
                 event.getProviderTransactionId(), customer.getReference(), va.getAccountNumber());
+    }
+
+    /**
+     * Flips the original transaction to REVERSED. We don't yet have a confirmed sample of Nomba's
+     * {@code payment_reversal} payload, so the match is defensive: try the same providerTransactionId
+     * as the original transfer first, then fall back to sessionId (the other stable identifier Nomba
+     * carries across a transfer's lifecycle). If neither matches, record — don't guess, don't throw.
+     */
+    private void handleReversal(CyrusPaymentEvent event, PaymentEvent paymentEvent) {
+        Optional<Transaction> original = transactionRepository
+                .findByProviderAndProviderTransactionId(event.getProvider(), event.getProviderTransactionId());
+
+        if (original.isEmpty() && event.getSessionId() != null && !event.getSessionId().isBlank()) {
+            original = transactionRepository.findByProviderAndSessionId(event.getProvider(), event.getSessionId());
+        }
+
+        if (original.isEmpty()) {
+            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.IGNORED,
+                    "Reversal for unknown transaction " + event.getProviderTransactionId());
+            log.warn("Unmatched Nomba reversal: no transaction for tx={} session={}",
+                    event.getProviderTransactionId(), event.getSessionId());
+            return;
+        }
+
+        Transaction tx = original.get();
+        tx.setStatus(TransactionStatus.REVERSED);
+        paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.PROCESSED, null);
+        log.info("Reversed Nomba payment tx {} (providerTransactionId={})", tx.getId(), tx.getProviderTransactionId());
     }
 
     /**

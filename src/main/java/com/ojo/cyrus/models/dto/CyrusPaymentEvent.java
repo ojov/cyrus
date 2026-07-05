@@ -33,6 +33,16 @@ public class CyrusPaymentEvent {
                 && virtualAccountNumber != null && !virtualAccountNumber.isBlank();
     }
 
+    /** A previously successful payment reversed back to the payer — must flip the original transaction. */
+    public boolean isReversal() {
+        return "payment_reversal".equalsIgnoreCase(eventType);
+    }
+
+    /** A payment attempt that never credited us — recorded for visibility, never a transaction. */
+    public boolean isFailure() {
+        return "payment_failed".equalsIgnoreCase(eventType);
+    }
+
     @Builder
     @Getter
     public static class Payer {

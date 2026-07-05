@@ -2,8 +2,8 @@ package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.EventStatus;
 import com.ojo.cyrus.enums.Provider;
-import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
 import com.ojo.cyrus.models.entities.PaymentEvent;
+import com.ojo.cyrus.nomba.NombaWebhookAdapter;
 import com.ojo.cyrus.repositories.PaymentEventRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;

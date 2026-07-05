@@ -56,7 +56,10 @@ export default function LoginPage() {
           <input className={field} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dev@acme.ng" />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Password</label>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="text-xs font-semibold text-muted-foreground">Password</label>
+            <Link href="/forgot-password" className="text-xs text-muted-foreground underline underline-offset-2 hover:text-primary">Forgot?</Link>
+          </div>
           <input className={field} type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}

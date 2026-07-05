@@ -52,6 +52,8 @@ public class SecurityConfig {
             "/v1/auth/register",
             "/v1/auth/verify-email",
             "/v1/auth/resend-verification",
+            "/v1/auth/forgot-password",
+            "/v1/auth/reset-password",
             "/v1/webhooks/**",
             "/swagger-ui/**",
             "/swagger-ui.html",

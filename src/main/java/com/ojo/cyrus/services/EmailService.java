@@ -47,4 +47,9 @@ public class EmailService {
         Map<String, Object> variables = Map.of("firstName", firstName, "verificationUrl", verificationUrl);
         sendEmail(to, "Verify your Cyrus account", "email/verification", variables);
     }
+
+    public void sendPasswordResetEmail(String to, String firstName, String resetUrl) {
+        Map<String, Object> variables = Map.of("firstName", firstName, "resetUrl", resetUrl);
+        sendEmail(to, "Reset your Cyrus password", "email/password-reset", variables);
+    }
 }
