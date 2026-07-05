@@ -2,9 +2,11 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { Logo } from "@/components/logo";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { clearSession, getSession } from "@/lib/auth";
+import { EXCEPTIONS } from "@/lib/mock";
 import {
   IconGrid,
   IconUsers,
@@ -23,11 +25,13 @@ type NavItem = {
   badge?: string;
 };
 
+// Reconciliation badge count tracks the same EXCEPTIONS list the page itself renders,
+// so the sidebar can't silently drift from what "Needs attention" actually shows.
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", Icon: IconGrid, exact: true },
   { href: "/dashboard/customers", label: "Customers", Icon: IconUsers },
   { href: "/dashboard/transactions", label: "Transactions", Icon: IconSwap },
-  { href: "/dashboard/reconciliation", label: "Reconciliation", Icon: IconChecklist, badge: "2" },
+  { href: "/dashboard/reconciliation", label: "Reconciliation", Icon: IconChecklist, badge: String(EXCEPTIONS.length) },
   { href: "/dashboard/api-keys", label: "API keys", Icon: IconKey },
   { href: "/dashboard/settings", label: "Settings", Icon: IconSettings },
 ];
@@ -46,7 +50,7 @@ export function DashboardSidebar() {
     <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-sidebar md:flex">
       <div className="border-b border-border px-5 py-5">
         <Link href="/" className="flex items-center gap-2.5">
-          <span className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">C</span>
+          <Logo className="size-8" />
           <span className="font-semibold">Cyrus</span>
         </Link>
         <p suppressHydrationWarning className="mt-1 truncate text-xs text-muted-foreground">

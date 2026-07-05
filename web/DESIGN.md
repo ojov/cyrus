@@ -189,8 +189,9 @@ Developers live in Docs and never sign in; the ops team signs in to reach the Da
   `app/globals.css`). Refine, don't rebrand.
 - **Dark mode:** the app ships an unused `.dark` theme + `theme-toggle` — **finish it**, don't delete
   it. Both modes are first-class in the prototype.
-- **Components:** shadcn/ui (Card, Badge, Button, Input, Select, Table). Mono font for code/account
-  numbers/keys; sans for prose.
+- **Components:** dependency-free, hand-built (Card, Badge, Button, Input, Select, Table patterns) —
+  see `web/AGENTS.md`, which supersedes this line: no shadcn, react-query, or sonner. Mono font for
+  code/account numbers/keys; sans for prose.
 - **Tone:** docs-inspired (Nomba/Stripe developer-docs feel) — dense but calm, generous whitespace,
   status conveyed by color-coded badges (`MATCHED`=green, `PARTIAL`=amber, `ORPHANED`=red,
   `SUSPENDED`=muted).

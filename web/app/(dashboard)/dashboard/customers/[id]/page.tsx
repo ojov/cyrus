@@ -8,7 +8,24 @@ import { IconArrowLeft } from "@/components/icons";
 
 export default function CustomerDetailPage() {
   const params = useParams<{ id: string }>();
-  const customer = CUSTOMERS.find((c) => c.id === params.id) ?? CUSTOMERS[0];
+  const customer = CUSTOMERS.find((c) => c.id === params.id);
+
+  if (!customer) {
+    return (
+      <div className="space-y-4">
+        <Link
+          href="/dashboard/customers"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-primary"
+        >
+          <IconArrowLeft className="size-4" /> All customers
+        </Link>
+        <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+          Customer not found.
+        </div>
+      </div>
+    );
+  }
+
   const last = customer.statement[0];
 
   return (

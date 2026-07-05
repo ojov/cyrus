@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { EXCEPTIONS } from "@/lib/mock";
+import { EXCEPTIONS, OVERVIEW } from "@/lib/mock";
 import { naira, statusClass } from "@/lib/utils";
 
 const TABS = [
@@ -16,11 +16,12 @@ export default function ReconciliationPage() {
   const rows =
     tab === "resolved" ? [] : tab === "orphaned" ? EXCEPTIONS.filter((e) => e.type === "ORPHANED") : EXCEPTIONS;
 
+  const r = OVERVIEW.recon;
   const summary = [
-    { label: "Matched", value: 127, cls: "text-green-600 dark:text-green-400", sub: "96.2%" },
-    { label: "Partial", value: 2, cls: "text-amber-600 dark:text-amber-400", sub: "amount mismatch" },
-    { label: "Orphaned", value: 2, cls: "text-red-600 dark:text-red-400", sub: "no matching account" },
-    { label: "Missing webhook", value: 1, cls: "text-amber-600 dark:text-amber-400", sub: "found on requery" },
+    { label: "Matched", value: r.matched, cls: "text-green-600 dark:text-green-400", sub: `${((r.matched / r.total) * 100).toFixed(1)}%` },
+    { label: "Partial", value: r.partial, cls: "text-amber-600 dark:text-amber-400", sub: "amount mismatch" },
+    { label: "Orphaned", value: r.orphaned, cls: "text-red-600 dark:text-red-400", sub: "no matching account" },
+    { label: "Missing webhook", value: r.missing, cls: "text-amber-600 dark:text-amber-400", sub: "found on requery" },
   ];
 
   return (
@@ -74,7 +75,9 @@ export default function ReconciliationPage() {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">All reconciled ✓</td>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  {tab === "resolved" ? "No resolved exceptions yet." : "All reconciled ✓"}
+                </td>
               </tr>
             ) : (
               rows.map((e) => (

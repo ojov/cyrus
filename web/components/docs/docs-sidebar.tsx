@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Logo } from "@/components/logo";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { DOC_PAGES } from "@/lib/docs-nav";
@@ -13,7 +14,7 @@ export function DocsSidebar() {
     <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar md:flex">
       <div className="border-b border-border px-5 py-5">
         <Link href="/" className="flex items-center gap-2.5">
-          <span className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">C</span>
+          <Logo className="size-8" />
           <span>
             <span className="block font-semibold leading-tight">Cyrus</span>
             <span className="block text-xs text-muted-foreground">Payment identity</span>

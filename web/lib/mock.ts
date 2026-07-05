@@ -74,10 +74,23 @@ export const EXCEPTIONS: Exception[] = [
   { type: "PARTIAL", detail: "Duplicate provider id — deduped", payer: "John Bello", ref: "nmb_88a1", amountKobo: 5000000, action: "Confirm" },
 ];
 
-/** Overview figures the stats endpoint does not yet return (mock). */
+/**
+ * Overview figures the stats endpoint does not yet return (mock).
+ * recon counts are derived from EXCEPTIONS so every page that summarizes
+ * reconciliation (Overview health bar, Reconciliation tiles, sidebar badge)
+ * agrees with the one underlying list instead of carrying its own copy.
+ */
+const MATCHED_COUNT = 127;
+const RECON_COUNTS = {
+  matched: MATCHED_COUNT,
+  partial: EXCEPTIONS.filter((e) => e.type === "PARTIAL").length,
+  orphaned: EXCEPTIONS.filter((e) => e.type === "ORPHANED").length,
+  missing: EXCEPTIONS.filter((e) => e.type === "MISSING").length,
+};
+
 export const OVERVIEW = {
   inflowToday: "₦4.19M",
   inflowDelta: "+8.2%",
   reconciliationRate: "99.4%",
-  recon: { matched: 127, partial: 3, orphaned: 2, total: 132 },
+  recon: { ...RECON_COUNTS, total: MATCHED_COUNT + EXCEPTIONS.length },
 };

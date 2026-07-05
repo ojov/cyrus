@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
 import { saveSession } from "@/lib/auth";
-
-const field = "w-full rounded-lg border border-border bg-muted px-3 py-2.5 text-sm outline-none focus:border-primary";
+import { AuthCard, AuthCardHeader } from "@/components/auth/auth-card";
+import { Field } from "@/components/auth/form-field";
+import { FormError } from "@/components/auth/form-error";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,31 +39,28 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-sm">
-      <div className="mb-1 flex items-center gap-2.5">
-        <span className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">C</span>
-        <div>
-          <b className="block leading-tight">Sign in to Cyrus</b>
-          <span className="text-xs text-muted-foreground">Operations dashboard</span>
-        </div>
-      </div>
+    <AuthCard>
+      <AuthCardHeader title="Sign in to Cyrus" subtitle="Operations dashboard" />
       <p className="mb-5 mt-3 text-sm text-muted-foreground">
         The dashboard is for your ops team. Developers integrate with the API and do not need to sign in.
       </p>
 
       <form onSubmit={submit} className="space-y-3">
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Business email</label>
-          <input className={field} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dev@acme.ng" />
-        </div>
-        <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <label className="text-xs font-semibold text-muted-foreground">Password</label>
-            <Link href="/forgot-password" className="text-xs text-muted-foreground underline underline-offset-2 hover:text-primary">Forgot?</Link>
-          </div>
-          <input className={field} type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Field label="Business email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dev@acme.ng" />
+        <Field
+          label={
+            <span className="flex items-center justify-between">
+              Password
+              <Link href="/forgot-password" className="font-normal normal-case text-muted-foreground underline underline-offset-2 hover:text-primary">Forgot?</Link>
+            </span>
+          }
+          type="password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+        />
+        <FormError error={error} />
         {isUnverified && !resent && (
           <button
             type="button"
@@ -107,6 +105,6 @@ export default function LoginPage() {
       <p className="mt-3 text-center text-xs text-muted-foreground">
         After signup, generate your API key from the dashboard and copy it when it appears.
       </p>
-    </div>
+    </AuthCard>
   );
 }

@@ -15,9 +15,29 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
-  const body = await res.json().catch(() => null);
+
+  // A genuinely empty body (e.g. 204 No Content) is not a parse failure — treat it as
+  // an empty envelope so callers destructuring `.data` don't throw on `null`.
+  const text = await res.text();
+  if (!text) {
+    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    return { data: null } as T;
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // Non-JSON body. On a real error status, fall back to a status-based message below;
+    // on a reported success we can't trust the payload, so surface that distinctly instead
+    // of silently returning null cast as T (which masked real failures as empty success).
+    if (res.ok) throw new Error("Received an invalid response from the server.");
+    body = null;
+  }
+
   if (!res.ok) {
-    throw new Error(body?.message ?? `Request failed: ${res.status}`);
+    const message = (body as { message?: string } | null)?.message ?? `Request failed: ${res.status}`;
+    throw new Error(message);
   }
   return body as T;
 }

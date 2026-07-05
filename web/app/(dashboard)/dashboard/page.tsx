@@ -3,18 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSession, type MerchantSession } from "@/lib/auth";
-import { dashboardApi } from "@/lib/api";
+import { useDashboardStats } from "@/components/dashboard/stats-context";
 import { OVERVIEW } from "@/lib/mock";
 import { IconArrowRight, IconUsers, IconCard, IconTrend, IconCheckCircle } from "@/components/icons";
 
 export default function OverviewPage() {
   const [session, setSession] = useState<MerchantSession | null>(null);
-  const [stats, setStats] = useState<{ customers: number; virtualAccounts: number } | null>(null);
+  const { stats } = useDashboardStats();
 
   useEffect(() => {
-    // Read client-only session + stats after mount (setState in callbacks, not synchronously).
+    // Read client-only session after mount (setState in callbacks, not synchronously).
     Promise.resolve(getSession()).then(setSession);
-    dashboardApi.stats().then((res) => setStats(res.data)).catch(() => setStats(null));
   }, []);
 
   const cards = [

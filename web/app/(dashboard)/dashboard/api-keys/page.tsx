@@ -13,6 +13,7 @@ export default function ApiKeysPage() {
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -35,7 +36,14 @@ export default function ApiKeysPage() {
     setError(null);
     try {
       const res = await dashboardApi.createApiKey(env);
-      setNewKey(res.data?.apiKeys?.[0]?.apiKey ?? "");
+      const apiKey = res.data?.apiKeys?.[0]?.apiKey;
+      if (!apiKey) {
+        // Distinct from "user closed the panel" — missing key data on a 2xx is a real
+        // problem, not steady state, so it must not silently look like nothing happened.
+        setError("The key was created, but the response didn't include its value. Please refresh and try again.");
+      } else {
+        setNewKey(apiKey);
+      }
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create key");
@@ -46,11 +54,14 @@ export default function ApiKeysPage() {
 
   async function revoke(id: string) {
     setError(null);
+    setRevokingId(id);
     try {
       await dashboardApi.revokeApiKey(id);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to revoke key");
+    } finally {
+      setRevokingId(null);
     }
   }
 
@@ -163,9 +174,10 @@ export default function ApiKeysPage() {
                   <button
                     type="button"
                     onClick={() => revoke(k.id)}
-                    className="shrink-0 rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/10"
+                    disabled={revokingId === k.id}
+                    className="shrink-0 rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/10 disabled:opacity-60"
                   >
-                    Revoke
+                    {revokingId === k.id ? "Revoking…" : "Revoke"}
                   </button>
                 )}
               </div>

@@ -19,9 +19,6 @@ function Svg({ className, children }: { className?: string; children: ReactNode 
   );
 }
 
-export const IconDocs = ({ className }: IconProps) => (
-  <Svg className={className}><rect x="4" y="4" width="16" height="16" rx="1.5" /><path d="M8 9h8M8 13h5" /></Svg>
-);
 export const IconMoon = ({ className }: IconProps) => (
   <Svg className={className}><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" /></Svg>
 );

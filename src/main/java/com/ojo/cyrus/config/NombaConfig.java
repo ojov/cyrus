@@ -53,6 +53,7 @@ public class NombaConfig {
                 detail = node.get("message").asText();
             }
         } catch (Exception ignore) {
+
             // not JSON — fall back to the raw body
         }
         return "Nomba API error (HTTP " + status.value() + "): " + detail;

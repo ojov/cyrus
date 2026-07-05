@@ -11,7 +11,12 @@ const STORAGE_KEY = "cyrus_merchant";
 
 export function saveSession(session: MerchantSession) {
   const maxAge = 60 * 60 * 8; // 8h, matches backend token expiry
-  document.cookie = `cyrus_token=${encodeURIComponent(session.token)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  // Secure can be set from client JS (only sends the cookie over HTTPS); HttpOnly cannot —
+  // browsers only honor that flag on a Set-Cookie response header from the server, so as
+  // long as the token is issued to client JS in a JSON body, it's readable by any XSS on
+  // the page. Closing that gap fully requires the backend to set the cookie itself.
+  const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `cyrus_token=${encodeURIComponent(session.token)}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
 

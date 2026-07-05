@@ -1,26 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { authApi, dashboardApi, DashboardStats } from "@/lib/api";
+import { authApi, dashboardApi } from "@/lib/api";
 import { getSession } from "@/lib/auth";
+import { useDashboardStats } from "@/components/dashboard/stats-context";
 
 const field =
   "w-full rounded-lg border border-border bg-muted px-3 py-2 font-mono text-[13px] outline-none focus:border-primary";
 
 export default function SettingsPage() {
+  const { stats } = useDashboardStats();
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Seeded from the shared stats context, but kept as local state so a successful
+  // go-live action can flip it immediately without waiting on a re-fetch.
   const [liveMode, setLiveMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.resolve().then(() =>
-      dashboardApi.stats().then((r: DashboardStats) => setLiveMode(r.data.liveModeActive)).catch(() => {})
-    );
-  }, []);
+    if (stats) Promise.resolve(stats.liveModeActive).then(setLiveMode);
+  }, [stats]);
 
   async function goLive() {
     if (!clientId.trim() || !clientSecret.trim()) {
@@ -129,13 +132,18 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={async () => {
+            const session = getSession();
+            if (!session) {
+              setResetError("Your session expired. Please sign in again.");
+              return;
+            }
             setResetting(true);
+            setResetError(null);
             try {
-              const session = getSession();
-              await authApi.forgotPassword(session!.businessEmail);
+              await authApi.forgotPassword(session.businessEmail);
               setResetSent(true);
-            } catch {
-              setResetSent(false);
+            } catch (e) {
+              setResetError(e instanceof Error ? e.message : "Failed to send reset link");
             } finally {
               setResetting(false);
             }
@@ -145,6 +153,7 @@ export default function SettingsPage() {
         >
           {resetting ? "Sending…" : resetSent ? "Email sent" : "Send reset link"}
         </button>
+        {resetError && <p className="mt-2 text-sm text-destructive">{resetError}</p>}
       </div>
     </div>
   );
