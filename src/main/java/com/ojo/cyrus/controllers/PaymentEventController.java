@@ -31,7 +31,7 @@ public class PaymentEventController {
 
     @Operation(summary = "List payment events", description = "Retrieve a paginated list of payment events with optional filtering.")
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MERCHANT')")
     public CyrusApiResponse<Page<PaymentEvent>> listEvents(
             @RequestParam(required = false) EventStatus status,
             @RequestParam(required = false) Provider provider,
@@ -43,7 +43,7 @@ public class PaymentEventController {
 
     @Operation(summary = "Get payment event details", description = "Retrieve a single payment event by its ID.")
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MERCHANT')")
     public CyrusApiResponse<PaymentEvent> getEvent(@PathVariable UUID id) {
         return paymentEventService.findById(id)
                 .map(event -> CyrusApiResponse.success(ResponseCode.SUCCESS, "Payment event retrieved", event))
@@ -52,7 +52,7 @@ public class PaymentEventController {
 
     @Operation(summary = "Replay payment event", description = "Manually trigger the ingestion process for a specific payment event.")
     @PostMapping("/{id}/replay")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MERCHANT')")
     public CyrusApiResponse<Void> replayEvent(@PathVariable UUID id) {
         ingestionService.replayEvent(id);
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Payment event replay triggered", null);

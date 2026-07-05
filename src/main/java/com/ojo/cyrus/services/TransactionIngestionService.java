@@ -12,6 +12,7 @@ import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,22 +46,26 @@ public class TransactionIngestionService {
 
     @Transactional
     public void ingest(CyrusPaymentEvent event, String rawPayload) {
-        // 1. Event-level idempotency — same webhook delivered twice (Nomba retries).
-        // If replaying, we might want to bypass this check. 
-        // For now, let's just find the existing one if it exists or record a new one.
+        // 1. Event-level idempotency — find or create atomically.
+        // Two concurrent deliveries of the same requestId can both miss the lookup below,
+        // so we catch the unique-constraint violation on insert and re-fetch the winner's row.
         PaymentEvent paymentEvent;
         Optional<PaymentEvent> existing = paymentEventService.findByRequestId(event.getRequestId());
-        
+
         if (existing.isPresent()) {
             paymentEvent = existing.get();
             log.info("Processing existing PaymentEvent requestId={}", event.getRequestId());
         } else {
-            paymentEvent = paymentEventService.recordEvent(
-                    event.getRequestId(),
-                    event.getProvider(),
-                    event.getEventType(),
-                    rawPayload
-            );
+            try {
+                paymentEvent = paymentEventService.recordEvent(event.getRequestId(), event.getProvider(),
+                        event.getEventType(), rawPayload);
+            } catch (DataIntegrityViolationException e) {
+                log.info("Concurrent insert won for requestId={}, re-fetching", event.getRequestId());
+                paymentEvent = paymentEventService.findByRequestId(event.getRequestId())
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Concurrent insert failed and event not found for requestId="
+                                        + event.getRequestId()));
+            }
         }
 
         // 2. Relevance gate — only successful VA credits become transactions. Failures and non-VA
