@@ -7,7 +7,9 @@ import com.ojo.cyrus.exception.EmailNotVerifiedException;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.exception.NombaVerificationException;
 import com.ojo.cyrus.enums.MerchantStatus;
+import com.ojo.cyrus.enums.MerchantWebhookStatus;
 import com.ojo.cyrus.models.NombaCredential;
+import com.ojo.cyrus.models.WebhookConfig;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.GoLiveRequest;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
@@ -15,6 +17,9 @@ import com.ojo.cyrus.models.responses.ApiKeyListItem;
 import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
 import com.ojo.cyrus.models.responses.MerchantStatsResponse;
 import com.ojo.cyrus.models.responses.SubAccountBalanceResponse;
+import com.ojo.cyrus.models.responses.WebhookConfigItem;
+import com.ojo.cyrus.models.responses.WebhookConfigResponse;
+import com.ojo.cyrus.models.responses.WebhookDeliveryItem;
 import com.ojo.cyrus.nomba.*;
 import com.ojo.cyrus.nomba.dto.NombaBalanceData;
 import com.ojo.cyrus.nomba.dto.NombaCredentials;
@@ -23,10 +28,14 @@ import com.ojo.cyrus.nomba.utils.CredentialMapper;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.repositories.CustomerRepository;
 import com.ojo.cyrus.repositories.MerchantRepository;
+import com.ojo.cyrus.repositories.MerchantWebhookEventRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import com.ojo.cyrus.utils.CryptoUtil;
+import com.ojo.cyrus.utils.Mapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
@@ -55,7 +64,10 @@ public class MerchantService {
     private final AppProperties appProperties;
     private final CustomerRepository customerRepository;
     private final VirtualAccountRepository virtualAccountRepository;
+    private final MerchantWebhookEventRepository webhookEventRepository;
     private final PlatformTransactionManager transactionManager;
+
+    private static final String WEBHOOK_SECRET_PREFIX = "whsec_";
 
     @Transactional(readOnly = true)
     public Merchant findById(UUID id) {
@@ -190,6 +202,71 @@ public class MerchantService {
     public void updateSubAccounts(String email, Set<String> subAccountIds) {
         Merchant merchant = findByBusinessEmail(email);
         merchant.setNombaSubAccountIds(subAccountIds);
+    }
+
+    /**
+     * Registers or updates the outbound-webhook URL for one environment. On the first registration
+     * a signing secret is generated and returned ONCE (never retrievable again); a later URL update
+     * keeps the existing secret and returns it as null. Mutates the managed entity in place (dirty
+     * checking persists on commit), mirroring {@link #updateSubAccounts}.
+     */
+    public WebhookConfigResponse setWebhookUrl(String email, Environment environment, String url) {
+        Merchant merchant = findByBusinessEmail(email);
+        WebhookConfig existing = merchant.getWebhookConfigs().get(environment);
+
+        String plaintextSecret = null;
+        String encryptedSecret;
+        if (existing != null && existing.encryptedSecret() != null) {
+            encryptedSecret = existing.encryptedSecret(); // keep the current secret on a URL change
+        } else {
+            plaintextSecret = generateWebhookSecret();
+            encryptedSecret = CryptoUtil.encrypt(plaintextSecret, appProperties.encryptionKey());
+        }
+
+        merchant.getWebhookConfigs().put(environment, new WebhookConfig(url, encryptedSecret));
+        log.info("Merchant {} set {} webhook URL", merchant.getId(), environment);
+        return new WebhookConfigResponse(environment, url, plaintextSecret, true);
+    }
+
+    /** Issues a fresh signing secret for an already-registered webhook, returned once. */
+    public WebhookConfigResponse rotateWebhookSecret(String email, Environment environment) {
+        Merchant merchant = findByBusinessEmail(email);
+        WebhookConfig existing = merchant.getWebhookConfigs().get(environment);
+        if (existing == null) {
+            throw new EntityNotFoundException("No webhook configured for " + environment);
+        }
+        String plaintextSecret = generateWebhookSecret();
+        String encryptedSecret = CryptoUtil.encrypt(plaintextSecret, appProperties.encryptionKey());
+        merchant.getWebhookConfigs().put(environment, new WebhookConfig(existing.url(), encryptedSecret));
+        log.info("Merchant {} rotated {} webhook secret", merchant.getId(), environment);
+        return new WebhookConfigResponse(environment, existing.url(), plaintextSecret, true);
+    }
+
+    @Transactional(readOnly = true)
+    public List<WebhookConfigItem> listWebhooks(String email) {
+        Merchant merchant = findByBusinessEmail(email);
+        return merchant.getWebhookConfigs().entrySet().stream()
+                .map(e -> new WebhookConfigItem(e.getKey(), e.getValue().url(),
+                        e.getValue().encryptedSecret() != null))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<WebhookDeliveryItem> listWebhookDeliveries(String email, MerchantWebhookStatus status,
+                                                           Environment environment, Pageable pageable) {
+        UUID merchantId = findByBusinessEmail(email).getId();
+        return webhookEventRepository.findDeliveries(merchantId, status, environment, pageable)
+                .map(Mapper::toWebhookDeliveryItem);
+    }
+
+    public void deleteWebhook(String email, Environment environment) {
+        Merchant merchant = findByBusinessEmail(email);
+        merchant.getWebhookConfigs().remove(environment);
+        log.info("Merchant {} removed {} webhook config", merchant.getId(), environment);
+    }
+
+    private String generateWebhookSecret() {
+        return WEBHOOK_SECRET_PREFIX + CryptoUtil.randomToken(32);
     }
 
     public void validateMerchantExists(MerchantRegistrationRequest request) {

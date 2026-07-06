@@ -4,6 +4,7 @@ import com.ojo.cyrus.enums.MerchantStatus;
 import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.models.BaseEntity;
 import com.ojo.cyrus.models.NombaCredential;
+import com.ojo.cyrus.models.WebhookConfig;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -42,4 +43,16 @@ public class Merchant extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private MerchantStatus status = MerchantStatus.PENDING_VERIFICATION;
+
+    // Outbound-webhook config per environment (TEST/LIVE), mirroring nombaCredentials: a merchant
+    // registers a URL + Cyrus-generated signing secret (stored encrypted) that Cyrus POSTs
+    // payment.* events to. LAZY — materialize inside a tx before use (see nombaCredentials).
+    @ElementCollection
+    @CollectionTable(name = "merchant_webhook_configs",
+            joinColumns = @JoinColumn(name = "merchant_id")
+    )
+    @MapKeyColumn(name = "environment")
+    @MapKeyEnumerated(EnumType.STRING)
+    @Builder.Default
+    private Map<Environment, WebhookConfig> webhookConfigs = new HashMap<>();
 }

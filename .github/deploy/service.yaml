@@ -50,6 +50,13 @@ spec:
               value: '300'
             - name: APP_RECONCILIATION_MAX_ATTEMPTS
               value: '5'
+            # Outbound merchant webhooks: delivery attempts and exponential backoff bounds (seconds)
+            - name: APP_WEBHOOK_MAX_ATTEMPTS
+              value: '5'
+            - name: APP_WEBHOOK_INITIAL_BACKOFF_SECONDS
+              value: '60'
+            - name: APP_WEBHOOK_MAX_BACKOFF_SECONDS
+              value: '3600'
             # --- Secrets (Secret Manager references) ---
             - name: DB_URL
               valueFrom:

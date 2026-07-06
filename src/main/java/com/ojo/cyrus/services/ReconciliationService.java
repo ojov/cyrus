@@ -2,6 +2,7 @@ package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.config.properties.ReconciliationProperties;
 import com.ojo.cyrus.enums.MatchStatus;
+import com.ojo.cyrus.enums.MerchantWebhookEventType;
 import com.ojo.cyrus.enums.ReconciliationOutcome;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.models.dto.RequeryApplication;
@@ -47,6 +48,7 @@ public class ReconciliationService {
     private final PlatformTransactionManager transactionManager;
     private final JobScheduler jobScheduler;
     private final ReconciliationProperties reconciliationProperties;
+    private final MerchantWebhookService merchantWebhookService;
 
     /**
      * Reconciles a transaction against Nomba's requery endpoint using the webhook requestId.
@@ -103,7 +105,8 @@ public class ReconciliationService {
             // reversal webhook may have flipped this to REVERSED while the job was waiting, and
             // requery confirming the ORIGINAL transfer must not undo the clawback (REVERSED ->
             // SUCCESSFUL would report a clawed-back payment as successful).
-            if (tx.getStatus() == TransactionStatus.PENDING) {
+            boolean promoted = tx.getStatus() == TransactionStatus.PENDING;
+            if (promoted) {
                 tx.setStatus(TransactionStatus.SUCCESSFUL);
             }
 
@@ -125,17 +128,28 @@ public class ReconciliationService {
                 diffs.add("Webhook currency=" + tx.getCurrency() + ", Nomba requery currency=" + providerTx.currency());
             }
 
+            ReconciliationOutcome outcome;
             if (diffs.isEmpty()) {
                 tx.setMatchStatus(MatchStatus.MATCHED);
                 tx.setMatchStatusDetails(null);
                 log.info("Transaction {} reconciled: MATCHED", tx.getId());
-                return new RequeryApplication(ReconciliationOutcome.MATCHED, tx.getReconciliationAttempts());
+                outcome = ReconciliationOutcome.MATCHED;
+            } else {
+                tx.setMatchStatus(MatchStatus.DISCREPANCY);
+                tx.setMatchStatusDetails(String.join("; ", diffs));
+                log.warn("Transaction {} reconciled: DISCREPANCY - {}", tx.getId(), String.join("; ", diffs));
+                outcome = ReconciliationOutcome.DISCREPANCY;
             }
 
-            tx.setMatchStatus(MatchStatus.DISCREPANCY);
-            tx.setMatchStatusDetails(String.join("; ", diffs));
-            log.warn("Transaction {} reconciled: DISCREPANCY - {}", tx.getId(), String.join("; ", diffs));
-            return new RequeryApplication(ReconciliationOutcome.DISCREPANCY, tx.getReconciliationAttempts());
+            // Notify the merchant that the payment is confirmed — once, on the transition to
+            // SUCCESSFUL. MATCHED and DISCREPANCY both send payment.succeeded (the money exists
+            // either way; a DISCREPANCY is a reconciliation concern carried on matchStatus). The
+            // outbox row is written in THIS transaction, atomic with the status change.
+            if (promoted) {
+                merchantWebhookService.recordAndScheduleDispatch(tx, MerchantWebhookEventType.PAYMENT_SUCCEEDED);
+            }
+
+            return new RequeryApplication(outcome, tx.getReconciliationAttempts());
         });
     }
 
@@ -157,6 +171,8 @@ public class ReconciliationService {
                     tx.setMatchStatus(MatchStatus.MANUAL_REVIEW);
                     tx.setMatchStatusDetails(details);
                     tx.setLastReconciledAt(Instant.now());
+                    // Notify the merchant we couldn't confirm this payment — atomic with the flag.
+                    merchantWebhookService.recordAndScheduleDispatch(tx, MerchantWebhookEventType.PAYMENT_FLAGGED);
                 }));
     }
 }

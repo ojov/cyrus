@@ -5,12 +5,14 @@ import com.ojo.cyrus.models.NombaCredential;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
 import com.ojo.cyrus.models.entities.Customer;
 import com.ojo.cyrus.models.entities.Merchant;
+import com.ojo.cyrus.models.entities.MerchantWebhookEvent;
 import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
 import com.ojo.cyrus.models.responses.CustomerResponse;
+import com.ojo.cyrus.models.responses.WebhookDeliveryItem;
 import com.ojo.cyrus.nomba.dto.NombaCreateVirtualAccountRequest;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
 import lombok.experimental.UtilityClass;
@@ -114,5 +116,23 @@ public class Mapper {
                 .rawPayload(rawPayload)
                 .build();
         return tx;
+    }
+
+    public static WebhookDeliveryItem toWebhookDeliveryItem(MerchantWebhookEvent event) {
+        // event.getTransaction().getId() reads the FK off the lazy proxy without initializing it.
+        Transaction tx = event.getTransaction();
+        return new WebhookDeliveryItem(
+                event.getId(),
+                tx != null ? tx.getId() : null,
+                event.getEnvironment(),
+                event.getEventType(),
+                event.getStatus(),
+                event.getWebhookUrl(),
+                event.getAttempts(),
+                event.getLastResponseCode(),
+                event.getLastError(),
+                event.getNextRetryAt(),
+                event.getDeliveredAt(),
+                event.getCreatedAt());
     }
 }

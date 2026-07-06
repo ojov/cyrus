@@ -2,6 +2,7 @@ package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.config.properties.ReconciliationProperties;
 import com.ojo.cyrus.enums.EventStatus;
+import com.ojo.cyrus.enums.MerchantWebhookEventType;
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
@@ -57,6 +58,7 @@ public class TransactionIngestionService {
     private final ReconciliationService reconciliationService;
     private final JobScheduler jobScheduler;
     private final ReconciliationProperties reconciliationProperties;
+    private final MerchantWebhookService merchantWebhookService;
 
     /**
      * @return the created {@link Transaction} only when this event is a genuine VA credit —
@@ -185,6 +187,8 @@ public class TransactionIngestionService {
         Transaction tx = original.get();
         tx.setStatus(TransactionStatus.REVERSED);
         paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.PROCESSED, null);
+        // Notify the merchant of the clawback — outbox row written in this same @Transactional ingest.
+        merchantWebhookService.recordAndScheduleDispatch(tx, MerchantWebhookEventType.PAYMENT_REVERSED);
         log.info("Reversed Nomba payment tx {} (providerTransactionId={})", tx.getId(), tx.getProviderTransactionId());
     }
 
