@@ -82,7 +82,7 @@ public class NombaWebhookService {
         String finalRequestId = requestId;
         String finalEventType = eventType;
         PaymentEvent event = paymentEventService.findByRequestId(requestId)
-                .orElseGet(() -> paymentEventService.recordEvent(finalRequestId, Provider.NOMBA, finalEventType, rawPayload));
+                .orElseGet(() -> paymentEventService.recordEvent(finalRequestId, Provider.NOMBA, finalEventType, rawPayload, null));
         paymentEventService.updateStatus(event.getId(), EventStatus.FAILED,
                 "Unprocessable payload: " + cause.getMessage());
     }

@@ -12,6 +12,8 @@ import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
 import com.ojo.cyrus.models.responses.CustomerResponse;
+import com.ojo.cyrus.models.responses.PaymentEventListItem;
+import com.ojo.cyrus.models.responses.PaymentEventResponse;
 import com.ojo.cyrus.models.responses.WebhookDeliveryItem;
 import com.ojo.cyrus.nomba.dto.NombaCreateVirtualAccountRequest;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
@@ -62,6 +64,8 @@ public class Mapper {
                 customer.getLastName(),
                 customer.getEmail(),
                 customer.getPhoneNumber(),
+                customer.getStatus(),
+                customer.getKycTier(),
                 new CustomerResponse.VirtualAccountSummary(
                         va.getId(),
                         va.getAccountNumber(),
@@ -133,6 +137,29 @@ public class Mapper {
                 event.getLastError(),
                 event.getNextRetryAt(),
                 event.getDeliveredAt(),
+                event.getCreatedAt());
+    }
+
+    public static PaymentEventListItem toPaymentEventListItem(PaymentEvent event) {
+        return new PaymentEventListItem(
+                event.getId(),
+                event.getRequestId(),
+                event.getProvider(),
+                event.getEventType(),
+                event.getStatus(),
+                event.getStatusDetails(),
+                event.getCreatedAt());
+    }
+
+    public static PaymentEventResponse toPaymentEventResponse(PaymentEvent event) {
+        return new PaymentEventResponse(
+                event.getId(),
+                event.getRequestId(),
+                event.getProvider(),
+                event.getEventType(),
+                event.getStatus(),
+                event.getStatusDetails(),
+                event.getPayload(),
                 event.getCreatedAt());
     }
 }

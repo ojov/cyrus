@@ -16,6 +16,10 @@ public class NormalizedPaymentEvent {
     private String eventType;
     private String providerTransactionId;
     private String sessionId;
+    // The provider-side wallet the payment landed in — resolves to a Merchant via
+    // Merchant.nombaParentAccountId, independent of (and before) virtual-account attribution. This is
+    // what lets an orphan payment (unknown VA) still be scoped to the right merchant for recovery.
+    private String walletId;
     private String virtualAccountNumber;
     private BigInteger amount; // minor units (kobo)
     private BigInteger fee; // minor units (kobo)

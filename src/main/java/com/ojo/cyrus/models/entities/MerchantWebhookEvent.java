@@ -28,7 +28,7 @@ import java.time.Instant;
 @Setter
 @Getter
 public class MerchantWebhookEvent extends BaseEntity {
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "merchant_id")
     private Merchant merchant;
 

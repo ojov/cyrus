@@ -5,5 +5,8 @@ public enum EventStatus {
     PROCESSED,
     FAILED,
     IGNORED,
-    PROCESSED_DUPLICATE
+    PROCESSED_DUPLICATE,
+    // An IGNORED (orphan/misdirected) event that a merchant manually reattributed to one of their
+    // own customers, minting a Transaction retroactively.
+    REATTRIBUTED
 }

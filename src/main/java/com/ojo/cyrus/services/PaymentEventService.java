@@ -2,15 +2,15 @@ package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.EventStatus;
 import com.ojo.cyrus.enums.Provider;
-import com.ojo.cyrus.exception.AlreadyExistsException;
+import com.ojo.cyrus.exception.EntityNotFoundException;
+import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.PaymentEvent;
-import com.ojo.cyrus.nomba.NombaWebhookAdapter;
+import com.ojo.cyrus.models.responses.PaymentEventListItem;
+import com.ojo.cyrus.models.responses.PaymentEventResponse;
 import com.ojo.cyrus.repositories.PaymentEventRepository;
-import jakarta.persistence.EntityNotFoundException;
+import com.ojo.cyrus.utils.Mapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,32 +25,25 @@ import java.util.UUID;
 public class PaymentEventService {
 
     private final PaymentEventRepository paymentEventRepository;
-    private final NombaWebhookAdapter nombaAdapter;
-
     /**
-     * Records a raw webhook event.
+     * Records a raw webhook event. {@code merchant} is the best-effort owner resolved from the
+     * payload's wallet id — null when the wallet is unrecognized too (a fully unattributable event).
      */
     @Transactional
-    public PaymentEvent recordEvent(String requestId, Provider provider, String eventType, String payload) {
+    public PaymentEvent recordEvent(String requestId, Provider provider, String eventType, String payload,
+                                     Merchant merchant) {
         log.debug("Recording payment event: requestId={}, provider={}, type={}", requestId, provider, eventType);
-        
+
         PaymentEvent event = PaymentEvent.builder()
                 .requestId(requestId)
                 .provider(provider)
                 .eventType(eventType)
                 .payload(payload)
+                .merchant(merchant)
                 .status(EventStatus.PENDING)
                 .build();
-        
+
         return paymentEventRepository.save(event);
-    }
-
-
-    /**
-     * Finds an event by its unique ID.
-     */
-    public Optional<PaymentEvent> findById(UUID id) {
-        return paymentEventRepository.findById(id);
     }
 
     /**
@@ -60,29 +53,36 @@ public class PaymentEventService {
         return paymentEventRepository.findByRequestId(requestId);
     }
 
-    public PaymentEvent getByRequestId(String requestId) {
-        return paymentEventRepository.findByRequestId(requestId)
-                .orElseThrow(() -> new EntityNotFoundException("PaymentEvent not found: " + requestId));
+    /**
+     * Ownership-checked lookup — a merchant can only ever see their own events. Not found and
+     * not-yours look identical (404) so a merchant can't distinguish "doesn't exist" from
+     * "belongs to someone else" by probing IDs.
+     */
+    public PaymentEvent findByIdForMerchant(UUID merchantId, UUID id) {
+        PaymentEvent event = paymentEventRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Payment event not found"));
+        if (event.getMerchant() == null || !event.getMerchant().getId().equals(merchantId)) {
+            throw new EntityNotFoundException("Payment event not found");
+        }
+        return event;
     }
 
     /**
-     * Checks if an event with the given requestId already exists.
+     * The ownership-checked lookup above, mapped to the API-facing detail DTO (includes the raw
+     * payload, useful for inspecting exactly what Nomba sent before deciding whether to reattribute).
      */
-    public boolean existsByRequestId(String requestId) {
-        return paymentEventRepository.existsByRequestId(requestId);
+    public PaymentEventResponse getForMerchant(UUID merchantId, UUID id) {
+        return Mapper.toPaymentEventResponse(findByIdForMerchant(merchantId, id));
     }
 
     /**
-     * List events with pagination and optional filtering by status or provider.
+     * List a merchant's own events with pagination and optional filtering by status or provider.
+     * Events with no resolved merchant (fully unattributable) are never visible here.
      */
-    public Page<PaymentEvent> listEvents(EventStatus status, Provider provider, Pageable pageable) {
-        PaymentEvent probe = PaymentEvent.builder()
-                .status(status)
-                .provider(provider)
-                .build();
-        return paymentEventRepository.findAll(Example.of(probe), pageable);
+    public Page<PaymentEventListItem> listEvents(UUID merchantId, EventStatus status, Provider provider, Pageable pageable) {
+        return paymentEventRepository.findByMerchant(merchantId, status, provider, pageable)
+                .map(Mapper::toPaymentEventListItem);
     }
-
 
     /**
      * Updates the status of an event.
@@ -91,7 +91,7 @@ public class PaymentEventService {
     public void updateStatus(UUID id, EventStatus status, String details) {
         PaymentEvent event = paymentEventRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("PaymentEvent not found: " + id));
-        
+
         event.setStatus(status);
         event.setStatusDetails(details);
         paymentEventRepository.save(event);

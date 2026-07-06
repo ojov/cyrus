@@ -33,10 +33,6 @@ public class ApiKeyService {
                 .filter(key -> key.getExpiresAt() == null || key.getExpiresAt().isAfter(Instant.now()));
     }
 
-    public boolean isLiveKey(String rawKey) {
-        return rawKey.contains("_live_");
-    }
-
     @Transactional(readOnly = true)
     public List<ApiKeyListItem> listKeys(UUID merchantId) {
         return apiKeyRepository.findByMerchantIdOrderByCreatedAtDesc(merchantId).stream()

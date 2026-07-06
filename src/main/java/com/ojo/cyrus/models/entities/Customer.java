@@ -1,5 +1,7 @@
 package com.ojo.cyrus.models.entities;
 
+import com.ojo.cyrus.enums.CustomerStatus;
+import com.ojo.cyrus.enums.KycTier;
 import com.ojo.cyrus.models.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -29,6 +31,18 @@ public class Customer extends BaseEntity {
     private String email;
 
     private String phoneNumber;
+
+    @Setter
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(255) default 'ACTIVE'")
+    @Builder.Default
+    private CustomerStatus status = CustomerStatus.ACTIVE;
+
+    @Setter
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(255) default 'LEVEL_1'")
+    @Builder.Default
+    private KycTier kycTier = KycTier.LEVEL_1;
 
     @OneToOne(mappedBy = "customer", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private VirtualAccount virtualAccount;

@@ -31,7 +31,7 @@ public class NombaWebhookAdapter {
             JsonNode data = root.path("data");
             JsonNode tx = data.path("transaction");
             JsonNode customer = data.path("customer");
-
+            JsonNode merchant = data.path("merchant");
 
             return NormalizedPaymentEvent.builder()
                     .provider(Provider.NOMBA)
@@ -39,6 +39,9 @@ public class NombaWebhookAdapter {
                     .requestId(text(root, "requestId"))
                     .providerTransactionId(text(tx, "transactionId"))
                     .sessionId(text(tx, "sessionId"))
+                    // Some payloads omit this (see NombaSignatureService) — resolution falls back
+                    // to VA-based merchant attribution when null.
+                    .walletId(text(merchant, "walletId"))
                     // The credited virtual account: a VA transfer carries the VA's NUBAN as
                     // `aliasAccountNumber` (with aliasAccountType "VIRTUAL"). Non-VA events (e.g. POS
                     // purchases) omit it → null → gated out in ingestion.

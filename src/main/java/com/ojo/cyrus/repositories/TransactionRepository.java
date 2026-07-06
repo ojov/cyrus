@@ -5,6 +5,8 @@ import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.models.entities.Transaction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,4 +42,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     BigInteger sumAmountByMerchantAndEnvironmentAndStatus(@Param("merchantId") UUID merchantId,
                                                            @Param("environment") Environment environment,
                                                            @Param("status") TransactionStatus status);
+
+    // Customer statement — newest first, paginated.
+    Page<Transaction> findByCustomerIdOrderByReceivedAtDesc(UUID customerId, Pageable pageable);
+
+    @Query("""
+            SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
+            WHERE t.customer.id = :customerId AND t.status = :status
+            """)
+    BigInteger sumAmountByCustomerAndStatus(@Param("customerId") UUID customerId,
+                                             @Param("status") TransactionStatus status);
 }

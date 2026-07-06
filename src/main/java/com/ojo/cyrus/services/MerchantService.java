@@ -32,6 +32,7 @@ import com.ojo.cyrus.repositories.MerchantWebhookEventRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import com.ojo.cyrus.utils.CryptoUtil;
 import com.ojo.cyrus.utils.Mapper;
+import com.ojo.cyrus.utils.WebhookUrlValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -211,6 +212,8 @@ public class MerchantService {
      * checking persists on commit), mirroring {@link #updateSubAccounts}.
      */
     public WebhookConfigResponse setWebhookUrl(String email, Environment environment, String url) {
+        WebhookUrlValidator.validate(url);
+
         Merchant merchant = findByBusinessEmail(email);
         WebhookConfig existing = merchant.getWebhookConfigs().get(environment);
 

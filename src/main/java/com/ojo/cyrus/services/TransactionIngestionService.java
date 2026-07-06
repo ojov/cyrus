@@ -5,15 +5,19 @@ import com.ojo.cyrus.enums.EventStatus;
 import com.ojo.cyrus.enums.MerchantWebhookEventType;
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.enums.TransactionStatus;
+import com.ojo.cyrus.exception.EntityNotFoundException;
+import com.ojo.cyrus.exception.InvalidPaymentEventStateException;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
 import com.ojo.cyrus.models.entities.Customer;
+import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.nomba.NombaWebhookAdapter;
+import com.ojo.cyrus.repositories.CustomerRepository;
+import com.ojo.cyrus.repositories.MerchantRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jobrunr.scheduling.JobScheduler;
@@ -53,6 +57,8 @@ import static com.ojo.cyrus.utils.Mapper.buildTransaction;
 public class TransactionIngestionService {
     private final TransactionRepository transactionRepository;
     private final VirtualAccountRepository virtualAccountRepository;
+    private final CustomerRepository customerRepository;
+    private final MerchantRepository merchantRepository;
     private final PaymentEventService paymentEventService;
     private final NombaWebhookAdapter nombaAdapter;
     private final ReconciliationService reconciliationService;
@@ -70,11 +76,17 @@ public class TransactionIngestionService {
         // 1. Event-level idempotency — find or create atomically.
         // Two concurrent deliveries of the same requestId can both miss the lookup below,
         // so we catch the unique-constraint violation on insert and re-fetch the winner's row.
+        // Best-effort merchant resolution via the payload's wallet id — independent of (and prior
+        // to) virtual-account attribution, so an orphan payment can still be scoped to a merchant.
+        Merchant walletMerchant = event.getWalletId() != null
+                ? merchantRepository.findByNombaWalletId(event.getWalletId()).orElse(null)
+                : null;
+
         PaymentEvent paymentEvent;
         try {
             paymentEvent = paymentEventService.findByRequestId(event.getRequestId()).orElseGet(() ->
                 paymentEventService.recordEvent(event.getRequestId(), event.getProvider(),
-                    event.getEventType(), rawPayload));
+                    event.getEventType(), rawPayload, walletMerchant));
         } catch (DataIntegrityViolationException e) {
             log.info("Concurrent insert won for requestId={}, re-fetching", event.getRequestId());
             paymentEvent = paymentEventService.findByRequestId(event.getRequestId())
@@ -117,7 +129,9 @@ public class TransactionIngestionService {
             return Optional.empty();
         }
 
-        // 6. Attribute to a virtual account. Unknown VA = orphan payment: record, don't retry.
+        // 6. Attribute to a virtual account. Unknown VA = orphan/misdirected payment: record, don't
+        //    retry — visible (scoped to walletMerchant, if resolved) for manual reattribution via
+        //    reattribute() below.
         Optional<VirtualAccount> vaOpt =
                 virtualAccountRepository.findByAccountNumber(event.getVirtualAccountNumber());
         if (vaOpt.isEmpty()) {
@@ -132,6 +146,12 @@ public class TransactionIngestionService {
         VirtualAccount va = vaOpt.get();
         Customer customer = va.getCustomer();
         NormalizedPaymentEvent.Payer payer = event.getPayer();
+
+        // The VA's owning merchant is authoritative — a hard FK, unlike the wallet-id match above —
+        // so correct the event's merchant if the wallet lookup missed or (shouldn't happen) disagreed.
+        if (paymentEvent.getMerchant() == null || !paymentEvent.getMerchant().getId().equals(va.getMerchant().getId())) {
+            paymentEvent.setMerchant(va.getMerchant());
+        }
 
         Transaction tx = transactionRepository.save(
                 buildTransaction(event, rawPayload, customer, va, payer, paymentEvent));
@@ -193,12 +213,12 @@ public class TransactionIngestionService {
     }
 
     /**
-     * Replays a specific event by triggering its ingestion again.
+     * Replays a specific event by triggering its ingestion again. Ownership-checked: a merchant can
+     * only replay their own events.
      */
     @Transactional
-    public void replayEvent(UUID id) {
-        PaymentEvent event = paymentEventService.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("PaymentEvent not found: " + id));
+    public void replayEvent(UUID merchantId, UUID id) {
+        PaymentEvent event = paymentEventService.findByIdForMerchant(merchantId, id);
 
         log.info("Replaying payment event: {}", id);
 
@@ -206,7 +226,49 @@ public class TransactionIngestionService {
             NormalizedPaymentEvent cyrusEvent = nombaAdapter.toCyrusEvent(event.getPayload());
             this.ingest(cyrusEvent, event.getPayload());
         } else {
-            throw new UnsupportedOperationException("Replay not implemented for provider: " + event.getProvider());
+            throw new InvalidPaymentEventStateException("Replay not implemented for provider: " + event.getProvider());
         }
+    }
+
+    /**
+     * Manually attributes an orphaned (IGNORED) payment event to one of the merchant's own
+     * customers — for a misdirected payment where the true recipient is known but the payload's own
+     * virtual-account number doesn't resolve (wrong/mistyped VA, decommissioned account, etc.).
+     * Mints a {@link Transaction} against the CHOSEN customer's virtual account (ignoring the
+     * payload's own VA number) and feeds it into the same reconciliation pipeline as a normal
+     * ingestion, so the merchant is notified once Nomba confirms the transfer.
+     */
+    @Transactional
+    public Transaction reattribute(UUID merchantId, UUID paymentEventId, String customerReference) {
+        PaymentEvent paymentEvent = paymentEventService.findByIdForMerchant(merchantId, paymentEventId);
+        if (paymentEvent.getStatus() != EventStatus.IGNORED) {
+            throw new InvalidPaymentEventStateException(
+                    "Only an IGNORED (orphan) event can be reattributed — this event is " + paymentEvent.getStatus());
+        }
+        if (paymentEvent.getProvider() != Provider.NOMBA) {
+            throw new InvalidPaymentEventStateException("Reattribution not implemented for provider: " + paymentEvent.getProvider());
+        }
+
+        Customer customer = customerRepository.findByMerchantIdAndReference(merchantId, customerReference)
+                .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + customerReference));
+        VirtualAccount va = virtualAccountRepository.findByCustomerId(customer.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Virtual account not found for customer"));
+
+        NormalizedPaymentEvent event = nombaAdapter.toCyrusEvent(paymentEvent.getPayload());
+
+        if (transactionRepository.existsByProviderAndProviderTransactionId(event.getProvider(), event.getProviderTransactionId())) {
+            throw new InvalidPaymentEventStateException("A transaction already exists for this payment");
+        }
+
+        Transaction tx = transactionRepository.save(
+                buildTransaction(event, paymentEvent.getPayload(), customer, va, event.getPayer(), paymentEvent));
+        paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.REATTRIBUTED,
+                "Manually reattributed to customer " + customerReference);
+
+        scheduleReconciliation(tx);
+
+        log.info("Reattributed payment event {} to customer {} (merchant {}) as tx {}",
+                paymentEventId, customerReference, merchantId, tx.getId());
+        return tx;
     }
 }

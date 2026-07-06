@@ -5,6 +5,7 @@ import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
 import com.ojo.cyrus.models.responses.CustomerResponse;
+import com.ojo.cyrus.models.responses.CustomerStatementResponse;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.services.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +13,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -48,5 +51,21 @@ public class CustomerController {
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customer retrieved",
                 customerService.getByReference(merchant.getId(), reference));
+    }
+
+    @Operation(
+            summary = "Get a customer's statement",
+            description = "Retrieves the customer's identity summary, lifetime received volume (kobo), " +
+                    "and a paginated, newest-first history of transactions into their dedicated virtual account.",
+            security = @SecurityRequirement(name = "ApiKeyAuth")
+    )
+    @GetMapping("/{reference}/statement")
+    public CyrusApiResponse<CustomerStatementResponse> getStatement(
+            @AuthenticationPrincipal Merchant merchant,
+            @PathVariable String reference,
+            @PageableDefault(size = 20) Pageable pageable) {
+
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Statement retrieved",
+                customerService.getStatement(merchant.getId(), reference, pageable));
     }
 }
