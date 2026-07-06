@@ -1,6 +1,7 @@
-package com.ojo.cyrus.nomba;
+package com.ojo.cyrus.nomba.utils;
 
 import com.ojo.cyrus.models.entities.Merchant;
+import com.ojo.cyrus.nomba.dto.NombaCredentials;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;

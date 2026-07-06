@@ -3,10 +3,8 @@ package com.ojo.cyrus.nomba;
 import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.exception.NombaIntegrationException;
-import com.ojo.cyrus.nomba.dto.NombaApiResponse;
-import com.ojo.cyrus.nomba.dto.NombaBalanceData;
-import com.ojo.cyrus.nomba.dto.NombaCreateVirtualAccountRequest;
-import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
+import com.ojo.cyrus.nomba.dto.*;
+import com.ojo.cyrus.nomba.service.NombaAuthenticationService;
 import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -88,6 +86,26 @@ public class NombaClient {
         if (response == null || !response.isSuccess()) {
             String msg = response != null ? response.description() : "null response from Nomba";
             throw new NombaIntegrationException("Failed to fetch parent account balance: " + msg);
+        }
+
+        return response.data();
+    }
+
+    /** Reconciliation entry point: asks Nomba directly what it knows about a transfer session. */
+    public NombaTransactionData requeryTransaction(NombaCredentials creds, String sessionId, Environment env) {
+        String accessToken = authService.getAccessToken(creds, env);
+        String baseUrl = Provider.NOMBA.getBaseUrl(env);
+
+        NombaApiResponse<NombaTransactionData> response = nombaRestClient.get()
+                .uri(baseUrl + "/v1/transactions/requery/" + sessionId)
+                .header("accountId", creds.parentAccountId())
+                .header("Authorization", "Bearer " + accessToken)
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+
+        if (response == null || !response.isSuccess()) {
+            String msg = response != null ? response.description() : "null response from Nomba";
+            throw new NombaIntegrationException("Failed to requery transaction " + sessionId + ": " + msg);
         }
 
         return response.data();

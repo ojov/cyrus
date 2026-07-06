@@ -1,4 +1,4 @@
-package com.ojo.cyrus.nomba;
+package com.ojo.cyrus.nomba.service;
 
 import com.ojo.cyrus.config.properties.NombaProperties;
 import lombok.RequiredArgsConstructor;
@@ -72,7 +72,7 @@ public class NombaSignatureService {
         if (value.isMissingNode() || value.isNull()) {
             return "";
         }
-        String text = value.asText();
+        String text = value.asString();
         return "null".equalsIgnoreCase(text) ? "" : text;
     }
 

@@ -29,7 +29,6 @@ public class PaymentEvent extends BaseEntity {
 
     private String eventType;
 
-    @Lob
     @Column(columnDefinition = "TEXT", nullable = false)
     private String payload;
 

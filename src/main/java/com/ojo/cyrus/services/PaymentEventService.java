@@ -2,12 +2,14 @@ package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.EventStatus;
 import com.ojo.cyrus.enums.Provider;
+import com.ojo.cyrus.exception.AlreadyExistsException;
 import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.nomba.NombaWebhookAdapter;
 import com.ojo.cyrus.repositories.PaymentEventRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -43,6 +45,7 @@ public class PaymentEventService {
         return paymentEventRepository.save(event);
     }
 
+
     /**
      * Finds an event by its unique ID.
      */
@@ -55,6 +58,11 @@ public class PaymentEventService {
      */
     public Optional<PaymentEvent> findByRequestId(String requestId) {
         return paymentEventRepository.findByRequestId(requestId);
+    }
+
+    public PaymentEvent getByRequestId(String requestId) {
+        return paymentEventRepository.findByRequestId(requestId)
+                .orElseThrow(() -> new EntityNotFoundException("PaymentEvent not found: " + requestId));
     }
 
     /**

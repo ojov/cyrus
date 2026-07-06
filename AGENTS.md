@@ -24,6 +24,7 @@ Cyrus does **not** hold funds. Money flows Customer → Virtual Account → Merc
 - Base package: `com.ojo.cyrus`.
 - **PostgreSQL** + Spring Data JPA + Hibernate. **Lombok** throughout.
 - Spring Security (OAuth2 Resource Server for JWT), springdoc OpenAPI, Thymeleaf, Resend (email).
+- **JobRunr 8.7.0** — background job scheduling with PostgreSQL durability; reconciliation jobs run on configurable delay/retry schedule. Dashboard UI available on port 8000 (gated per environment in production).
 - Deployed on GCP; production API at `https://api.trycyrus.app` (docs at `/swagger-ui/index.html`).
 
 ## Build / run / test

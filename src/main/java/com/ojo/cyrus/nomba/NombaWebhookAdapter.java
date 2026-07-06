@@ -3,14 +3,13 @@ package com.ojo.cyrus.nomba;
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
+import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 
@@ -24,6 +23,7 @@ import java.time.OffsetDateTime;
 public class NombaWebhookAdapter {
 
     private final ObjectMapper objectMapper;
+    public static final String DEFAULT_CURRENCY = "NGN";
 
     public CyrusPaymentEvent toCyrusEvent(String rawPayload) {
         try {
@@ -31,6 +31,7 @@ public class NombaWebhookAdapter {
             JsonNode data = root.path("data");
             JsonNode tx = data.path("transaction");
             JsonNode customer = data.path("customer");
+
 
             return CyrusPaymentEvent.builder()
                     .provider(Provider.NOMBA)
@@ -44,7 +45,7 @@ public class NombaWebhookAdapter {
                     .virtualAccountNumber(text(tx, "aliasAccountNumber"))
                     .amount(toKobo(tx.path("transactionAmount")))            // Nomba sends naira → store kobo
                     .fee(toKobo(tx.path("fee")))
-                    .currency(tx.hasNonNull("currency") ? tx.get("currency").asText() : "NGN")
+                    .currency(tx.hasNonNull("currency") ? tx.get("currency").asString() : DEFAULT_CURRENCY)
                     .eventTime(parseTime(text(tx, "time")))
                     .payer(CyrusPaymentEvent.Payer.builder()
                             .name(text(customer, "senderName"))
@@ -62,18 +63,17 @@ public class NombaWebhookAdapter {
 
     private static String text(JsonNode node, String field) {
         JsonNode value = node.path(field);
-        return value.isMissingNode() || value.isNull() ? null : value.asText();
+        return value.isMissingNode() || value.isNull() ? null : value.asString();
     }
 
-    /** Nomba reports amounts in naira; Cyrus stores integer kobo (see the money convention). */
-    private static BigInteger toKobo(JsonNode amountNode) {
+    /** Nomba reports amounts in naira; Cyrus stores integer kobo via {@link NombaCurrencyUtil#nairaToKobo(String)}. */
+    public static BigInteger toKobo(JsonNode amountNode) {
         if (amountNode == null || amountNode.isMissingNode() || amountNode.isNull()) {
             return BigInteger.ZERO;
         }
-        BigDecimal naira = amountNode.isNumber()
-                ? amountNode.decimalValue()
-                : new BigDecimal(amountNode.asText().trim());
-        return naira.movePointRight(2).setScale(0, RoundingMode.HALF_EVEN).toBigIntegerExact();
+        // Extract the string value from the JsonNode (handles both number and string representations).
+        String nairaStr = amountNode.isNumber() ? amountNode.decimalValue().toPlainString() : amountNode.asString();
+        return NombaCurrencyUtil.nairaToKobo(nairaStr);
     }
 
     private static Instant parseTime(String time) {

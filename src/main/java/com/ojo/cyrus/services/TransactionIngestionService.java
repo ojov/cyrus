@@ -1,6 +1,8 @@
 package com.ojo.cyrus.services;
 
+import com.ojo.cyrus.config.properties.ReconciliationProperties;
 import com.ojo.cyrus.enums.EventStatus;
+import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
 import com.ojo.cyrus.models.entities.Customer;
@@ -8,22 +10,32 @@ import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.nomba.NombaWebhookAdapter;
-import com.ojo.cyrus.repositories.PaymentEventRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.jobrunr.scheduling.JobScheduler;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+
+import static com.ojo.cyrus.utils.Mapper.buildTransaction;
 
 /**
  * Records a Nomba payment event and attributes it to a customer's virtual account. Idempotent and
  * atomic: the raw event and the derived transaction are persisted in one transaction.
+ *
+ * <p>A webhook is a notification, not proof — a genuine VA credit is recorded as
+ * {@link TransactionStatus#PENDING} with {@code matchStatus=UNMATCHED}, never {@code SUCCESSFUL},
+ * regardless of what the event claims. Only {@link ReconciliationService}, via Nomba's own
+ * requery endpoint, promotes it to {@code SUCCESSFUL}.
  *
  * <p>Failure handling is tuned for Nomba's retry policy (exponential backoff, 5 retries):
  * <ul>
@@ -38,35 +50,34 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class TransactionIngestionService {
-    
     private final TransactionRepository transactionRepository;
     private final VirtualAccountRepository virtualAccountRepository;
-    private final PaymentEventRepository paymentEventRepository;
     private final PaymentEventService paymentEventService;
     private final NombaWebhookAdapter nombaAdapter;
+    private final ReconciliationService reconciliationService;
+    private final JobScheduler jobScheduler;
+    private final ReconciliationProperties reconciliationProperties;
 
+    /**
+     * @return the created {@link Transaction} only when this event is a genuine VA credit —
+     *         {@link Optional#empty()} for reversals, failures, non-credit events, orphans, and
+     *         duplicates, none of which have a transaction to reconcile.
+     */
     @Transactional
-    public void ingest(CyrusPaymentEvent event, String rawPayload) {
+    public Optional<Transaction> ingest(CyrusPaymentEvent event, String rawPayload) {
         // 1. Event-level idempotency — find or create atomically.
         // Two concurrent deliveries of the same requestId can both miss the lookup below,
         // so we catch the unique-constraint violation on insert and re-fetch the winner's row.
         PaymentEvent paymentEvent;
-        Optional<PaymentEvent> existing = paymentEventService.findByRequestId(event.getRequestId());
-
-        if (existing.isPresent()) {
-            paymentEvent = existing.get();
-            log.info("Processing existing PaymentEvent requestId={}", event.getRequestId());
-        } else {
-            try {
-                paymentEvent = paymentEventService.recordEvent(event.getRequestId(), event.getProvider(),
-                        event.getEventType(), rawPayload);
-            } catch (DataIntegrityViolationException e) {
-                log.info("Concurrent insert won for requestId={}, re-fetching", event.getRequestId());
-                paymentEvent = paymentEventService.findByRequestId(event.getRequestId())
-                        .orElseThrow(() -> new IllegalStateException(
-                                "Concurrent insert failed and event not found for requestId="
-                                        + event.getRequestId()));
-            }
+        try {
+            paymentEvent = paymentEventService.findByRequestId(event.getRequestId()).orElseGet(() ->
+                paymentEventService.recordEvent(event.getRequestId(), event.getProvider(),
+                    event.getEventType(), rawPayload));
+        } catch (DataIntegrityViolationException e) {
+            log.info("Concurrent insert won for requestId={}, re-fetching", event.getRequestId());
+            paymentEvent = paymentEventService.findByRequestId(event.getRequestId())
+                .orElseThrow(() -> new IllegalStateException(
+                    "PaymentEvent not found after concurrent insert for requestId=" + event.getRequestId()));
         }
 
         // 2. Reversal — a previously successful payment clawed back. This must flip the original
@@ -74,7 +85,7 @@ public class TransactionIngestionService {
         //    leave the original sitting as SUCCESSFUL forever, wrong for reconciliation).
         if (event.isReversal()) {
             handleReversal(event, paymentEvent);
-            return;
+            return Optional.empty();
         }
 
         // 3. Failure — a payment attempt that never credited us. Distinguished from IGNORED (which
@@ -84,7 +95,7 @@ public class TransactionIngestionService {
                     "Payment failed: " + event.getEventType());
             log.info("Recording failed Nomba payment requestId={} tx={}",
                     event.getRequestId(), event.getProviderTransactionId());
-            return;
+            return Optional.empty();
         }
 
         // 4. Relevance gate — only successful VA credits become transactions. Everything else we
@@ -94,15 +105,14 @@ public class TransactionIngestionService {
                     "Non-credit event: " + event.getEventType());
             log.info("Ignoring non-credit Nomba event requestId={} type={}",
                     event.getRequestId(), event.getEventType());
-            return;
+            return Optional.empty();
         }
 
         // 5. Transaction-level idempotency — same underlying transfer seen before.
-        if (transactionRepository.existsByProviderAndProviderTransactionId(
-                event.getProvider(), event.getProviderTransactionId())) {
-            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.IGNORED,
+        if (transactionRepository.existsByProviderAndProviderTransactionId(event.getProvider(), event.getProviderTransactionId())) {
+            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.PROCESSED_DUPLICATE,
                     "Duplicate transaction " + event.getProviderTransactionId());
-            return;
+            return Optional.empty();
         }
 
         // 6. Attribute to a virtual account. Unknown VA = orphan payment: record, don't retry.
@@ -113,7 +123,7 @@ public class TransactionIngestionService {
                     "No virtual account for " + event.getVirtualAccountNumber());
             log.warn("Orphan Nomba payment: no VA for accountNumber={} (tx {})",
                     event.getVirtualAccountNumber(), event.getProviderTransactionId());
-            return;
+            return Optional.empty();
         }
 
         // 7. Record the transaction, attributed to the customer.
@@ -121,29 +131,35 @@ public class TransactionIngestionService {
         Customer customer = va.getCustomer();
         CyrusPaymentEvent.Payer payer = event.getPayer();
 
-        Transaction tx = Transaction.builder()
-                .merchant(customer.getMerchant())
-                .customer(customer)
-                .virtualAccount(va)
-                .provider(event.getProvider())
-                .providerTransactionId(event.getProviderTransactionId())
-                .sessionId(event.getSessionId())
-                .amount(event.getAmount())
-                .fee(event.getFee())
-                .currency(event.getCurrency())
-                .payerName(payer != null ? payer.getName() : null)
-                .payerAccountNumber(payer != null ? payer.getAccountNumber() : null)
-                .payerBank(payer != null ? payer.getBankName() : null)
-                .status(TransactionStatus.SUCCESSFUL)
-                .receivedAt(event.getEventTime())
-                .rawPayload(rawPayload)
-                .build();
+        Transaction tx = buildTransaction(event, rawPayload, customer, va, payer, paymentEvent);
         transactionRepository.save(tx);
 
         paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.PROCESSED, null);
 
+        scheduleReconciliation(tx);
+
         log.info("Ingested Nomba payment tx {} for customer {} on VA {}",
                 event.getProviderTransactionId(), customer.getReference(), va.getAccountNumber());
+        return Optional.of(tx);
+    }
+
+    /**
+     * Schedules the delayed reconciliation requery for a freshly-minted transaction. Registered as
+     * an afterCommit hook so the JobRunr job only exists once the transaction row is durably
+     * committed (a job firing against an uncommitted/rolled-back row would find nothing). Living
+     * here — not in the webhook layer — means every ingestion path (webhook, admin replay, future
+     * backfill) gets reconciliation automatically.
+     */
+    private void scheduleReconciliation(Transaction tx) {
+        UUID jobId = tx.getId();
+        String requestId = tx.getRequestId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                Instant runAt = Instant.now().plusSeconds(reconciliationProperties.delaySeconds());
+                jobScheduler.schedule(jobId, runAt, () -> reconciliationService.reconcileByRequestId(requestId));
+            }
+        });
     }
 
     /**
@@ -179,12 +195,12 @@ public class TransactionIngestionService {
      */
     @Transactional
     public void replayEvent(UUID id) {
-        PaymentEvent event = paymentEventRepository.findById(id)
+        PaymentEvent event = paymentEventService.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("PaymentEvent not found: " + id));
 
         log.info("Replaying payment event: {}", id);
 
-        if (event.getProvider() == com.ojo.cyrus.enums.Provider.NOMBA) {
+        if (event.getProvider() == Provider.NOMBA) {
             CyrusPaymentEvent cyrusEvent = nombaAdapter.toCyrusEvent(event.getPayload());
             this.ingest(cyrusEvent, event.getPayload());
         } else {
