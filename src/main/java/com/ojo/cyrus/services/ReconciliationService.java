@@ -4,6 +4,7 @@ import com.ojo.cyrus.config.properties.ReconciliationProperties;
 import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.ReconciliationOutcome;
 import com.ojo.cyrus.enums.TransactionStatus;
+import com.ojo.cyrus.models.dto.RequeryApplication;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.nomba.NombaClient;
@@ -18,6 +19,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,18 +53,15 @@ public class ReconciliationService {
      * Updates the transaction's matchStatus and status based on the outcome, and — for a "not
      * found yet" result — schedules its own retry rather than returning a final answer.
      *
-     * @param requestId the requestId denormalized onto Transaction (same value as the originating
-     *                   PaymentEvent's requestId)
      * @return the outcome: MATCHED (confirmed, amounts agree), DISCREPANCY (confirmed, field mismatch),
      *         or NOT_FOUND (not yet confirmed — a retry has been scheduled, or attempts are exhausted)
      */
-    public ReconciliationOutcome reconcileByRequestId(String requestId) {
-        Transaction tx = transactionRepository.findByRequestId(requestId)
-                .orElseThrow(() -> new IllegalStateException("No transaction found for requestId=" + requestId));
+    public ReconciliationOutcome reconcileTransactionById(UUID transactionId) {
+        Transaction tx = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new IllegalStateException("No transaction found for transactionId=" + transactionId));
 
         if (tx.getSessionId() == null || tx.getSessionId().isBlank()) {
             log.warn("Transaction {} has no sessionId, cannot requery — flagging for manual review", tx.getId());
-            markManualReview(requestId, "No Nomba sessionId recorded; cannot requery");
             return ReconciliationOutcome.NOT_FOUND;
         }
 
@@ -72,12 +71,12 @@ public class ReconciliationService {
 
         RequeryApplication result = applyRequeryResult(tx.getId(), providerTx);
         if (result.outcome() == ReconciliationOutcome.NOT_FOUND) {
-            scheduleRetryOrGiveUp(requestId, result.attempts());
+            scheduleRetryOrGiveUp(tx.getId(), result.attempts());
         }
         return result.outcome();
     }
 
-    private record RequeryApplication(ReconciliationOutcome outcome, int attempts) {}
+
 
     /**
      * "Found" is inferred from a non-blank {@code transactionId} in the response, not the
@@ -140,19 +139,21 @@ public class ReconciliationService {
         });
     }
 
-    private void scheduleRetryOrGiveUp(String requestId, int attempts) {
+    private void scheduleRetryOrGiveUp(UUID transactionId, int attempts) {
         if (attempts >= reconciliationProperties.maxAttempts()) {
-            log.warn("Giving up on requestId={} after {} attempts — flagging for manual review", requestId, attempts);
-            markManualReview(requestId, "Not confirmed by Nomba after " + attempts + " attempts");
+            log.warn("Giving up on transaction={} after {} attempts — flagging for manual review", transactionId, attempts);
+            markManualReview(transactionId, "Not confirmed by Nomba after " + attempts + " attempts");
             return;
         }
         Instant runAt = Instant.now().plusSeconds(reconciliationProperties.delaySeconds());
-        jobScheduler.schedule(UUID.randomUUID(), runAt, () -> reconcileByRequestId(requestId));
+        UUID retryJobId = UUID.nameUUIDFromBytes(
+                ("reconcile:" + transactionId).getBytes(StandardCharsets.UTF_8));
+        jobScheduler.schedule(retryJobId, runAt, () -> reconcileTransactionById(transactionId));
     }
 
-    private void markManualReview(String requestId, String details) {
+    private void markManualReview(UUID transactionId, String details) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status ->
-                transactionRepository.findByRequestId(requestId).ifPresent(tx -> {
+                transactionRepository.findById(transactionId).ifPresent(tx -> {
                     tx.setMatchStatus(MatchStatus.MANUAL_REVIEW);
                     tx.setMatchStatusDetails(details);
                     tx.setLastReconciledAt(Instant.now());

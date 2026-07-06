@@ -131,9 +131,8 @@ public class TransactionIngestionService {
         Customer customer = va.getCustomer();
         CyrusPaymentEvent.Payer payer = event.getPayer();
 
-        Transaction tx = buildTransaction(event, rawPayload, customer, va, payer, paymentEvent);
-        transactionRepository.save(tx);
-
+        Transaction tx = transactionRepository.save(
+                buildTransaction(event, rawPayload, customer, va, payer, paymentEvent));
         paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.PROCESSED, null);
 
         scheduleReconciliation(tx);
@@ -151,13 +150,12 @@ public class TransactionIngestionService {
      * backfill) gets reconciliation automatically.
      */
     private void scheduleReconciliation(Transaction tx) {
-        UUID jobId = tx.getId();
-        String requestId = tx.getRequestId();
+        UUID transactionId = tx.getId();
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
                 Instant runAt = Instant.now().plusSeconds(reconciliationProperties.delaySeconds());
-                jobScheduler.schedule(jobId, runAt, () -> reconciliationService.reconcileByRequestId(requestId));
+                jobScheduler.schedule(transactionId, runAt, () -> reconciliationService.reconcileTransactionById(transactionId));
             }
         });
     }
