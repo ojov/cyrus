@@ -2,7 +2,7 @@ package com.ojo.cyrus.nomba;
 
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.exception.NombaIntegrationException;
-import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
+import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -14,7 +14,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 
 /**
- * Maps a raw Nomba webhook payload into a provider-agnostic {@link CyrusPaymentEvent}. Keeps all
+ * Maps a raw Nomba webhook payload into a provider-agnostic {@link NormalizedPaymentEvent}. Keeps all
  * Nomba-specific JSON shape knowledge in one place so the rest of the pipeline never sees raw
  * provider payloads.
  */
@@ -25,7 +25,7 @@ public class NombaWebhookAdapter {
     private final ObjectMapper objectMapper;
     public static final String DEFAULT_CURRENCY = "NGN";
 
-    public CyrusPaymentEvent toCyrusEvent(String rawPayload) {
+    public NormalizedPaymentEvent toCyrusEvent(String rawPayload) {
         try {
             JsonNode root = objectMapper.readTree(rawPayload);
             JsonNode data = root.path("data");
@@ -33,7 +33,7 @@ public class NombaWebhookAdapter {
             JsonNode customer = data.path("customer");
 
 
-            return CyrusPaymentEvent.builder()
+            return NormalizedPaymentEvent.builder()
                     .provider(Provider.NOMBA)
                     .eventType(text(root, "event_type"))
                     .requestId(text(root, "requestId"))
@@ -47,7 +47,7 @@ public class NombaWebhookAdapter {
                     .fee(toKobo(tx.path("fee")))
                     .currency(tx.hasNonNull("currency") ? tx.get("currency").asString() : DEFAULT_CURRENCY)
                     .eventTime(parseTime(text(tx, "time")))
-                    .payer(CyrusPaymentEvent.Payer.builder()
+                    .payer(NormalizedPaymentEvent.Payer.builder()
                             .name(text(customer, "senderName"))
                             .accountNumber(text(customer, "accountNumber"))
                             .bankCode(text(customer, "bankCode"))

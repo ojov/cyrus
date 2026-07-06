@@ -1,7 +1,7 @@
 package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.Provider;
-import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
+import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
 import com.ojo.cyrus.nomba.NombaWebhookAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,7 +59,7 @@ class NombaWebhookAdapterTest {
                 }
                 """;
 
-        CyrusPaymentEvent event = adapter.toCyrusEvent(payload);
+        NormalizedPaymentEvent event = adapter.toCyrusEvent(payload);
 
         assertEquals(Provider.NOMBA, event.getProvider());
         assertEquals("payment_success", event.getEventType());
@@ -114,7 +114,7 @@ class NombaWebhookAdapterTest {
                 }
                 """;
 
-        CyrusPaymentEvent event = adapter.toCyrusEvent(payload);
+        NormalizedPaymentEvent event = adapter.toCyrusEvent(payload);
 
         assertEquals(Provider.NOMBA, event.getProvider());
         assertEquals("payment_failed", event.getEventType());

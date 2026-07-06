@@ -2,7 +2,7 @@ package com.ojo.cyrus.utils;
 
 import com.ojo.cyrus.enums.*;
 import com.ojo.cyrus.models.NombaCredential;
-import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
+import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
 import com.ojo.cyrus.models.entities.Customer;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.PaymentEvent;
@@ -89,7 +89,7 @@ public class Mapper {
 
         return merchant;
     }
-    public static Transaction buildTransaction(CyrusPaymentEvent event, String rawPayload, Customer customer, VirtualAccount va, CyrusPaymentEvent.Payer payer, PaymentEvent paymentEvent) {
+    public static Transaction buildTransaction(NormalizedPaymentEvent event, String rawPayload, Customer customer, VirtualAccount va, NormalizedPaymentEvent.Payer payer, PaymentEvent paymentEvent) {
         Transaction tx = Transaction.builder()
                 .merchant(customer.getMerchant())
                 .customer(customer)

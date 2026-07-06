@@ -4,7 +4,7 @@ import com.ojo.cyrus.enums.EventStatus;
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.exception.WebhookSignatureException;
-import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
+import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
 import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.nomba.NombaWebhookAdapter;
 import com.ojo.cyrus.services.PaymentEventService;
@@ -44,7 +44,7 @@ public class NombaWebhookService {
         log.info("Accepted Nomba webhook requestId={} event={}", requestId, eventType);
 
         // 2. Normalize the raw provider payload into a Cyrus event.
-        CyrusPaymentEvent event;
+        NormalizedPaymentEvent event;
         try {
             event = adapter.toCyrusEvent(rawPayload);
         } catch (NombaIntegrationException e) {

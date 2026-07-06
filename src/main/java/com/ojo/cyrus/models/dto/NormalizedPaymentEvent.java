@@ -9,7 +9,7 @@ import java.time.Instant;
 
 @Builder
 @Getter
-public class CyrusPaymentEvent {
+public class NormalizedPaymentEvent {
 
     private Provider provider;
     private String requestId;

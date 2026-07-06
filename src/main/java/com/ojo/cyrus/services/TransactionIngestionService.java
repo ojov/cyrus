@@ -4,7 +4,7 @@ import com.ojo.cyrus.config.properties.ReconciliationProperties;
 import com.ojo.cyrus.enums.EventStatus;
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.enums.TransactionStatus;
-import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
+import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
 import com.ojo.cyrus.models.entities.Customer;
 import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
@@ -64,7 +64,7 @@ public class TransactionIngestionService {
      *         duplicates, none of which have a transaction to reconcile.
      */
     @Transactional
-    public Optional<Transaction> ingest(CyrusPaymentEvent event, String rawPayload) {
+    public Optional<Transaction> ingest(NormalizedPaymentEvent event, String rawPayload) {
         // 1. Event-level idempotency — find or create atomically.
         // Two concurrent deliveries of the same requestId can both miss the lookup below,
         // so we catch the unique-constraint violation on insert and re-fetch the winner's row.
@@ -129,7 +129,7 @@ public class TransactionIngestionService {
         // 7. Record the transaction, attributed to the customer.
         VirtualAccount va = vaOpt.get();
         Customer customer = va.getCustomer();
-        CyrusPaymentEvent.Payer payer = event.getPayer();
+        NormalizedPaymentEvent.Payer payer = event.getPayer();
 
         Transaction tx = transactionRepository.save(
                 buildTransaction(event, rawPayload, customer, va, payer, paymentEvent));
@@ -166,7 +166,7 @@ public class TransactionIngestionService {
      * as the original transfer first, then fall back to sessionId (the other stable identifier Nomba
      * carries across a transfer's lifecycle). If neither matches, record — don't guess, don't throw.
      */
-    private void handleReversal(CyrusPaymentEvent event, PaymentEvent paymentEvent) {
+    private void handleReversal(NormalizedPaymentEvent event, PaymentEvent paymentEvent) {
         Optional<Transaction> original = transactionRepository
                 .findByProviderAndProviderTransactionId(event.getProvider(), event.getProviderTransactionId());
 
@@ -199,7 +199,7 @@ public class TransactionIngestionService {
         log.info("Replaying payment event: {}", id);
 
         if (event.getProvider() == Provider.NOMBA) {
-            CyrusPaymentEvent cyrusEvent = nombaAdapter.toCyrusEvent(event.getPayload());
+            NormalizedPaymentEvent cyrusEvent = nombaAdapter.toCyrusEvent(event.getPayload());
             this.ingest(cyrusEvent, event.getPayload());
         } else {
             throw new UnsupportedOperationException("Replay not implemented for provider: " + event.getProvider());
