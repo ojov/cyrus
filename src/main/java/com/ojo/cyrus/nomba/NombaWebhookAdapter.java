@@ -24,6 +24,7 @@ import java.time.OffsetDateTime;
 public class NombaWebhookAdapter {
 
     private final ObjectMapper objectMapper;
+    public static final String DEFAULT_CURRENCY = "NGN";
 
     public CyrusPaymentEvent toCyrusEvent(String rawPayload) {
         try {
@@ -31,6 +32,7 @@ public class NombaWebhookAdapter {
             JsonNode data = root.path("data");
             JsonNode tx = data.path("transaction");
             JsonNode customer = data.path("customer");
+
 
             return CyrusPaymentEvent.builder()
                     .provider(Provider.NOMBA)
@@ -44,7 +46,7 @@ public class NombaWebhookAdapter {
                     .virtualAccountNumber(text(tx, "aliasAccountNumber"))
                     .amount(toKobo(tx.path("transactionAmount")))            // Nomba sends naira → store kobo
                     .fee(toKobo(tx.path("fee")))
-                    .currency(tx.hasNonNull("currency") ? tx.get("currency").asText() : "NGN")
+                    .currency(tx.hasNonNull("currency") ? tx.get("currency").asText() : DEFAULT_CURRENCY)
                     .eventTime(parseTime(text(tx, "time")))
                     .payer(CyrusPaymentEvent.Payer.builder()
                             .name(text(customer, "senderName"))

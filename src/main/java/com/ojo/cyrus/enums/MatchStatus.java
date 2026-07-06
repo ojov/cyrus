@@ -3,7 +3,7 @@ package com.ojo.cyrus.enums;
 public enum MatchStatus {
     MATCHED,
     UNMATCHED,
-    PARTIAL,
+    DISCREPANCY,
     ORPHANED,
     MANUAL_REVIEW
 }

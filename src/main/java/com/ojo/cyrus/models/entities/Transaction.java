@@ -14,7 +14,8 @@ import java.time.Instant;
 @Entity
 @Table(name = "transactions",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_provider_transaction_id", columnNames = {"provider", "provider_transaction_id"})
+                @UniqueConstraint(name = "uk_provider_transaction_id", columnNames = {"provider", "provider_transaction_id"}),
+                @UniqueConstraint(name = "uk_transaction_request_id", columnNames = {"request_id"})
         }
 )
 @Getter
@@ -44,6 +45,10 @@ public class Transaction extends BaseEntity {
     @Column(name = "provider_transaction_id", nullable = false)
     private String providerTransactionId;
 
+    // Webhook requestId from PaymentEvent (denormalized for direct query lookup).
+    @Column(name = "request_id", nullable = false)
+    private String requestId;
+
     // Nomba session id — used to reconcile/confirm via GET /v1/transactions/requery/{sessionId}.
     private String sessionId;
 
@@ -63,6 +68,10 @@ public class Transaction extends BaseEntity {
     private Environment environment;
 
     private String payerName;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_event_id", nullable = false)
+    private PaymentEvent paymentEvent;
 
     private String payerAccountNumber;
 
@@ -85,9 +94,15 @@ public class Transaction extends BaseEntity {
     // first reconciliation sweep picks it up.
     private Instant lastReconciledAt;
 
+    // How many times Nomba's requery has come back "not found yet" for this transaction. Drives
+    // the backoff/give-up decision in ReconciliationService — capped at reconciliation.max-attempts
+    // before the transaction is flagged MANUAL_REVIEW instead of retried forever.
+    @Column(nullable = false)
+    @Builder.Default
+    private int reconciliationAttempts = 0;
+
     private Instant receivedAt;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String rawPayload;
 }

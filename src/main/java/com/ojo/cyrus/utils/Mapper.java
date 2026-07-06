@@ -5,6 +5,7 @@ import com.ojo.cyrus.models.NombaCredential;
 import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
 import com.ojo.cyrus.models.entities.Customer;
 import com.ojo.cyrus.models.entities.Merchant;
+import com.ojo.cyrus.models.entities.PaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
@@ -88,13 +89,14 @@ public class Mapper {
 
         return merchant;
     }
-    public static Transaction buildTransaction(CyrusPaymentEvent event, String rawPayload, Customer customer, VirtualAccount va, CyrusPaymentEvent.Payer payer) {
+    public static Transaction buildTransaction(CyrusPaymentEvent event, String rawPayload, Customer customer, VirtualAccount va, CyrusPaymentEvent.Payer payer, PaymentEvent paymentEvent) {
         Transaction tx = Transaction.builder()
                 .merchant(customer.getMerchant())
                 .customer(customer)
                 .virtualAccount(va)
                 .provider(event.getProvider())
                 .providerTransactionId(event.getProviderTransactionId())
+                .requestId(paymentEvent.getRequestId())
                 .sessionId(event.getSessionId())
                 .amount(event.getAmount())
                 .fee(event.getFee())
@@ -103,6 +105,7 @@ public class Mapper {
                 .payerName(payer != null ? payer.getName() : null)
                 .payerAccountNumber(payer != null ? payer.getAccountNumber() : null)
                 .payerBank(payer != null ? payer.getBankName() : null)
+                .paymentEvent(paymentEvent)
                 .matchStatus(MatchStatus.UNMATCHED)
                 // Webhooks are notifications, not proof — Nomba's own requery endpoint
                 // (ReconciliationService) is the source of truth that promotes this to SUCCESSFUL.

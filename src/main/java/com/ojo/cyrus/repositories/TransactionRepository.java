@@ -22,6 +22,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     Optional<Transaction> findByProviderAndProviderTransactionId(Provider provider, String providerTransactionId);
 
+    // Fetch by webhook requestId for direct reconciliation lookup.
+    Optional<Transaction> findByRequestId(String requestId);
+
     // Fallback match for a reversal whose transactionId doesn't line up with the original —
     // sessionId is the other stable identifier Nomba carries across the transfer's lifecycle.
     Optional<Transaction> findByProviderAndSessionId(Provider provider, String sessionId);
