@@ -9,7 +9,7 @@ import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
 import com.ojo.cyrus.models.responses.CustomerResponse;
 import com.ojo.cyrus.nomba.NombaClient;
-import com.ojo.cyrus.nomba.NombaCredentials;
+import com.ojo.cyrus.nomba.dto.NombaCredentials;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
 import com.ojo.cyrus.repositories.CustomerRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;

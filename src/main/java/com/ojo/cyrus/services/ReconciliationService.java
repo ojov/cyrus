@@ -5,8 +5,9 @@ import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.ReconciliationOutcome;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.models.entities.Transaction;
+import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.nomba.NombaClient;
-import com.ojo.cyrus.nomba.NombaCredentials;
+import com.ojo.cyrus.nomba.dto.NombaCredentials;
 import com.ojo.cyrus.nomba.dto.NombaTransactionData;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -108,7 +109,7 @@ public class ReconciliationService {
             }
 
             List<String> diffs = new ArrayList<>();
-            BigInteger providerAmount = providerTx.amountInKobo();
+            BigInteger providerAmount = NombaCurrencyUtil.nairaToKobo(providerTx.transactionAmount());
             if (!providerAmount.equals(tx.getAmount())) {
                 diffs.add("Webhook amount=" + tx.getAmount() + ", Nomba requery amount=" + providerAmount);
             }
@@ -116,7 +117,7 @@ public class ReconciliationService {
             // carries no fee field at all, and treating that absence as zero would manufacture a
             // false DISCREPANCY against the webhook's real fee.
             if (tx.getFee() != null && providerTx.fee() != null && !providerTx.fee().isBlank()) {
-                BigInteger providerFee = providerTx.feeInKobo();
+                BigInteger providerFee = NombaCurrencyUtil.nairaToKobo(providerTx.fee());
                 if (!providerFee.equals(tx.getFee())) {
                     diffs.add("Webhook fee=" + tx.getFee() + ", Nomba requery fee=" + providerFee);
                 }

@@ -15,11 +15,12 @@ import com.ojo.cyrus.models.responses.ApiKeyListItem;
 import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
 import com.ojo.cyrus.models.responses.MerchantStatsResponse;
 import com.ojo.cyrus.models.responses.SubAccountBalanceResponse;
-import com.ojo.cyrus.nomba.CredentialMapper;
-import com.ojo.cyrus.nomba.NombaAuthenticationService;
-import com.ojo.cyrus.nomba.NombaClient;
-import com.ojo.cyrus.nomba.NombaCredentials;
+import com.ojo.cyrus.nomba.*;
 import com.ojo.cyrus.nomba.dto.NombaBalanceData;
+import com.ojo.cyrus.nomba.dto.NombaCredentials;
+import com.ojo.cyrus.nomba.service.NombaAuthenticationService;
+import com.ojo.cyrus.nomba.utils.CredentialMapper;
+import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.repositories.CustomerRepository;
 import com.ojo.cyrus.repositories.MerchantRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
@@ -93,15 +94,14 @@ public class MerchantService {
         List<SubAccountBalanceResponse> balances = new ArrayList<>();
 
         NombaBalanceData parentBalance = nombaClient.getParentAccountBalance(creds, env);
-        balances.add(new SubAccountBalanceResponse(
-                creds.parentAccountId(), "PARENT",
-                parentBalance.amountInKobo(), parentBalance.currency(), Instant.now()));
+        balances.add(new SubAccountBalanceResponse(creds.parentAccountId(), "PARENT",
+                NombaCurrencyUtil.nairaToKobo(parentBalance.amount()), parentBalance.currency(), Instant.now()));
 
         for (String subAccountId : creds.subAccountIds()) {
             NombaBalanceData data = nombaClient.getSubAccountBalance(creds, subAccountId, env);
             balances.add(new SubAccountBalanceResponse(
                     subAccountId, "SUB",
-                    data.amountInKobo(), data.currency(), Instant.now()));
+                    NombaCurrencyUtil.nairaToKobo(data.amount()), data.currency(), Instant.now()));
         }
 
         return balances;

@@ -23,6 +23,15 @@ public class CyrusPaymentEvent {
     private Payer payer;
     private Instant eventTime;
 
+    @Builder
+    @Getter
+    public static class Payer {
+        private String name;
+        private String accountNumber;
+        private String bankCode;
+        private String bankName;
+    }
+
     /**
      * True only for events that credit one of our virtual accounts — a successful VA transfer that
      * carries an alias (virtual) account number. Non-VA / non-success events (e.g. POS purchases,
@@ -43,12 +52,4 @@ public class CyrusPaymentEvent {
         return "payment_failed".equalsIgnoreCase(eventType);
     }
 
-    @Builder
-    @Getter
-    public static class Payer {
-        private String name;
-        private String accountNumber;
-        private String bankCode;
-        private String bankName;
-    }
 }

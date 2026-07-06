@@ -1,4 +1,4 @@
-package com.ojo.cyrus.nomba;
+package com.ojo.cyrus.nomba.dto;
 
 import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.models.NombaCredential;

@@ -1,4 +1,4 @@
-package com.ojo.cyrus.nomba;
+package com.ojo.cyrus.nomba.service;
 
 import com.ojo.cyrus.enums.EventStatus;
 import com.ojo.cyrus.enums.Provider;
@@ -6,6 +6,7 @@ import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.exception.WebhookSignatureException;
 import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
 import com.ojo.cyrus.models.entities.PaymentEvent;
+import com.ojo.cyrus.nomba.NombaWebhookAdapter;
 import com.ojo.cyrus.services.PaymentEventService;
 import com.ojo.cyrus.services.TransactionIngestionService;
 import lombok.RequiredArgsConstructor;

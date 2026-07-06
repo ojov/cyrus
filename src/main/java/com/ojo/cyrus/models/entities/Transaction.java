@@ -46,7 +46,7 @@ public class Transaction extends BaseEntity {
     private String providerTransactionId;
 
     // Webhook requestId from PaymentEvent (denormalized for direct query lookup).
-    @Column(name = "request_id", nullable = false)
+    @Column(name = "request_id", nullable = false, columnDefinition = "varchar(255) default ''")
     private String requestId;
 
     // Nomba session id — used to reconcile/confirm via GET /v1/transactions/requery/{sessionId}.
@@ -70,7 +70,7 @@ public class Transaction extends BaseEntity {
     private String payerName;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "payment_event_id", nullable = false)
+    @JoinColumn(name = "payment_event_id", nullable = false, columnDefinition = "uuid default '00000000-0000-0000-0000-000000000000'")
     private PaymentEvent paymentEvent;
 
     private String payerAccountNumber;
@@ -97,7 +97,7 @@ public class Transaction extends BaseEntity {
     // How many times Nomba's requery has come back "not found yet" for this transaction. Drives
     // the backoff/give-up decision in ReconciliationService — capped at reconciliation.max-attempts
     // before the transaction is flagged MANUAL_REVIEW instead of retried forever.
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "int default 0")
     @Builder.Default
     private int reconciliationAttempts = 0;
 
