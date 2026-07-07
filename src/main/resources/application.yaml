@@ -56,6 +56,10 @@ app:
     delay-seconds: ${APP_RECONCILIATION_DELAY_SECONDS:300}
     # How many unconfirmed requeries before we give up and flag MANUAL_REVIEW.
     max-attempts: ${APP_RECONCILIATION_MAX_ATTEMPTS:5}
+  fees:
+    # Cyrus's revenue on inbound payments: Nomba's own confirmed fee (from reconciliation) marked
+    # up by this multiplier. 1.30 = Nomba fee ₦10 -> ₦13 charged to the merchant (₦3 margin).
+    markup-multiplier: ${APP_FEE_MARKUP_MULTIPLIER:1.30}
   webhook:
     # Outbound merchant webhook delivery: how many attempts before a delivery is marked FAILED,
     # and the exponential backoff bounds between retries (min(initial * 2^(n-1), max)).

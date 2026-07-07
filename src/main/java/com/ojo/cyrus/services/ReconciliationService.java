@@ -1,5 +1,6 @@
 package com.ojo.cyrus.services;
 
+import com.ojo.cyrus.config.properties.FeeProperties;
 import com.ojo.cyrus.config.properties.ReconciliationProperties;
 import com.ojo.cyrus.enums.LedgerEntryType;
 import com.ojo.cyrus.enums.MatchStatus;
@@ -12,6 +13,7 @@ import com.ojo.cyrus.nomba.NombaTransactionClient;
 import com.ojo.cyrus.nomba.dto.NombaTransactionData;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.repositories.TransactionRepository;
+import com.ojo.cyrus.utils.FeeCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jobrunr.scheduling.JobScheduler;
@@ -47,6 +49,7 @@ public class ReconciliationService {
     private final ReconciliationProperties reconciliationProperties;
     private final MerchantWebhookService merchantWebhookService;
     private final LedgerService ledgerService;
+    private final FeeProperties feeProperties;
 
     public ReconciliationOutcome reconcileTransactionById(UUID transactionId) {
         Transaction tx = transactionRepository.findById(transactionId)
@@ -99,12 +102,19 @@ public class ReconciliationService {
             if (!providerAmount.equals(tx.getAmount())) {
                 diffs.add("Webhook amount=" + tx.getAmount() + ", Nomba requery amount=" + providerAmount);
             }
-            if (tx.getFee() != null && providerTx.fee() != null && !providerTx.fee().isBlank()) {
-                BigInteger providerFee = NombaCurrencyUtil.nairaToKobo(providerTx.fee());
-                if (!providerFee.equals(tx.getFee())) {
+
+            // Nomba's requery fee (fixedCharge) is the authoritative, confirmed fee — replaces
+            // whatever estimate the webhook carried. A mismatch is still surfaced as a DISCREPANCY.
+            BigInteger providerFee = (providerTx.fee() != null && !providerTx.fee().isBlank())
+                    ? NombaCurrencyUtil.nairaToKobo(providerTx.fee())
+                    : null;
+            if (providerFee != null) {
+                if (tx.getFee() != null && !providerFee.equals(tx.getFee())) {
                     diffs.add("Webhook fee=" + tx.getFee() + ", Nomba requery fee=" + providerFee);
                 }
+                tx.setFee(providerFee);
             }
+
             String txCurrency = tx.getCurrency() != null ? tx.getCurrency().name() : null;
             if (providerTx.currency() != null && txCurrency != null && !providerTx.currency().equalsIgnoreCase(txCurrency)) {
                 diffs.add("Webhook currency=" + txCurrency + ", Nomba requery currency=" + providerTx.currency());
@@ -126,9 +136,28 @@ public class ReconciliationService {
             // On confirmation, credit the merchant wallet (once, on the PENDING → SUCCESSFUL edge) and
             // notify the merchant. MATCHED and DISCREPANCY both settle the money (a DISCREPANCY is a
             // reconciliation concern carried on matchStatus); both are atomic with the status change.
+            //
+            // The gross amount is credited, then Nomba's own fee (PROVIDER_FEE) and Cyrus's markup
+            // on top of it (PLATFORM_FEE — see FeeProperties) are debited back out, so the wallet's
+            // net change is amount - totalFee. This is the actual revenue model: Cyrus marks up
+            // Nomba's confirmed fee by `app.fees.markup-multiplier` and keeps the difference.
             if (promoted) {
                 ledgerService.credit(tx.getMerchant(), tx.getAmount(), tx,
                         LedgerEntryType.MERCHANT_WALLET_CREDIT, "Payment " + tx.getReference());
+
+                if (providerFee != null && providerFee.signum() > 0) {
+                    BigInteger totalFee = FeeCalculator.totalPlatformFee(providerFee, feeProperties.markupMultiplier());
+                    BigInteger cyrusMargin = totalFee.subtract(providerFee);
+                    tx.setPlatformFeeKobo(cyrusMargin);
+
+                    ledgerService.debit(tx.getMerchant(), providerFee, tx,
+                            LedgerEntryType.PROVIDER_FEE, "Nomba fee for " + tx.getReference());
+                    if (cyrusMargin.signum() > 0) {
+                        ledgerService.debit(tx.getMerchant(), cyrusMargin, tx,
+                                LedgerEntryType.PLATFORM_FEE, "Cyrus platform fee for " + tx.getReference());
+                    }
+                }
+
                 merchantWebhookService.recordAndScheduleDispatch(tx, MerchantWebhookEventType.PAYMENT_SUCCEEDED);
             }
 

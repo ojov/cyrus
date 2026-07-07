@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -192,7 +193,13 @@ public class TransactionIngestionService {
         tx.setStatus(TransactionStatus.REVERSED);
 
         if (wasCredited) {
-            ledgerService.debit(tx.getMerchant(), tx.getAmount(), tx,
+            // Only the NET amount (gross minus Nomba's fee and Cyrus's markup, both already debited
+            // out at reconciliation) was ever added to the wallet — refund that, not the gross amount,
+            // or the reversal would drain more than this payment actually put in.
+            BigInteger netCredited = tx.getAmount()
+                    .subtract(tx.getFee() != null ? tx.getFee() : BigInteger.ZERO)
+                    .subtract(tx.getPlatformFeeKobo() != null ? tx.getPlatformFeeKobo() : BigInteger.ZERO);
+            ledgerService.debit(tx.getMerchant(), netCredited, tx,
                     LedgerEntryType.REVERSAL, "Reversal of transaction " + tx.getReference());
         }
 

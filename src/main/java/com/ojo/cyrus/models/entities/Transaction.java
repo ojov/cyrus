@@ -70,9 +70,17 @@ public class Transaction extends BaseEntity {
     private String sessionId;
 
     @Column(nullable = false)
-    private BigInteger amount; // integer kobo (minor units)
+    private BigInteger amount; // integer kobo (minor units), gross — what the payer sent
 
-    private BigInteger fee; // integer kobo (minor units)
+    /** Nomba's own confirmed fee (kobo) — set authoritatively at reconciliation via {@code fixedCharge}. */
+    private BigInteger fee;
+
+    /**
+     * Cyrus's markup-only fee (kobo): {@code fee * markupMultiplier - fee}. Together with {@code fee}
+     * this is deducted from {@code amount} before crediting the merchant wallet — see
+     * {@link com.ojo.cyrus.services.ReconciliationService}. Null until reconciliation confirms a fee.
+     */
+    private BigInteger platformFeeKobo;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
