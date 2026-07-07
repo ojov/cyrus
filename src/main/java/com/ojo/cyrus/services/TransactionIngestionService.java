@@ -135,7 +135,6 @@ public class TransactionIngestionService {
         // recovered here is scoped correctly and visible to the merchant.
         paymentEvent.setMerchant(customer.getMerchant());
         paymentEvent.setVirtualAccount(va);
-        paymentEvent.setEnvironment(va.getEnvironment());
         paymentEvent.setCustomerReference(customer.getExternalCustomerId());
 
         // 7. A suspended/closed customer's VA still technically exists, but the money must never be
@@ -207,7 +206,7 @@ public class TransactionIngestionService {
         tx.setStatus(TransactionStatus.REVERSED);
 
         if (wasCredited) {
-            ledgerService.debit(tx.getMerchant(), tx.getEnvironment(), tx.getAmount(), tx,
+            ledgerService.debit(tx.getMerchant(), tx.getAmount(), tx,
                     LedgerEntryType.REVERSAL, "Reversal of transaction " + tx.getReference());
         }
 

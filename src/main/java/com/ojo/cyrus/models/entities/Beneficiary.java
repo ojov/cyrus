@@ -1,15 +1,13 @@
 package com.ojo.cyrus.models.entities;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.models.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 /**
- * A bank account a merchant can pay out to. Registered per environment (a sandbox beneficiary is not
- * a live one). {@code providerBeneficiaryId} is Nomba's identifier once the account is verified/saved
- * on their side; a {@link Payout} references the beneficiary it settles to.
+ * A bank account a merchant can pay out to. {@code providerBeneficiaryId} is Nomba's identifier once
+ * the account is verified/saved on their side; a {@link Payout} references the beneficiary it settles to.
  */
 @Entity
 @Table(name = "beneficiaries",
@@ -47,8 +45,4 @@ public class Beneficiary extends BaseEntity {
 
     /** Identifier returned by Nomba after saving the beneficiary. */
     private String providerBeneficiaryId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Environment environment;
 }

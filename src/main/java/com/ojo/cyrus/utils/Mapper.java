@@ -1,7 +1,6 @@
 package com.ojo.cyrus.utils;
 
 import com.ojo.cyrus.enums.CurrencyCode;
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.MerchantStatus;
 import com.ojo.cyrus.enums.TransactionStatus;
@@ -51,8 +50,7 @@ public class Mapper {
                 : customer.getFirstName();
     }
 
-    public static VirtualAccount toVirtualAccount(MerchantCustomer customer, NombaVirtualAccountData data,
-                                                  Environment env) {
+    public static VirtualAccount toVirtualAccount(MerchantCustomer customer, NombaVirtualAccountData data) {
         return VirtualAccount.builder()
                 .merchantCustomer(customer)
                 .accountNumber(data.bankAccountNumber())
@@ -60,7 +58,6 @@ public class Mapper {
                 .bankName(data.bankName())
                 .currency(CurrencyCode.NGN)
                 .providerReference(data.accountHolderId())
-                .environment(env)
                 .build();
     }
 
@@ -110,7 +107,6 @@ public class Mapper {
                 .amount(event.getAmount())
                 .fee(event.getFee())
                 .currency(CurrencyCode.NGN)
-                .environment(va.getEnvironment())
                 .payerName(payer != null ? payer.getName() : null)
                 .payerAccountNumber(payer != null ? payer.getAccountNumber() : null)
                 .payerBank(payer != null ? payer.getBankName() : null)
@@ -135,7 +131,6 @@ public class Mapper {
         return new WebhookDeliveryItem(
                 event.getId(),
                 tx != null ? tx.getId() : null,
-                event.getEnvironment(),
                 event.getEventType(),
                 event.getStatus(),
                 event.getWebhookUrl(),

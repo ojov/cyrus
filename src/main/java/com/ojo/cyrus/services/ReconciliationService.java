@@ -58,7 +58,7 @@ public class ReconciliationService {
         }
 
         // Nomba/DB failures deliberately propagate uncaught here — JobRunr retries the job.
-        NombaTransactionData providerTx = nombaTransactionClient.requeryTransaction(tx.getEnvironment(), tx.getSessionId());
+        NombaTransactionData providerTx = nombaTransactionClient.requeryTransaction(tx.getSessionId());
 
         RequeryApplication result = applyRequeryResult(tx.getId(), providerTx);
         if (result.outcome() == ReconciliationOutcome.NOT_FOUND) {
@@ -127,7 +127,7 @@ public class ReconciliationService {
             // notify the merchant. MATCHED and DISCREPANCY both settle the money (a DISCREPANCY is a
             // reconciliation concern carried on matchStatus); both are atomic with the status change.
             if (promoted) {
-                ledgerService.credit(tx.getMerchant(), tx.getEnvironment(), tx.getAmount(), tx,
+                ledgerService.credit(tx.getMerchant(), tx.getAmount(), tx,
                         LedgerEntryType.MERCHANT_WALLET_CREDIT, "Payment " + tx.getReference());
                 merchantWebhookService.recordAndScheduleDispatch(tx, MerchantWebhookEventType.PAYMENT_SUCCEEDED);
             }

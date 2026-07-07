@@ -1,48 +1,27 @@
 package com.ojo.cyrus.config.properties;
 
-import com.ojo.cyrus.enums.Environment;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Nomba integration config. Cyrus operates a <em>single</em> Nomba account of its own — merchants
- * never supply Nomba credentials.
+ * Nomba integration config. Cyrus operates a single Nomba account of its own with one credential set
+ * (there is no TEST/LIVE split — merchants get a single API key). {@code subAccountId} is optional:
+ * when set, virtual accounts are provisioned under that sub-account.
  *
- * <p>Nomba's {@code accountId} (parent account) and {@code subAccountId} are the SAME across sandbox
- * and production — only the {@code clientId}/{@code clientSecret} differ per environment. So those
- * two ids live at the top level (shared), and only the OAuth credentials are split into
- * {@code sandbox}/{@code live}, selected per request from the API key's environment.
- *
- * @param sandboxUrl    base URL for TEST (Nomba sandbox)
- * @param productionUrl base URL for LIVE (Nomba production)
+ * @param baseUrl       Nomba API base URL (e.g. https://api.nomba.com)
  * @param timeoutMs     connect/read timeout for all Nomba HTTP calls
  * @param webhookSecret HMAC secret for verifying inbound Nomba webhook signatures
- * @param accountId     Nomba parent account id (shared across TEST/LIVE) — sent as the {@code accountId} header
- * @param subAccountId  optional sub-account id (shared across TEST/LIVE); when set, VAs are provisioned under it
- * @param sandbox       OAuth client credentials for TEST
- * @param live          OAuth client credentials for LIVE
+ * @param clientId      OAuth client id
+ * @param clientSecret  OAuth client secret
+ * @param accountId     Nomba parent account id (sent as the {@code accountId} header)
+ * @param subAccountId  optional sub-account id VAs are provisioned under
  */
 @ConfigurationProperties(prefix = "nomba")
 public record NombaProperties(
-        String sandboxUrl,
-        String productionUrl,
+        String baseUrl,
         int timeoutMs,
         String webhookSecret,
+        String clientId,
+        String clientSecret,
         String accountId,
-        String subAccountId,
-        Credentials sandbox,
-        Credentials live
-) {
-
-    /** Per-environment OAuth credentials — the only part of the config that changes between TEST and LIVE. */
-    public record Credentials(String clientId, String clientSecret) {}
-
-    /** The OAuth credential set for the given environment. */
-    public Credentials credentials(Environment env) {
-        return env == Environment.LIVE ? live : sandbox;
-    }
-
-    /** The Nomba base URL for the given environment. */
-    public String baseUrl(Environment env) {
-        return env == Environment.LIVE ? productionUrl : sandboxUrl;
-    }
-}
+        String subAccountId
+) {}

@@ -1,6 +1,5 @@
 package com.ojo.cyrus.models.entities;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.PayoutStatus;
 import com.ojo.cyrus.models.BaseEntity;
 import jakarta.persistence.*;
@@ -53,10 +52,6 @@ public class Payout extends BaseEntity {
 
     @Builder.Default
     private BigInteger fee = BigInteger.ZERO; // integer kobo
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Environment environment;
 
     @Column(length = 500)
     private String narration;

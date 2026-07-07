@@ -83,14 +83,13 @@ public class MerchantWebhookDispatcher {
                 return null; // already delivered; idempotent no-op
             }
 
-            // Sign with the merchant's CURRENT secret for this environment (rotation applies to
-            // in-flight retries). Deliver to the URL snapshotted on the event.
-            WebhookConfig config = event.getMerchant().getWebhookConfigs().get(event.getEnvironment());
+            // Sign with the merchant's CURRENT secret (rotation applies to in-flight retries).
+            // Deliver to the URL snapshotted on the event.
+            WebhookConfig config = event.getMerchant().getWebhookConfig();
             if (config == null || config.encryptedSecret() == null) {
                 event.setStatus(MerchantWebhookStatus.FAILED);
-                event.setLastError("No webhook configuration for environment " + event.getEnvironment());
-                log.warn("Webhook event {} has no {} config on the merchant — marking FAILED",
-                        webhookEventId, event.getEnvironment());
+                event.setLastError("No webhook configuration on the merchant");
+                log.warn("Webhook event {} has no config on the merchant — marking FAILED", webhookEventId);
                 return null;
             }
 

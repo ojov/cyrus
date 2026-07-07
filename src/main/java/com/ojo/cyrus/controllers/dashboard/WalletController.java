@@ -1,6 +1,5 @@
 package com.ojo.cyrus.controllers.dashboard;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.models.responses.WalletBalanceResponse;
@@ -16,28 +15,24 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/v1/merchants/me/wallets")
+@RequestMapping("/v1/merchants/me/wallet")
 @RequiredArgsConstructor
-@Tag(name = "Wallets", description = "Your settled balances held in Cyrus, per environment (kobo).")
+@Tag(name = "Wallet", description = "Your settled balance held in Cyrus (kobo).")
 public class WalletController {
 
     private final WalletService walletService;
     private final MerchantService merchantService;
 
-    @Operation(summary = "Get wallet balances",
-            description = "Available balance for each environment (TEST and LIVE), in integer kobo.",
+    @Operation(summary = "Get wallet balance",
+            description = "Your available balance in integer kobo.",
             security = @SecurityRequirement(name = "BearerAuth"))
     @GetMapping
-    public CyrusApiResponse<List<WalletBalanceResponse>> getWallets(@AuthenticationPrincipal Jwt jwt) {
+    public CyrusApiResponse<WalletBalanceResponse> getWallet(@AuthenticationPrincipal Jwt jwt) {
         UUID merchantId = merchantService.findByBusinessEmail(jwt.getSubject()).getId();
-        List<WalletBalanceResponse> balances = Arrays.stream(Environment.values())
-                .map(env -> new WalletBalanceResponse(env, walletService.getBalance(merchantId, env)))
-                .toList();
-        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Wallet balances retrieved", balances);
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Wallet balance retrieved",
+                new WalletBalanceResponse(walletService.getBalance(merchantId)));
     }
 }

@@ -41,9 +41,8 @@ public class AuthService {
         Merchant merchantEntity = mapToMerchantEntity(request);
         merchantEntity.setPasswordHash(passwordEncoder.encode(request.password()));
         Merchant merchant = merchantService.save(merchantEntity);
-        // Provision the merchant's TEST + LIVE wallets up front so payment credits always have a
-        // wallet to post against.
-        walletService.provisionWallets(merchant);
+        // Provision the merchant's wallet up front so payment credits always have a wallet to post against.
+        walletService.provisionWallet(merchant);
         sendVerificationEmail(merchant);
         String jwt = tokenService.generateToken(merchant.getBusinessEmail(), "ROLE_MERCHANT");
         return new MerchantRegistrationResponse(merchant.getId(), merchant.getBusinessName(),

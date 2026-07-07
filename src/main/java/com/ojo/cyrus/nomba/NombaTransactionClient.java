@@ -1,12 +1,12 @@
 package com.ojo.cyrus.nomba;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.nomba.dto.NombaApiResponse;
 import com.ojo.cyrus.nomba.dto.NombaTransactionData;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
 /**
  * Reconciliation entry point: asks Nomba directly what it knows about a transfer session. Nomba is
@@ -17,10 +17,10 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class NombaTransactionClient {
 
-    private final NombaRestClients restClients;
+    private final RestClient nombaRestClient;
 
-    public NombaTransactionData requeryTransaction(Environment env, String sessionId) {
-        NombaApiResponse<NombaTransactionData> response = restClients.forEnvironment(env).get()
+    public NombaTransactionData requeryTransaction(String sessionId) {
+        NombaApiResponse<NombaTransactionData> response = nombaRestClient.get()
                 .uri(NombaApiUri.TRANSACTION_REQUERY.path(), sessionId)
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});

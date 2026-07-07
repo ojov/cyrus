@@ -1,15 +1,11 @@
 package com.ojo.cyrus.models.entities;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantStatus;
 import com.ojo.cyrus.models.BaseEntity;
 import com.ojo.cyrus.models.WebhookConfig;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * A developer/business signed up on Cyrus. Merchants authenticate to the dashboard (JWT) and mint
@@ -54,15 +50,9 @@ public class Merchant extends BaseEntity {
     private Integer virtualAccountLimit = 10;
 
     /**
-     * Outbound-webhook config per environment (TEST/LIVE): a merchant registers a URL + Cyrus-generated
-     * signing secret (stored encrypted) that Cyrus POSTs {@code payment.*}/{@code payout.*} events to.
-     * LAZY — materialize inside a tx before use (open-in-view is disabled).
+     * Outbound-webhook config: the URL + Cyrus-generated signing secret (stored encrypted) that Cyrus
+     * POSTs {@code payment.*}/{@code payout.*} events to. Null until the merchant registers one.
      */
-    @ElementCollection
-    @CollectionTable(name = "merchant_webhook_configs",
-            joinColumns = @JoinColumn(name = "merchant_id"))
-    @MapKeyColumn(name = "environment")
-    @MapKeyEnumerated(EnumType.STRING)
-    @Builder.Default
-    private Map<Environment, WebhookConfig> webhookConfigs = new HashMap<>();
+    @Embedded
+    private WebhookConfig webhookConfig;
 }

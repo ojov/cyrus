@@ -1,7 +1,6 @@
 package com.ojo.cyrus.models.entities;
 
 import com.ojo.cyrus.enums.CurrencyCode;
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.enums.TransactionType;
@@ -79,10 +78,6 @@ public class Transaction extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private CurrencyCode currency = CurrencyCode.NGN;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Environment environment;
 
     @Column(length = 500)
     private String narration;

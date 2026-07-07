@@ -1,6 +1,5 @@
 package com.ojo.cyrus.controllers.dashboard;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.requests.CreateBeneficiaryRequest;
 import com.ojo.cyrus.models.responses.BeneficiaryResponse;
@@ -34,22 +33,19 @@ public class BeneficiaryController {
     @PostMapping
     public CyrusApiResponse<BeneficiaryResponse> create(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue = "TEST") Environment environment,
             @Valid @RequestBody CreateBeneficiaryRequest request) {
         UUID merchantId = merchantService.findByBusinessEmail(jwt.getSubject()).getId();
         return CyrusApiResponse.success(ResponseCode.CREATED, "Beneficiary registered",
-                beneficiaryService.create(merchantId, environment, request));
+                beneficiaryService.create(merchantId, request));
     }
 
     @Operation(summary = "List beneficiaries",
-            description = "Lists registered beneficiaries for the given environment.",
+            description = "Lists registered beneficiaries.",
             security = @SecurityRequirement(name = "BearerAuth"))
     @GetMapping
-    public CyrusApiResponse<List<BeneficiaryResponse>> list(
-            @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue = "TEST") Environment environment) {
+    public CyrusApiResponse<List<BeneficiaryResponse>> list(@AuthenticationPrincipal Jwt jwt) {
         UUID merchantId = merchantService.findByBusinessEmail(jwt.getSubject()).getId();
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Beneficiaries retrieved",
-                beneficiaryService.list(merchantId, environment));
+                beneficiaryService.list(merchantId));
     }
 }

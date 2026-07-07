@@ -1,6 +1,5 @@
 package com.ojo.cyrus.repositories;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.models.entities.Beneficiary;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -14,8 +13,7 @@ public interface BeneficiaryRepository extends JpaRepository<Beneficiary, UUID> 
 
     Optional<Beneficiary> findByIdAndMerchantId(UUID id, UUID merchantId);
 
-    List<Beneficiary> findByMerchantIdAndEnvironmentOrderByCreatedAtDesc(UUID merchantId, Environment environment);
+    List<Beneficiary> findByMerchantIdOrderByCreatedAtDesc(UUID merchantId);
 
-    boolean existsByMerchantIdAndAccountNumberAndBankCodeAndEnvironment(
-            UUID merchantId, String accountNumber, String bankCode, Environment environment);
+    boolean existsByMerchantIdAndAccountNumberAndBankCode(UUID merchantId, String accountNumber, String bankCode);
 }

@@ -1,7 +1,6 @@
 package com.ojo.cyrus.models.responses;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.ojo.cyrus.enums.Environment;
 
 /**
  * Returned after registering or rotating a webhook. {@code secret} is present ONLY on the call that
@@ -10,7 +9,6 @@ import com.ojo.cyrus.enums.Environment;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record WebhookConfigResponse(
-        Environment environment,
         String url,
         String secret,
         boolean hasSecret

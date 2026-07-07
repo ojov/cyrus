@@ -1,6 +1,5 @@
 package com.ojo.cyrus.controllers.dashboard;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.requests.CreatePayoutRequest;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
@@ -37,11 +36,10 @@ public class PayoutController {
     @PostMapping
     public CyrusApiResponse<PayoutResponse> initiate(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue = "TEST") Environment environment,
             @Valid @RequestBody CreatePayoutRequest request) {
         UUID merchantId = merchantService.findByBusinessEmail(jwt.getSubject()).getId();
         return CyrusApiResponse.success(ResponseCode.CREATED, "Payout initiated",
-                payoutService.initiate(merchantId, environment, request));
+                payoutService.initiate(merchantId, request));
     }
 
     @Operation(summary = "List payouts",

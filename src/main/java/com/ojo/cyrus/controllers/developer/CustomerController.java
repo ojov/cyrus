@@ -1,6 +1,5 @@
 package com.ojo.cyrus.controllers.developer;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
@@ -35,11 +34,11 @@ public class CustomerController {
             security = @SecurityRequirement(name = "ApiKeyAuth")
     )
     @PostMapping
-    public CyrusApiResponse<CustomerResponse> create(@AuthenticationPrincipal Merchant merchant, @RequestAttribute("ENVIRONMENT") Environment environment,
+    public CyrusApiResponse<CustomerResponse> create(@AuthenticationPrincipal Merchant merchant,
             @Valid @RequestBody CreateCustomerRequest request) {
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customer created",
-                customerService.create(merchant.getId(), environment, request));
+                customerService.create(merchant.getId(), request));
     }
 
     @Operation(

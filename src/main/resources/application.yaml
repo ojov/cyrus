@@ -13,20 +13,20 @@ spring:
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     show-sql: true
     open-in-view: false
   flyway:
     enabled: false
-# API docs are rendered by Scalar (not Swagger UI). springdoc still generates the OpenAPI spec at
-# /v3/api-docs, which Scalar consumes; the Swagger UI bundle is disabled.
-springdoc:
-  swagger-ui:
-    enabled: false
-scalar:
-  enabled: true
-  url: /v3/api-docs
 
+springdoc:
+  packages-to-scan: com.ojo.cyrus.controllers
+  api-docs:
+    path: /v3/api-docs
+
+scalar:
+  path: /scalar
+  page-title: Cyrus Developer API
 
 # Cyrus's single platform Nomba account. accountId + subAccountId are SHARED across TEST/LIVE;
 # only clientId/clientSecret differ per environment. Sandbox creds are required to boot; LIVE creds

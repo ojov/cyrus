@@ -1,6 +1,5 @@
 package com.ojo.cyrus.models.entities;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantWebhookStatus;
 import com.ojo.cyrus.models.BaseEntity;
 import jakarta.persistence.*;
@@ -35,11 +34,6 @@ public class MerchantWebhookEvent extends BaseEntity {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id")
     private Transaction transaction;
-
-    // The environment the source transaction belongs to (TEST/LIVE) — snapshotted so the delivery
-    // history can be filtered without loading the transaction.
-    @Enumerated(EnumType.STRING)
-    private Environment environment;
 
     // The wire name of the event, e.g. "payment.succeeded" (MerchantWebhookEventType.wireName()).
     @Column(name = "event_type")

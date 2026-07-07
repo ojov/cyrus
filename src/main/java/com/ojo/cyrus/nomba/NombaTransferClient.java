@@ -1,6 +1,5 @@
 package com.ojo.cyrus.nomba;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.nomba.dto.NombaApiResponse;
 import com.ojo.cyrus.nomba.dto.NombaBankData;
 import com.ojo.cyrus.nomba.dto.NombaBankLookupData;
@@ -11,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
 import java.util.List;
 
@@ -24,15 +24,15 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NombaTransferClient {
 
-    private final NombaRestClients restClients;
+    private final RestClient nombaRestClient;
 
     /**
      * Initiates a payout. {@code idempotencyKey} (paired with the request's unique {@code merchantTxRef})
      * makes a retry safe — Nomba treats it as the same transfer instead of a second one.
      */
-    public NombaBankTransferData transfer(Environment env, NombaBankTransferRequest request, String idempotencyKey) {
-        log.info("Initiating Nomba bank transfer ({}) merchantTxRef={}", env, request.merchantTxRef());
-        NombaApiResponse<NombaBankTransferData> response = restClients.forEnvironment(env).post()
+    public NombaBankTransferData transfer(NombaBankTransferRequest request, String idempotencyKey) {
+        log.info("Initiating Nomba bank transfer merchantTxRef={}", request.merchantTxRef());
+        NombaApiResponse<NombaBankTransferData> response = nombaRestClient.post()
                 .uri(NombaApiUri.BANK_TRANSFER.path())
                 .header("X-Idempotent-key", idempotencyKey)
                 .body(request)
@@ -43,8 +43,8 @@ public class NombaTransferClient {
     }
 
     /** Resolves the account holder name for a destination account before a payout. */
-    public NombaBankLookupData lookupAccount(Environment env, NombaBankLookupRequest request) {
-        NombaApiResponse<NombaBankLookupData> response = restClients.forEnvironment(env).post()
+    public NombaBankLookupData lookupAccount(NombaBankLookupRequest request) {
+        NombaApiResponse<NombaBankLookupData> response = nombaRestClient.post()
                 .uri(NombaApiUri.BANK_LOOKUP.path())
                 .body(request)
                 .retrieve()
@@ -54,8 +54,8 @@ public class NombaTransferClient {
     }
 
     /** The list of payable banks and their NIP codes. */
-    public List<NombaBankData> listBanks(Environment env) {
-        NombaApiResponse<List<NombaBankData>> response = restClients.forEnvironment(env).get()
+    public List<NombaBankData> listBanks() {
+        NombaApiResponse<List<NombaBankData>> response = nombaRestClient.get()
                 .uri(NombaApiUri.BANK_LIST.path())
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});

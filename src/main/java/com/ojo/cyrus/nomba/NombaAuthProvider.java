@@ -1,7 +1,6 @@
 package com.ojo.cyrus.nomba;
 
 import com.ojo.cyrus.config.properties.NombaProperties;
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.nomba.dto.NombaApiResponse;
 import com.ojo.cyrus.nomba.dto.NombaTokenData;
@@ -16,16 +15,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Acquires and caches Nomba OAuth access tokens for Cyrus's own platform account, one token per
- * {@link Environment} (client-credentials grant). Modeled on the gbgapi {@code AuthProvider}: a
- * proactively-refreshed cache (re-authenticates ~5 min before the 30-minute token expires).
+ * Acquires and caches the Nomba OAuth access token for Cyrus's platform account (client-credentials
+ * grant). Modeled on the gbgapi {@code AuthProvider}: a proactively-refreshed token (re-authenticates
+ * ~5 min before the 30-minute expiry), guarded by {@code synchronized}.
  *
- * <p>Deliberately uses its <em>own</em> bare {@code RestClient} for the token endpoint rather than
- * the auth-injecting {@code NombaRestClients} beans — otherwise the interceptor that asks this
- * provider for a token would recurse.
+ * <p>Deliberately uses its <em>own</em> bare {@code RestClient} for the token endpoint rather than the
+ * auth-injecting {@code nombaRestClient} bean — otherwise the interceptor that asks this provider for
+ * a token would recurse.
  */
 @Service
 @Slf4j
@@ -33,7 +31,7 @@ public class NombaAuthProvider {
 
     private final NombaProperties props;
     private final RestClient authRestClient;
-    private final ConcurrentHashMap<Environment, NombaTokenEntry> cache = new ConcurrentHashMap<>();
+    private volatile NombaTokenEntry token;
 
     public NombaAuthProvider(NombaProperties props) {
         this.props = props;
@@ -47,44 +45,39 @@ public class NombaAuthProvider {
                 .build();
     }
 
-    /** A valid access token for the given environment, authenticating or reusing the cache as needed. */
-    public String getAccessToken(Environment env) {
-        NombaTokenEntry entry = cache.compute(env, (k, existing) -> {
-            if (existing != null && existing.isValid()) {
-                return existing;
-            }
-            log.info("Authenticating with Nomba ({})", env);
-            return authenticate(env);
-        });
-        return entry.accessToken();
+    /** A valid access token, authenticating or reusing the cached one as needed. */
+    public synchronized String getAccessToken() {
+        if (token == null || !token.isValid()) {
+            log.info("Authenticating with Nomba");
+            token = authenticate();
+        }
+        return token.accessToken();
     }
 
-    /** Drops the cached token for an environment, forcing re-authentication on next use. */
-    public void evict(Environment env) {
-        cache.remove(env);
+    /** Drops the cached token, forcing re-authentication on next use. */
+    public synchronized void evict() {
+        token = null;
     }
 
-    private NombaTokenEntry authenticate(Environment env) {
-        NombaProperties.Credentials creds = props.credentials(env);
-        if (creds == null || creds.clientId() == null || creds.clientSecret() == null) {
-            throw new NombaIntegrationException(
-                    "No Nomba platform credentials configured for environment " + env);
+    private NombaTokenEntry authenticate() {
+        if (props.clientId() == null || props.clientSecret() == null) {
+            throw new NombaIntegrationException("No Nomba platform credentials configured");
         }
 
         NombaApiResponse<NombaTokenData> response = authRestClient.post()
-                .uri(props.baseUrl(env) + NombaApiUri.TOKEN_ISSUE.path())
+                .uri(props.baseUrl() + NombaApiUri.TOKEN_ISSUE.path())
                 .header("accountId", props.accountId())
-                .body(new NombaTokenRequest("client_credentials", creds.clientId(), creds.clientSecret()))
+                .body(new NombaTokenRequest("client_credentials", props.clientId(), props.clientSecret()))
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});
 
         if (response == null || !response.isSuccess() || response.data() == null) {
             String detail = response != null ? response.description() : "null response from Nomba";
-            throw new NombaIntegrationException("Nomba authentication failed for " + env + ": " + detail);
+            throw new NombaIntegrationException("Nomba authentication failed: " + detail);
         }
 
         NombaTokenData data = response.data();
-        log.info("Authenticated with Nomba ({}); token expires at {}", env, data.expiresAt());
+        log.info("Authenticated with Nomba; token expires at {}", data.expiresAt());
         return new NombaTokenEntry(data.accessToken(), data.refreshToken(), data.expiresAt());
     }
 }

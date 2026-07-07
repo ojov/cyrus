@@ -1,6 +1,5 @@
 package com.ojo.cyrus.repositories;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.models.entities.Wallet;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,16 +14,15 @@ import java.util.UUID;
 @Repository
 public interface WalletRepository extends JpaRepository<Wallet, UUID> {
 
-    Optional<Wallet> findByMerchantIdAndEnvironment(UUID merchantId, Environment environment);
+    Optional<Wallet> findByMerchantId(UUID merchantId);
 
-    boolean existsByMerchantIdAndEnvironment(UUID merchantId, Environment environment);
+    boolean existsByMerchantId(UUID merchantId);
 
     /**
      * Pessimistic-write lock for balance mutation — serializes concurrent credit/debit on the same
      * wallet so the running total stays consistent with the ledger. Used inside the posting tx.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT w FROM Wallet w WHERE w.merchant.id = :merchantId AND w.environment = :environment")
-    Optional<Wallet> findForUpdate(@Param("merchantId") UUID merchantId,
-                                   @Param("environment") Environment environment);
+    @Query("SELECT w FROM Wallet w WHERE w.merchant.id = :merchantId")
+    Optional<Wallet> findForUpdate(@Param("merchantId") UUID merchantId);
 }

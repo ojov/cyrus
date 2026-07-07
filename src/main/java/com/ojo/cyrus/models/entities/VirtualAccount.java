@@ -1,7 +1,6 @@
 package com.ojo.cyrus.models.entities;
 
 import com.ojo.cyrus.enums.CurrencyCode;
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.VirtualAccountStatus;
 import com.ojo.cyrus.models.BaseEntity;
 import jakarta.persistence.*;
@@ -42,10 +41,6 @@ public class VirtualAccount extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private CurrencyCode currency = CurrencyCode.NGN;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Environment environment;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -1,7 +1,6 @@
 package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.ApiKeyStatus;
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.models.entities.ApiKey;
 import com.ojo.cyrus.models.entities.Merchant;
@@ -36,9 +35,8 @@ public class ApiKeyService {
     @Transactional(readOnly = true)
     public List<ApiKeyListItem> listKeys(UUID merchantId) {
         return apiKeyRepository.findByMerchantIdOrderByCreatedAtDesc(merchantId).stream()
-                .map(key -> new ApiKeyListItem(
-                        key.getId(), key.getPrefix(), key.getEnvironment(),
-                        key.getStatus(), key.getCreatedAt(), key.getLastUsedAt()))
+                .map(key -> new ApiKeyListItem(key.getId(), key.getPrefix(), key.getStatus(),
+                        key.getCreatedAt(), key.getLastUsedAt()))
                 .toList();
     }
 
@@ -49,22 +47,20 @@ public class ApiKeyService {
         key.revoke(); // status -> REVOKED, revokedAt set; flushed by dirty checking
     }
 
-    public GeneratedApiKeysResponse createApiKey(Merchant merchant, Environment environment) {
-        String rawKey = generateKey(environment);
+    public GeneratedApiKeysResponse createApiKey(Merchant merchant) {
+        String rawKey = generateKey();
         ApiKey apiKey = ApiKey.builder()
-                        .merchant(merchant)
-                        .keyHash(CryptoUtil.sha256(rawKey))
-                        .prefix(extractPrefix(rawKey))
-                        .environment(environment)
-                        .status(ApiKeyStatus.ACTIVE)
-                        .build();
+                .merchant(merchant)
+                .keyHash(CryptoUtil.sha256(rawKey))
+                .prefix(extractPrefix(rawKey))
+                .status(ApiKeyStatus.ACTIVE)
+                .build();
         apiKeyRepository.save(apiKey);
-        return new GeneratedApiKeysResponse(Set.of(new ApiKeyResponse(rawKey, environment, Instant.now())));
+        return new GeneratedApiKeysResponse(Set.of(new ApiKeyResponse(rawKey, Instant.now())));
     }
 
-    private String generateKey(Environment environment) {
-        return "cyrus_" + environment.name().toLowerCase()
-                + "_" + CryptoUtil.randomToken(32);
+    private String generateKey() {
+        return "cyrus_" + CryptoUtil.randomToken(32);
     }
 
     private String extractPrefix(String key) {

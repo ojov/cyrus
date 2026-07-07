@@ -1,6 +1,5 @@
 package com.ojo.cyrus.services;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.KycTier;
 import com.ojo.cyrus.enums.MerchantCustomerStatus;
 import com.ojo.cyrus.enums.TransactionStatus;
@@ -55,7 +54,7 @@ public class CustomerService {
     private final NombaVirtualAccountClient nombaVirtualAccountClient;
     private final PlatformTransactionManager transactionManager;
 
-    public CustomerResponse create(UUID merchantId, Environment env, CreateCustomerRequest request) {
+    public CustomerResponse create(UUID merchantId, CreateCustomerRequest request) {
         if (merchantCustomerRepository.existsByMerchantIdAndExternalCustomerId(merchantId, request.reference())) {
             throw new AlreadyExistsException("A customer with this reference already exists");
         }
@@ -66,11 +65,11 @@ public class CustomerService {
         // if provisioning fails. The Nomba call runs with no DB transaction open.
         MerchantCustomer customer = Mapper.toMerchantCustomer(merchant, request);
         NombaVirtualAccountData nombaData = nombaVirtualAccountClient.createVirtualAccount(
-                env, Mapper.toNombaRequest(customer, request.bvn()));
+                Mapper.toNombaRequest(customer, request.bvn()));
 
         return new TransactionTemplate(transactionManager).execute(_ -> {
             MerchantCustomer saved = merchantCustomerRepository.save(customer);
-            VirtualAccount va = virtualAccountRepository.save(Mapper.toVirtualAccount(saved, nombaData, env));
+            VirtualAccount va = virtualAccountRepository.save(Mapper.toVirtualAccount(saved, nombaData));
             log.info("Created customer {} for merchant {} with virtual account {}",
                     saved.getExternalCustomerId(), merchantId, va.getAccountNumber());
             return Mapper.toCustomerResponse(saved, va);
@@ -121,9 +120,8 @@ public class CustomerService {
         readTx.setReadOnly(true);
         CustomerRenameSnapshot current = readTx.execute(_ -> {
             MerchantCustomer customer = requireCustomer(merchantId, reference);
-            VirtualAccount va = requireVirtualAccount(customer.getId());
             return new CustomerRenameSnapshot(customer.getExternalCustomerId(), customer.getFirstName(),
-                    customer.getLastName(), va.getEnvironment());
+                    customer.getLastName());
         });
 
         String newAccountName = null;
@@ -131,7 +129,7 @@ public class CustomerService {
             String firstName = request.firstName() != null ? request.firstName() : current.firstName();
             String lastName = request.lastName() != null ? request.lastName() : current.lastName();
             newAccountName = (lastName != null && !lastName.isBlank()) ? firstName + " " + lastName : firstName;
-            nombaVirtualAccountClient.updateVirtualAccountName(current.environment(), current.reference(), newAccountName);
+            nombaVirtualAccountClient.updateVirtualAccountName(current.reference(), newAccountName);
         }
 
         String finalAccountName = newAccountName;
@@ -188,12 +186,11 @@ public class CustomerService {
             if (customer.getStatus() == MerchantCustomerStatus.CLOSED) {
                 throw new InvalidCustomerStateException("Customer is CLOSED — no further status changes are accepted");
             }
-            VirtualAccount va = requireVirtualAccount(customer.getId());
-            return new CustomerStatusSnapshot(customer.getExternalCustomerId(), va.getEnvironment());
+            return new CustomerStatusSnapshot(customer.getExternalCustomerId());
         });
 
         if (status == MerchantCustomerStatus.CLOSED) {
-            nombaVirtualAccountClient.expireVirtualAccount(current.environment(), current.reference());
+            nombaVirtualAccountClient.expireVirtualAccount(current.reference());
         }
 
         return new TransactionTemplate(transactionManager).execute(_ -> {

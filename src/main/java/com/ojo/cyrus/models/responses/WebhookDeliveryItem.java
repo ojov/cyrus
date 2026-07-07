@@ -1,6 +1,5 @@
 package com.ojo.cyrus.models.responses;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantWebhookStatus;
 
 import java.time.Instant;
@@ -10,7 +9,6 @@ import java.util.UUID;
 public record WebhookDeliveryItem(
         UUID id,
         UUID transactionId,
-        Environment environment,
         String eventType,
         MerchantWebhookStatus status,
         String webhookUrl,

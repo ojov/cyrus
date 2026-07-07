@@ -1,6 +1,5 @@
 package com.ojo.cyrus.services;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.exception.AlreadyExistsException;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.models.entities.Beneficiary;
@@ -37,14 +36,14 @@ public class BeneficiaryService {
      * Not wrapped in a method-level transaction: the Nomba lookup runs with no DB connection held
      * ({@code merchantService.findById} and the final {@code save} each open their own short tx).
      */
-    public BeneficiaryResponse create(UUID merchantId, Environment env, CreateBeneficiaryRequest request) {
+    public BeneficiaryResponse create(UUID merchantId, CreateBeneficiaryRequest request) {
         Merchant merchant = merchantService.findById(merchantId);
-        if (beneficiaryRepository.existsByMerchantIdAndAccountNumberAndBankCodeAndEnvironment(
-                merchantId, request.accountNumber(), request.bankCode(), env)) {
+        if (beneficiaryRepository.existsByMerchantIdAndAccountNumberAndBankCode(
+                merchantId, request.accountNumber(), request.bankCode())) {
             throw new AlreadyExistsException("This beneficiary is already registered");
         }
 
-        String accountName = resolveAccountName(env, request);
+        String accountName = resolveAccountName(request);
 
         Beneficiary saved = beneficiaryRepository.save(Beneficiary.builder()
                 .merchant(merchant)
@@ -53,15 +52,14 @@ public class BeneficiaryService {
                 .accountNumber(request.accountNumber())
                 .bankCode(request.bankCode())
                 .bankName(request.bankName())
-                .environment(env)
                 .build());
-        log.info("Registered beneficiary {} ({}) for merchant {}", saved.getId(), env, merchantId);
+        log.info("Registered beneficiary {} for merchant {}", saved.getId(), merchantId);
         return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
-    public List<BeneficiaryResponse> list(UUID merchantId, Environment env) {
-        return beneficiaryRepository.findByMerchantIdAndEnvironmentOrderByCreatedAtDesc(merchantId, env)
+    public List<BeneficiaryResponse> list(UUID merchantId) {
+        return beneficiaryRepository.findByMerchantIdOrderByCreatedAtDesc(merchantId)
                 .stream().map(BeneficiaryService::toResponse).toList();
     }
 
@@ -71,11 +69,11 @@ public class BeneficiaryService {
                 .orElseThrow(() -> new EntityNotFoundException("Beneficiary not found"));
     }
 
-    /** Verifies the destination account name via Nomba; falls back to the bank name on lookup failure. */
-    private String resolveAccountName(Environment env, CreateBeneficiaryRequest request) {
+    /** Verifies the destination account name via Nomba; falls back to the nickname on lookup failure. */
+    private String resolveAccountName(CreateBeneficiaryRequest request) {
         try {
             NombaBankLookupData lookup = nombaTransferClient.lookupAccount(
-                    env, new NombaBankLookupRequest(request.accountNumber(), request.bankCode()));
+                    new NombaBankLookupRequest(request.accountNumber(), request.bankCode()));
             if (lookup != null && lookup.accountName() != null && !lookup.accountName().isBlank()) {
                 return lookup.accountName();
             }
@@ -88,6 +86,6 @@ public class BeneficiaryService {
 
     static BeneficiaryResponse toResponse(Beneficiary b) {
         return new BeneficiaryResponse(b.getId(), b.getNickname(), b.getAccountName(), b.getAccountNumber(),
-                b.getBankCode(), b.getBankName(), b.getEnvironment(), b.getCreatedAt());
+                b.getBankCode(), b.getBankName(), b.getCreatedAt());
     }
 }

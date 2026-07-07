@@ -1,7 +1,5 @@
 package com.ojo.cyrus.models.responses;
 
-import com.ojo.cyrus.enums.Environment;
-
 import java.time.Instant;
 import java.util.UUID;
 
@@ -12,6 +10,5 @@ public record BeneficiaryResponse(
         String accountNumber,
         String bankCode,
         String bankName,
-        Environment environment,
         Instant createdAt
 ) {}

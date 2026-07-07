@@ -1,7 +1,6 @@
 package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.CurrencyCode;
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.LedgerEntryType;
 import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.PayoutStatus;
@@ -59,11 +58,11 @@ public class PayoutService {
     private record Reserved(UUID payoutId, UUID transactionId, String reference, String senderName,
                             String accountNumber, String accountName, String bankCode) {}
 
-    public PayoutResponse initiate(UUID merchantId, Environment env, CreatePayoutRequest request) {
-        Reserved reserved = reserve(merchantId, env, request);
+    public PayoutResponse initiate(UUID merchantId, CreatePayoutRequest request) {
+        Reserved reserved = reserve(merchantId, request);
 
         try {
-            NombaBankTransferData result = nombaTransferClient.transfer(env, new NombaBankTransferRequest(
+            NombaBankTransferData result = nombaTransferClient.transfer(new NombaBankTransferRequest(
                     koboToNaira(request.amount()),
                     reserved.accountNumber(),
                     reserved.accountName(),
@@ -74,7 +73,7 @@ public class PayoutService {
             return finalizeAccepted(reserved.payoutId(), reserved.transactionId(), result);
         } catch (RuntimeException e) {
             log.warn("Payout {} failed at provider — refunding wallet: {}", reserved.reference(), e.getMessage());
-            return finalizeFailed(reserved.payoutId(), reserved.transactionId(), env, e.getMessage());
+            return finalizeFailed(reserved.payoutId(), reserved.transactionId(), e.getMessage());
         }
     }
 
@@ -89,7 +88,7 @@ public class PayoutService {
                 .orElseThrow(() -> new EntityNotFoundException("Payout not found")));
     }
 
-    private Reserved reserve(UUID merchantId, Environment env, CreatePayoutRequest request) {
+    private Reserved reserve(UUID merchantId, CreatePayoutRequest request) {
         return new TransactionTemplate(transactionManager).execute(status -> {
             Merchant merchant = merchantService.findById(merchantId);
             Beneficiary beneficiary = beneficiaryRepository.findByIdAndMerchantId(request.beneficiaryId(), merchantId)
@@ -102,7 +101,6 @@ public class PayoutService {
                     .reference(reference)
                     .amount(request.amount())
                     .currency(CurrencyCode.NGN)
-                    .environment(env)
                     .narration(request.narration())
                     .status(TransactionStatus.PENDING)
                     .matchStatus(MatchStatus.UNMATCHED)
@@ -110,7 +108,7 @@ public class PayoutService {
                     .build());
 
             // Debit the wallet up front (throws InsufficientFundsException if the balance is too low).
-            ledgerService.debit(merchant, env, request.amount(), tx, LedgerEntryType.PAYOUT, "Payout " + reference);
+            ledgerService.debit(merchant, request.amount(), tx, LedgerEntryType.PAYOUT, "Payout " + reference);
 
             Payout payout = payoutRepository.save(Payout.builder()
                     .merchant(merchant)
@@ -118,7 +116,6 @@ public class PayoutService {
                     .transaction(tx)
                     .reference(reference)
                     .amount(request.amount())
-                    .environment(env)
                     .narration(request.narration())
                     .status(PayoutStatus.PENDING)
                     .build());
@@ -143,13 +140,13 @@ public class PayoutService {
         });
     }
 
-    private PayoutResponse finalizeFailed(UUID payoutId, UUID transactionId, Environment env, String reason) {
+    private PayoutResponse finalizeFailed(UUID payoutId, UUID transactionId, String reason) {
         return new TransactionTemplate(transactionManager).execute(status -> {
             Payout payout = payoutRepository.findById(payoutId).orElseThrow();
             Transaction tx = transactionRepository.findById(transactionId).orElseThrow();
 
             // Refund the reserved amount — the provider rejected the transfer, so the money never left.
-            ledgerService.credit(payout.getMerchant(), env, payout.getAmount(), tx,
+            ledgerService.credit(payout.getMerchant(), payout.getAmount(), tx,
                     LedgerEntryType.REVERSAL, "Refund of failed payout " + payout.getReference());
 
             payout.setStatus(PayoutStatus.FAILED);

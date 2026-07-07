@@ -1,6 +1,5 @@
 package com.ojo.cyrus.services;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantWebhookEventType;
 import com.ojo.cyrus.enums.MerchantWebhookStatus;
 import com.ojo.cyrus.models.WebhookConfig;
@@ -48,11 +47,10 @@ public class MerchantWebhookService {
      * <p>Must be called within the transaction that sets the transaction's terminal state.
      */
     public void recordAndScheduleDispatch(Transaction tx, MerchantWebhookEventType type) {
-        Environment env = tx.getEnvironment();
-        WebhookConfig config = tx.getMerchant().getWebhookConfigs().get(env);
+        WebhookConfig config = tx.getMerchant().getWebhookConfig();
         if (config == null || config.url() == null || config.url().isBlank()) {
-            log.debug("No {} webhook URL for merchant {} — skipping {} for tx {}",
-                    env, tx.getMerchant().getId(), type.getWireName(), tx.getId());
+            log.debug("No webhook URL for merchant {} — skipping {} for tx {}",
+                    tx.getMerchant().getId(), type.getWireName(), tx.getId());
             return;
         }
 
@@ -63,7 +61,6 @@ public class MerchantWebhookService {
         MerchantWebhookEvent event = MerchantWebhookEvent.builder()
                 .merchant(tx.getMerchant())
                 .transaction(tx)
-                .environment(env)
                 .eventType(type.getWireName())
                 .webhookUrl(config.url())
                 .payload(buildPayload(tx, type))

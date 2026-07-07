@@ -1,9 +1,7 @@
 package com.ojo.cyrus.controllers.dashboard;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantWebhookStatus;
 import com.ojo.cyrus.enums.ResponseCode;
-import com.ojo.cyrus.models.requests.CreateApiKeyRequest;
 import com.ojo.cyrus.models.requests.WebhookRegistrationRequest;
 import com.ojo.cyrus.models.responses.ApiKeyListItem;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
@@ -39,7 +37,7 @@ public class MerchantController {
     private final MerchantService merchantService;
 
     @Operation(summary = "Dashboard stats",
-            description = "Customer + virtual-account counts and TEST/LIVE wallet balances (kobo).",
+            description = "Customer + virtual-account counts and wallet balance (kobo).",
             security = @SecurityRequirement(name = "BearerAuth"))
     @GetMapping("/me/stats")
     public CyrusApiResponse<MerchantStatsResponse> stats(@AuthenticationPrincipal Jwt jwt) {
@@ -57,14 +55,12 @@ public class MerchantController {
     }
 
     @Operation(summary = "Create an API key",
-            description = "Generates a new API key for the given environment (TEST or LIVE). The raw key is returned once.",
+            description = "Generates a new API key. The raw key is returned once.",
             security = @SecurityRequirement(name = "BearerAuth"))
     @PostMapping("/me/api-keys")
-    public CyrusApiResponse<GeneratedApiKeysResponse> createApiKey(
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody CreateApiKeyRequest request) {
+    public CyrusApiResponse<GeneratedApiKeysResponse> createApiKey(@AuthenticationPrincipal Jwt jwt) {
         return CyrusApiResponse.success(ResponseCode.CREATED, "API key created",
-                merchantService.createApiKey(jwt.getSubject(), request.environment()));
+                merchantService.createApiKey(jwt.getSubject()));
     }
 
     @Operation(summary = "Revoke an API key",
@@ -77,59 +73,53 @@ public class MerchantController {
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "API key revoked", null);
     }
 
-    @Operation(summary = "Register or update a webhook URL",
-            description = "Sets the URL Cyrus POSTs payment.*/payout.* events to for the given environment. " +
-                    "On first registration the signing secret is returned once — store it, it can't be retrieved again.",
+    @Operation(summary = "Register or update the webhook URL",
+            description = "Sets the URL Cyrus POSTs payment.*/payout.* events to. On first registration the " +
+                    "signing secret is returned once — store it, it can't be retrieved again.",
             security = @SecurityRequirement(name = "BearerAuth"))
-    @PutMapping("/me/webhooks/{environment}")
+    @PutMapping("/me/webhooks")
     public CyrusApiResponse<WebhookConfigResponse> setWebhook(
             @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Environment environment,
             @Valid @RequestBody WebhookRegistrationRequest request) {
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Webhook configured",
-                merchantService.setWebhookUrl(jwt.getSubject(), environment, request.url()));
+                merchantService.setWebhookUrl(jwt.getSubject(), request.url()));
     }
 
-    @Operation(summary = "Rotate a webhook signing secret",
-            description = "Generates a new signing secret for the environment's webhook. The new secret is returned once.",
+    @Operation(summary = "Rotate the webhook signing secret",
+            description = "Generates a new signing secret. The new secret is returned once.",
             security = @SecurityRequirement(name = "BearerAuth"))
-    @PostMapping("/me/webhooks/{environment}/rotate-secret")
-    public CyrusApiResponse<WebhookConfigResponse> rotateWebhookSecret(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Environment environment) {
+    @PostMapping("/me/webhooks/rotate-secret")
+    public CyrusApiResponse<WebhookConfigResponse> rotateWebhookSecret(@AuthenticationPrincipal Jwt jwt) {
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Webhook secret rotated",
-                merchantService.rotateWebhookSecret(jwt.getSubject(), environment));
+                merchantService.rotateWebhookSecret(jwt.getSubject()));
     }
 
-    @Operation(summary = "List webhook configurations",
-            description = "Lists the merchant's configured webhook URLs per environment (secrets are never returned).",
+    @Operation(summary = "Get the webhook configuration",
+            description = "The merchant's configured webhook URL (the secret is never returned).",
             security = @SecurityRequirement(name = "BearerAuth"))
     @GetMapping("/me/webhooks")
-    public CyrusApiResponse<List<WebhookConfigItem>> listWebhooks(@AuthenticationPrincipal Jwt jwt) {
-        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Webhooks retrieved",
-                merchantService.listWebhooks(jwt.getSubject()));
+    public CyrusApiResponse<WebhookConfigItem> getWebhook(@AuthenticationPrincipal Jwt jwt) {
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Webhook retrieved",
+                merchantService.getWebhook(jwt.getSubject()));
     }
 
     @Operation(summary = "Webhook delivery history",
-            description = "Paginated history of outbound webhook deliveries, newest first, with optional status/environment filters.",
+            description = "Paginated history of outbound webhook deliveries, newest first, with an optional status filter.",
             security = @SecurityRequirement(name = "BearerAuth"))
     @GetMapping("/me/webhooks/deliveries")
     public CyrusApiResponse<Page<WebhookDeliveryItem>> listWebhookDeliveries(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) MerchantWebhookStatus status,
-            @RequestParam(required = false) Environment environment,
             @PageableDefault(size = 20) Pageable pageable) {
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Webhook deliveries retrieved",
-                merchantService.listWebhookDeliveries(jwt.getSubject(), status, environment, pageable));
+                merchantService.listWebhookDeliveries(jwt.getSubject(), status, pageable));
     }
 
-    @Operation(summary = "Remove a webhook configuration",
+    @Operation(summary = "Remove the webhook configuration",
             security = @SecurityRequirement(name = "BearerAuth"))
-    @DeleteMapping("/me/webhooks/{environment}")
-    public CyrusApiResponse<Void> deleteWebhook(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Environment environment) {
-        merchantService.deleteWebhook(jwt.getSubject(), environment);
+    @DeleteMapping("/me/webhooks")
+    public CyrusApiResponse<Void> deleteWebhook(@AuthenticationPrincipal Jwt jwt) {
+        merchantService.deleteWebhook(jwt.getSubject());
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Webhook removed", null);
     }
 }

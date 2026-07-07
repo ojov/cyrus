@@ -1,6 +1,5 @@
 package com.ojo.cyrus.models.entities;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.NombaPaymentEventStatus;
 import com.ojo.cyrus.enums.NombaPaymentEventType;
 import com.ojo.cyrus.enums.ReconciliationFailureReason;
@@ -70,9 +69,6 @@ public class NombaPaymentEvent extends BaseEntity {
 
     @Column(length = 500)
     private String narration;
-
-    @Enumerated(EnumType.STRING)
-    private Environment environment;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
