@@ -11,12 +11,12 @@ export default function ApiKeysDocsPage() {
       </p>
       <ul>
         <li>
-          <b>Two environments.</b> <code>cyrus_test_</code> hits the sandbox; <code>cyrus_live_</code> hits production. Live
-          key generation is available only after you go live.
+          <b>One key.</b> There is no TEST/LIVE split — Cyrus runs on its own Nomba account, so a single key authenticates
+          every request.
         </li>
         <li>
-          <b>Generate them yourself.</b> Signup does not give you a reusable visible key. Open Dashboard → API keys,
-          generate a test key, and copy it immediately.
+          <b>Generate it yourself.</b> Signup does not give you a reusable visible key. Open Dashboard → API keys,
+          generate one, and copy it immediately.
         </li>
         <li>
           <b>Shown once.</b> The full key is revealed a single time at creation. Existing keys only show their prefix, so

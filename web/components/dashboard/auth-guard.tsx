@@ -2,14 +2,18 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { dashboardApi } from "@/lib/api";
 
-/** Redirects to /login when there is no dashboard session. */
+/**
+ * Redirects to /login when there is no valid session. The session is an httpOnly cookie this app
+ * cannot read directly, so validity is checked the only way that's possible: an authenticated
+ * request actually succeeding.
+ */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!getSession()) router.replace("/login");
+    dashboardApi.stats().catch(() => router.replace("/login"));
   }, [router]);
 
   return <>{children}</>;

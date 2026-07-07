@@ -50,6 +50,11 @@ app:
   jwt:
     issuer: cyrus
     expiry-hours: 8
+  # The dashboard JWT is delivered as an httpOnly cookie, never in a JSON response body — the
+  # frontend never touches the raw token. `secure: false` here is for local dev over plain
+  # http://localhost only; application-prod.yml overrides this to true (HTTPS-only cookie).
+  auth-cookie:
+    secure: false
   reconciliation:
     # How long after a webhook arrives (and between each retry) before we requery Nomba to
     # confirm it. Override via APP_RECONCILIATION_DELAY_SECONDS.

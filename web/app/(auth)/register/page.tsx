@@ -11,15 +11,7 @@ import { FormError } from "@/components/auth/form-error";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({
-    businessName: "",
-    businessEmail: "",
-    password: "",
-    nombaClientId: "",
-    nombaClientSecret: "",
-    nombaParentAccountId: "",
-    subAccountIds: "",
-  });
+  const [form, setForm] = useState({ businessName: "", businessEmail: "", password: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,17 +24,8 @@ export default function RegisterPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await authApi.register({
-        businessName: form.businessName,
-        businessEmail: form.businessEmail,
-        password: form.password,
-        nombaClientId: form.nombaClientId,
-        nombaClientSecret: form.nombaClientSecret,
-        nombaParentAccountId: form.nombaParentAccountId,
-        subAccountIds: form.subAccountIds.split(",").map((s) => s.trim()).filter(Boolean),
-      });
+      const res = await authApi.register(form);
       saveSession({
-        token: res.data.token,
         merchantId: res.data.merchantId,
         businessName: res.data.businessName,
         businessEmail: res.data.businessEmail,
@@ -55,40 +38,13 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthCard wide>
-      <AuthCardHeader title="Create your Cyrus account" subtitle="Sign up with your Nomba sandbox keys" />
-      <p className="mb-5 mt-3 text-sm text-muted-foreground">
-        Use your Nomba <b className="text-foreground">sandbox (test)</b> credentials — not live. After signup, generate your{" "}
-        <span className="font-mono text-primary">cyrus_test_</span> API key from the dashboard and copy it immediately.
-      </p>
+    <AuthCard>
+      <AuthCardHeader title="Create your Cyrus account" subtitle="Start provisioning virtual accounts in minutes" />
 
       <form onSubmit={submit} className="space-y-3">
         <Field label="Business name" required value={form.businessName} onChange={set("businessName")} placeholder="Acme Payments" />
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Business email" type="email" required value={form.businessEmail} onChange={set("businessEmail")} placeholder="dev@acme.ng" />
-          <Field label="Password" type="password" required value={form.password} onChange={set("password")} placeholder="••••••••" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field
-            label={<>Nomba client ID <span className="text-primary">(test)</span></>}
-            required
-            value={form.nombaClientId}
-            onChange={set("nombaClientId")}
-            placeholder="sandbox client ID"
-          />
-          <Field
-            label={<>Nomba client secret <span className="text-primary">(test)</span></>}
-            type="password"
-            required
-            value={form.nombaClientSecret}
-            onChange={set("nombaClientSecret")}
-            placeholder="sandbox secret"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Parent account ID" required value={form.nombaParentAccountId} onChange={set("nombaParentAccountId")} placeholder="NMB-48210" />
-          <Field label="Sub-account IDs" value={form.subAccountIds} onChange={set("subAccountIds")} placeholder="sub_acct_1, sub_acct_2" />
-        </div>
+        <Field label="Business email" type="email" required value={form.businessEmail} onChange={set("businessEmail")} placeholder="dev@acme.ng" />
+        <Field label="Password" type="password" required value={form.password} onChange={set("password")} placeholder="••••••••" />
         <FormError error={error} />
         <button
           type="submit"

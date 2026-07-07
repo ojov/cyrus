@@ -4,6 +4,7 @@ import com.ojo.cyrus.config.properties.AppProperties;
 import com.ojo.cyrus.enums.MerchantStatus;
 import com.ojo.cyrus.enums.TokenType;
 import com.ojo.cyrus.exception.EntityNotFoundException;
+import com.ojo.cyrus.models.dto.AuthTokenResult;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.Token;
 import com.ojo.cyrus.models.requests.LoginRequest;
@@ -36,7 +37,7 @@ public class AuthService {
     private final AppProperties appProperties;
     private final WalletService walletService;
 
-    public MerchantRegistrationResponse register(MerchantRegistrationRequest request) {
+    public AuthTokenResult<MerchantRegistrationResponse> register(MerchantRegistrationRequest request) {
         merchantService.validateMerchantExists(request);
         Merchant merchantEntity = mapToMerchantEntity(request);
         merchantEntity.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -45,8 +46,9 @@ public class AuthService {
         walletService.provisionWallet(merchant);
         sendVerificationEmail(merchant);
         String jwt = tokenService.generateToken(merchant.getBusinessEmail(), "ROLE_MERCHANT");
-        return new MerchantRegistrationResponse(merchant.getId(), merchant.getBusinessName(),
-                merchant.getBusinessEmail(), jwt);
+        MerchantRegistrationResponse response = new MerchantRegistrationResponse(
+                merchant.getId(), merchant.getBusinessName(), merchant.getBusinessEmail());
+        return new AuthTokenResult<>(jwt, response);
     }
 
     public void verifyEmail(String tokenValue) {
@@ -57,12 +59,13 @@ public class AuthService {
         log.info("Merchant {} verified and activated", merchant.getBusinessEmail());
     }
 
-    public LoginResponse login(LoginRequest request) {
+    public AuthTokenResult<LoginResponse> login(LoginRequest request) {
         Authentication authentication = authenticationManager.
                 authenticate(new UsernamePasswordAuthenticationToken(request.email(), request.password()));
         String jwt = tokenService.generateToken(authentication);
         Merchant merchant = merchantService.findByBusinessEmail(request.email());
-       return new LoginResponse(jwt, "Bearer", merchant.getId(), merchant.getBusinessName(), merchant.getBusinessEmail());
+        LoginResponse response = new LoginResponse(merchant.getId(), merchant.getBusinessName(), merchant.getBusinessEmail());
+        return new AuthTokenResult<>(jwt, response);
     }
 
     public void resendVerificationEmail(String email) {

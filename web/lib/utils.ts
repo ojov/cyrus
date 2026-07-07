@@ -14,19 +14,21 @@ export function statusClass(status: string): string {
     case "MATCHED":
     case "ACTIVE":
     case "SUCCESSFUL":
-    case "LIVE":
+    case "SUCCESS":
       return "db-good";
     case "PARTIAL":
     case "UNMATCHED":
     case "MISSING":
     case "SUSPENDED":
+    case "PENDING":
+    case "PROCESSING":
       return "db-warn";
     case "ORPHANED":
     case "REVOKED":
     case "FAILED":
       return "db-crit";
-    case "LEVEL_2":
-    case "TEST":
+    case "TIER_2":
+    case "TIER_3":
       return "db-info";
     default:
       return "";

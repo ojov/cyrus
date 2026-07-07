@@ -5,7 +5,8 @@ import Link from "next/link";
 import { getSession, type MerchantSession } from "@/lib/auth";
 import { useDashboardStats } from "@/components/dashboard/stats-context";
 import { OVERVIEW } from "@/lib/mock";
-import { IconArrowRight, IconUsers, IconCard, IconTrend, IconCheckCircle } from "@/components/icons";
+import { naira } from "@/lib/utils";
+import { IconArrowRight, IconUsers, IconCard, IconWallet, IconCheckCircle } from "@/components/icons";
 
 export default function OverviewPage() {
   const [session, setSession] = useState<MerchantSession | null>(null);
@@ -19,7 +20,7 @@ export default function OverviewPage() {
   const cards = [
     { label: "Customers", value: stats ? stats.customers.toLocaleString() : "—", sub: "identities", Icon: IconUsers },
     { label: "Virtual accounts", value: stats ? stats.virtualAccounts.toLocaleString() : "—", sub: "provisioned", Icon: IconCard },
-    { label: "Inflow today", value: OVERVIEW.inflowToday, sub: `${OVERVIEW.inflowDelta} vs yesterday`, Icon: IconTrend },
+    { label: "Wallet balance", value: stats ? naira(stats.walletBalance) : "—", sub: "available now", Icon: IconWallet },
     { label: "Reconciliation rate", value: OVERVIEW.reconciliationRate, sub: "last 24h", Icon: IconCheckCircle },
   ];
 

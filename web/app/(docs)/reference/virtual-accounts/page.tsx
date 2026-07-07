@@ -9,18 +9,16 @@ export default function VirtualAccountsReferencePage() {
         <TryIt
           method="POST"
           path="/v1/customers"
-          respCode="201"
-          respText="Created"
           body={`{
-  "externalCustomerId": "user_123",
+  "reference": "user_123",
   "firstName": "Amara",
   "lastName": "Okafor"
 }`}
           response={`{
-  "customerId": "cus_01HZY8",
+  "reference": "user_123",
   "virtualAccount": {
     "accountNumber": "0123456789",
-    "bankName": "Nomba MFB",
+    "bankName": "Nombank MFB",
     "status": "ACTIVE"
   }
 }`}
@@ -33,8 +31,8 @@ export default function VirtualAccountsReferencePage() {
         never create one directly.
       </p>
       <Endpoint method="POST" path="/v1/customers" tag={<span className="db db-good dot">auto-provisions a VA</span>} />
-      <Endpoint method="GET" path="/v1/customers/{externalCustomerId}" />
-      <p>Returns the customer and its virtual account.</p>
+      <Endpoint method="GET" path="/v1/customers/{reference}" />
+      <p>Returns the customer and its virtual account, keyed by <code>reference</code> — your own identifier for the customer.</p>
       <table className="doctable">
         <thead>
           <tr>
@@ -45,15 +43,18 @@ export default function VirtualAccountsReferencePage() {
         <tbody>
           <tr><td className="font-mono">accountNumber</td><td>Permanent NUBAN — the key every payment is attributed by.</td></tr>
           <tr><td className="font-mono">accountName</td><td>Display name; updates if you rename the customer.</td></tr>
-          <tr><td className="font-mono">bankName</td><td>e.g. Nomba MFB.</td></tr>
+          <tr><td className="font-mono">bankName</td><td>e.g. Nombank MFB.</td></tr>
           <tr>
             <td className="font-mono">status</td>
             <td><span className="db db-good">ACTIVE</span> <span className="db db-warn">SUSPENDED</span> <span className="db">CLOSED</span></td>
           </tr>
         </tbody>
       </table>
-      <Endpoint method="POST" path="/v1/customers/{id}/suspend · /close" tag={<span className="db">proposed</span>} />
-      <p>Suspend to stop accepting credits; close to retire the account. Identity and history are always retained.</p>
+      <Endpoint method="PATCH" path="/v1/customers/{reference}/status" />
+      <p>
+        Set <code>status</code> to <code>SUSPENDED</code> to stop accepting credits or <code>CLOSED</code> to retire the
+        account for good. Identity and transaction history are always retained; <code>CLOSED</code> is terminal.
+      </p>
     </TwoCol>
   );
 }

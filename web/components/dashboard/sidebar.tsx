@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { clearSession, getSession } from "@/lib/auth";
+import { getSession, logout } from "@/lib/auth";
 import { EXCEPTIONS } from "@/lib/mock";
 import {
   IconGrid,
@@ -15,6 +15,9 @@ import {
   IconKey,
   IconSettings,
   IconLogOut,
+  IconWallet,
+  IconBank,
+  IconSend,
 } from "@/components/icons";
 
 type NavItem = {
@@ -32,6 +35,9 @@ const NAV: NavItem[] = [
   { href: "/dashboard/customers", label: "Customers", Icon: IconUsers },
   { href: "/dashboard/transactions", label: "Transactions", Icon: IconSwap },
   { href: "/dashboard/reconciliation", label: "Reconciliation", Icon: IconChecklist, badge: String(EXCEPTIONS.length) },
+  { href: "/dashboard/wallet", label: "Wallet", Icon: IconWallet },
+  { href: "/dashboard/beneficiaries", label: "Beneficiaries", Icon: IconBank },
+  { href: "/dashboard/payouts", label: "Payouts", Icon: IconSend },
   { href: "/dashboard/api-keys", label: "API keys", Icon: IconKey },
   { href: "/dashboard/settings", label: "Settings", Icon: IconSettings },
 ];
@@ -41,8 +47,8 @@ export function DashboardSidebar() {
   const router = useRouter();
   const session = getSession();
 
-  function logout() {
-    clearSession();
+  async function handleLogout() {
+    await logout();
     router.push("/");
   }
 
@@ -83,7 +89,7 @@ export function DashboardSidebar() {
       <div className="border-t border-border px-3 py-4">
         <button
           type="button"
-          onClick={logout}
+          onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <IconLogOut className="size-4 shrink-0" />

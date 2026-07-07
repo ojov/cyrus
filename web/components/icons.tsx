@@ -64,3 +64,12 @@ export const IconCard = ({ className }: IconProps) => (
 export const IconCheckCircle = ({ className }: IconProps) => (
   <Svg className={className}><circle cx="12" cy="12" r="9" /><path d="M8.5 12l2.5 2.5 4.5-5" /></Svg>
 );
+export const IconWallet = ({ className }: IconProps) => (
+  <Svg className={className}><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3M3 7v10a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-4" /><rect x="14" y="11" width="8" height="6" rx="1" /><circle cx="17.5" cy="14" r="0.6" fill="currentColor" /></Svg>
+);
+export const IconBank = ({ className }: IconProps) => (
+  <Svg className={className}><path d="M3 10l9-6 9 6M4 10v9M20 10v9M8 10v9M16 10v9M3 21h18" /></Svg>
+);
+export const IconSend = ({ className }: IconProps) => (
+  <Svg className={className}><path d="M22 2 11 13M22 2 15 22l-4-9-9-4 20-7Z" /></Svg>
+);

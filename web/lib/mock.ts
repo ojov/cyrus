@@ -12,7 +12,7 @@ export type Customer = {
   name: string;
   externalId: string;
   accountNumber: string;
-  tier: "LEVEL_1" | "LEVEL_2";
+  tier: "TIER_1" | "TIER_2" | "TIER_3";
   status: "ACTIVE" | "SUSPENDED" | "CLOSED";
   email: string;
   createdAt: string;
@@ -23,7 +23,7 @@ export type Customer = {
 export const CUSTOMERS: Customer[] = [
   {
     id: "cus_01HZY8", name: "Amara Okafor", externalId: "user_123", accountNumber: "0123456789",
-    tier: "LEVEL_2", status: "ACTIVE", email: "amara@acme.ng", createdAt: "12 Jun 2026", lifetimeKobo: 41850000,
+    tier: "TIER_2", status: "ACTIVE", email: "amara@acme.ng", createdAt: "12 Jun 2026", lifetimeKobo: 41850000,
     statement: [
       { date: "02 Jul, 14:20", payer: "John Bello", ref: "nmb_88a1", match: "MATCHED", amountKobo: 5000000 },
       { date: "28 Jun, 09:02", payer: "Acme Payroll", ref: "nmb_871f", match: "MATCHED", amountKobo: 12000000 },
@@ -32,7 +32,7 @@ export const CUSTOMERS: Customer[] = [
   },
   {
     id: "cus_01HZY9", name: "John Bello", externalId: "user_204", accountNumber: "0123457781",
-    tier: "LEVEL_1", status: "ACTIVE", email: "john@acme.ng", createdAt: "18 Jun 2026", lifetimeKobo: 5200000,
+    tier: "TIER_1", status: "ACTIVE", email: "john@acme.ng", createdAt: "18 Jun 2026", lifetimeKobo: 5200000,
     statement: [
       { date: "02 Jul, 13:58", payer: "MTN VTU", ref: "nmb_889c", match: "MATCHED", amountKobo: 200000 },
       { date: "24 Jun, 10:10", payer: "Amara Okafor", ref: "nmb_8620", match: "MATCHED", amountKobo: 5000000 },
@@ -40,12 +40,12 @@ export const CUSTOMERS: Customer[] = [
   },
   {
     id: "cus_01HZYA", name: "Zainab Musa", externalId: "user_318", accountNumber: "0123460044",
-    tier: "LEVEL_2", status: "SUSPENDED", email: "zainab@acme.ng", createdAt: "20 Jun 2026", lifetimeKobo: 112000000,
+    tier: "TIER_2", status: "SUSPENDED", email: "zainab@acme.ng", createdAt: "20 Jun 2026", lifetimeKobo: 112000000,
     statement: [{ date: "01 Jul, 22:07", payer: "Kunle A.", ref: "nmb_8840", match: "PARTIAL", amountKobo: 990000 }],
   },
   {
     id: "cus_01HZYB", name: "Chidi Eze", externalId: "user_402", accountNumber: "0123461190",
-    tier: "LEVEL_1", status: "CLOSED", email: "chidi@acme.ng", createdAt: "24 Jun 2026", lifetimeKobo: 850000,
+    tier: "TIER_1", status: "CLOSED", email: "chidi@acme.ng", createdAt: "24 Jun 2026", lifetimeKobo: 850000,
     statement: [],
   },
 ];
