@@ -56,6 +56,7 @@ public class SecurityConfig {
             "/v1/auth/reset-password",
             "/v1/webhooks/**",
             "/swagger-ui/**",
+            "/scalar",
             "/swagger-ui.html",
             "/docs",
             "/v3/api-docs/**",

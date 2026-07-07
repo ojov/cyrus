@@ -21,6 +21,9 @@ spring:
 springdoc:
   swagger-ui:
     path: /docs
+    enabled: true
+
+
 nomba:
   sandbox-url: https://sandbox.nomba.com
   production-url: https://api.nomba.com

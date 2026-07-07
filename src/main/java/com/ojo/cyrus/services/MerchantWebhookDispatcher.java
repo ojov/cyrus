@@ -5,6 +5,8 @@ import com.ojo.cyrus.config.properties.WebhookProperties;
 import com.ojo.cyrus.enums.MerchantWebhookStatus;
 import com.ojo.cyrus.models.WebhookConfig;
 import com.ojo.cyrus.models.dto.DeliveryOutcome;
+import com.ojo.cyrus.models.dto.DispatchPlan;
+import com.ojo.cyrus.models.dto.RetrySchedule;
 import com.ojo.cyrus.models.entities.MerchantWebhookEvent;
 import com.ojo.cyrus.repositories.MerchantWebhookEventRepository;
 import com.ojo.cyrus.utils.CryptoUtil;
@@ -145,8 +147,4 @@ public class MerchantWebhookDispatcher {
         }
         return s.length() <= MAX_ERROR_LEN ? s : s.substring(0, MAX_ERROR_LEN);
     }
-
-    private record DispatchPlan(String url, String eventType, String payload, String secret) {}
-
-    private record RetrySchedule(Instant runAt, int attempts) {}
 }

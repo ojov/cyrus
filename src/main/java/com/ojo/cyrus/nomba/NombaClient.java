@@ -150,14 +150,14 @@ public class NombaClient {
         String accessToken = authService.getAccessToken(creds, env);
         String baseUrl = Provider.NOMBA.getBaseUrl(env);
 
-        NombaApiResponse<Object> response = nombaRestClient.delete()
+        NombaApiResponse<NombaExpireVirtualAccountResponse> response = nombaRestClient.delete()
                 .uri(baseUrl + "/v1/accounts/virtual/" + accountRef)
                 .header("accountId", creds.parentAccountId())
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});
 
-        if (response == null || !response.isSuccess()) {
+        if (response == null || !response.isSuccess() || response.data() == null || !response.data().expired()) {
             String msg = response != null ? response.description() : "null response from Nomba";
             log.error("Nomba VA expiry failed for accountRef={}: {}", accountRef, msg);
             throw new NombaIntegrationException("Failed to expire virtual account " + accountRef + ": " + msg);

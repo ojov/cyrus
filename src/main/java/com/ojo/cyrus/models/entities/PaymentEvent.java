@@ -23,10 +23,6 @@ public class PaymentEvent extends BaseEntity {
     @Column(name = "request_id", nullable = false)
     private String requestId;
 
-    // Which merchant this event belongs to — resolved via the payload's wallet id (independent of
-    // virtual-account attribution) or, once a VA is matched, from the VA's owning merchant. Null
-    // only for a payment whose wallet AND virtual account are both unrecognized (no merchant to
-    // scope it to); those aren't visible to any merchant, only via direct ops access.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "merchant_id")
     private Merchant merchant;

@@ -8,6 +8,8 @@ import com.ojo.cyrus.enums.VirtualAccountStatus;
 import com.ojo.cyrus.exception.AlreadyExistsException;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.exception.InvalidCustomerStateException;
+import com.ojo.cyrus.models.dto.CustomerRenameSnapshot;
+import com.ojo.cyrus.models.dto.CustomerStatusSnapshot;
 import com.ojo.cyrus.models.entities.Customer;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.Transaction;
@@ -133,12 +135,12 @@ public class CustomerService {
     public CustomerResponse rename(UUID merchantId, String reference, UpdateCustomerRequest request) {
         TransactionTemplate readTx = new TransactionTemplate(transactionManager);
         readTx.setReadOnly(true);
-        CurrentProfile current = readTx.execute(_ -> {
+        CustomerRenameSnapshot current = readTx.execute(_ -> {
             Customer customer = customerRepository.findByMerchantIdAndReference(merchantId, reference)
                     .orElseThrow(() -> new EntityNotFoundException("Customer not found"));
             VirtualAccount va = virtualAccountRepository.findByCustomerId(customer.getId())
                     .orElseThrow(() -> new EntityNotFoundException("Virtual account not found for customer"));
-            return new CurrentProfile(customer.getReference(), customer.getFirstName(), customer.getLastName(), va.getEnvironment());
+            return new CustomerRenameSnapshot(customer.getReference(), customer.getFirstName(), customer.getLastName(), va.getEnvironment());
         });
 
         String newAccountName = null;
@@ -179,8 +181,6 @@ public class CustomerService {
         });
     }
 
-    private record CurrentProfile(String reference, String firstName, String lastName, Environment environment) {}
-
     /**
      * Sets the customer's KYC tier. Cyrus doesn't verify KYC — that's the merchant's own process —
      * so this is an unguarded set, callable whenever the merchant's own verification completes.
@@ -219,7 +219,7 @@ public class CustomerService {
     public CustomerResponse updateStatus(UUID merchantId, String reference, CustomerStatus status) {
         TransactionTemplate readTx = new TransactionTemplate(transactionManager);
         readTx.setReadOnly(true);
-        CurrentCustomerState current = readTx.execute(_ -> {
+        CustomerStatusSnapshot current = readTx.execute(_ -> {
             Customer customer = customerRepository.findByMerchantIdAndReference(merchantId, reference)
                     .orElseThrow(() -> new EntityNotFoundException("Customer not found"));
             if (customer.getStatus() == CustomerStatus.CLOSED) {
@@ -227,7 +227,7 @@ public class CustomerService {
             }
             VirtualAccount va = virtualAccountRepository.findByCustomerId(customer.getId())
                     .orElseThrow(() -> new EntityNotFoundException("Virtual account not found for customer"));
-            return new CurrentCustomerState(customer.getReference(), va.getEnvironment());
+            return new CustomerStatusSnapshot(customer.getReference(), va.getEnvironment());
         });
 
         if (status == CustomerStatus.CLOSED) {
@@ -238,6 +238,13 @@ public class CustomerService {
         return new TransactionTemplate(transactionManager).execute(_ -> {
             Customer customer = customerRepository.findByMerchantIdAndReference(merchantId, reference)
                     .orElseThrow(() -> new EntityNotFoundException("Customer not found"));
+            // Re-check: a concurrent request could have closed this customer (and, for CLOSED,
+            // already irreversibly expired the VA on Nomba) between the read phase above and here.
+            // Without this, the loser of that race would silently overwrite CLOSED back to
+            // ACTIVE/SUSPENDED locally while Nomba's VA stays expired — a split-brain state.
+            if (customer.getStatus() == CustomerStatus.CLOSED) {
+                throw new InvalidCustomerStateException("Customer is CLOSED — no further status changes are accepted");
+            }
             VirtualAccount va = virtualAccountRepository.findByCustomerId(customer.getId())
                     .orElseThrow(() -> new EntityNotFoundException("Virtual account not found for customer"));
 
@@ -252,6 +259,4 @@ public class CustomerService {
             return Mapper.toCustomerResponse(customer, va);
         });
     }
-
-    private record CurrentCustomerState(String reference, Environment environment) {}
 }
