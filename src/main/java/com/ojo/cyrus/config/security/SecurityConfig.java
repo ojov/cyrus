@@ -58,11 +58,9 @@ public class SecurityConfig {
             // Clearing the session cookie must work even if the JWT is already expired/invalid.
             "/v1/auth/logout",
             "/v1/webhooks/**",
-            "/swagger-ui/**",
-            "/scalar/**",
-            "/scalar.js",
-            "/swagger-ui.html",
+            // API reference (Scalar, generated from the live OpenAPI spec) — Swagger UI is disabled.
             "/docs",
+            "/docs/**",
             "/v3/api-docs/**",
             "/actuator/health",
     };

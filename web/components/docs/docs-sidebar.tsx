@@ -5,7 +5,9 @@ import { Logo } from "@/components/logo";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { DOC_PAGES } from "@/lib/docs-nav";
-import { IconLock } from "@/components/icons";
+import { IconLock, IconArrowRight } from "@/components/icons";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export function DocsSidebar() {
   const pathname = usePathname();
@@ -65,6 +67,19 @@ export function DocsSidebar() {
         })}
       </nav>
 
+      <div className="border-t border-border px-3 py-3">
+        <a
+          href={`${API_URL}/docs`}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center justify-between rounded-md bg-primary/10 px-2.5 py-2 text-xs font-semibold text-primary transition hover:bg-primary/15"
+        >
+          Full API Reference <IconArrowRight className="size-3.5" />
+        </a>
+        <p className="mt-1 px-2.5 text-[11px] text-muted-foreground">
+          Generated live from the API — every request/response shape, always accurate.
+        </p>
+      </div>
       <div className="border-t border-border px-5 py-4 text-xs text-muted-foreground">Public docs · no login required</div>
     </aside>
   );

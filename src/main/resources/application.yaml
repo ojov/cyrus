@@ -27,7 +27,7 @@ springdoc:
 scalar:
   enabled: true
   url: /v3/api-docs
-  path: /scalar
+  path: /docs
   page-title: Cyrus Developer API
 
 # Cyrus's single platform Nomba account. accountId + subAccountId are SHARED across TEST/LIVE;
