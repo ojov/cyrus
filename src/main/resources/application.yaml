@@ -13,11 +13,22 @@ spring:
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
+      # Flyway owns schema changes now — validate only checks entities still match the DB, it
+      # never alters it. Any entity/schema drift fails fast at startup instead of at the first
+      # query that hits it.
+      ddl-auto: validate
     show-sql: true
     open-in-view: false
   flyway:
-    enabled: false
+    enabled: true
+    # The schema already existed (from ddl-auto=update) before Flyway was introduced. baseline-on-migrate
+    # records V1 as already-applied on a non-empty schema without re-running its DDL (which would fail —
+    # the tables are already there); a genuinely fresh/empty DB just runs V1 normally, creating them.
+    baseline-on-migrate: true
+    baseline-version: 1
+  threads:
+    virtual:
+      enabled: true
 
 springdoc:
   packages-to-scan: com.ojo.cyrus.controllers
@@ -29,6 +40,17 @@ scalar:
   url: /v3/api-docs
   path: /docs
   page-title: Cyrus Developer API
+  theme: purple
+  layout: modern
+  custom-css: |-
+    :root {
+      --scalar-color-accent: #7c3aed;
+      --scalar-background-accent: #7c3aed1f;
+    }
+    .dark-mode {
+      --scalar-color-accent: #a78bfa;
+      --scalar-background-accent: #a78bfa1f;
+    }
 
 # Cyrus's single platform Nomba account. accountId + subAccountId are SHARED across TEST/LIVE;
 # only clientId/clientSecret differ per environment. Sandbox creds are required to boot; LIVE creds
@@ -56,10 +78,11 @@ app:
   auth-cookie:
     secure: false
   reconciliation:
-    # How long after a webhook arrives (and between each retry) before we requery Nomba to
-    # confirm it. Override via APP_RECONCILIATION_DELAY_SECONDS.
+    # Reconciliation runs immediately (async) right after a transaction is ingested — this delay
+    # only governs the periodic sweep that catches anything still unconfirmed (interval, and the
+    # minimum age before a sweep retry). Override via APP_RECONCILIATION_DELAY_SECONDS.
     delay-seconds: ${APP_RECONCILIATION_DELAY_SECONDS:300}
-    # How many unconfirmed requeries before we give up and flag MANUAL_REVIEW.
+    # How many requery attempts (immediate + sweep retries) before we give up and flag MANUAL_REVIEW.
     max-attempts: ${APP_RECONCILIATION_MAX_ATTEMPTS:5}
   fees:
     # Cyrus's revenue on inbound payments: Nomba's own confirmed fee (from reconciliation) marked

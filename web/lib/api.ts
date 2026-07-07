@@ -163,4 +163,86 @@ export const webhookApi = {
   remove: () => api.delete<{ data: null }>("/v1/merchants/me/webhooks"),
 };
 
+// ---- Customers (dashboard mirror of the developer-facing, API-key-gated /v1/customers/** ----
+export interface CustomerDetail {
+  id: string;
+  reference: string;
+  firstName: string;
+  lastName: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  status: string;
+  kycTier: string;
+  virtualAccount: {
+    id: string;
+    accountNumber: string;
+    accountName: string | null;
+    bankName: string | null;
+    currency: string;
+    status: string;
+  };
+  createdAt: string;
+}
+
+export interface StatementSummary {
+  lifetimeKobo: number;
+  transactionCount: number;
+  pendingCount: number;
+  pendingKobo: number;
+  manualReviewCount: number;
+  discrepancyCount: number;
+  lastTransactionAt: string | null;
+}
+
+export interface StatementRow {
+  date: string;
+  payer: string | null;
+  ref: string | null;
+  matchStatus: string;
+  amountKobo: number;
+}
+
+export interface StatementPage {
+  content: StatementRow[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface CustomerStatement {
+  data: {
+    customer: CustomerDetail;
+    summary: StatementSummary;
+    transactions: StatementPage;
+  };
+}
+
+export interface StatementFilters {
+  from?: string;
+  to?: string;
+  matchStatus?: string;
+  page?: number;
+  size?: number;
+}
+
+export const customerApi = {
+  get: (reference: string) =>
+    api.get<{ data: CustomerDetail }>(`/v1/merchants/me/customers/${encodeURIComponent(reference)}`),
+  getStatement: (reference: string, filters: StatementFilters = {}) => {
+    const qs = new URLSearchParams();
+    if (filters.from) qs.set("from", filters.from);
+    if (filters.to) qs.set("to", filters.to);
+    if (filters.matchStatus) qs.set("matchStatus", filters.matchStatus);
+    if (filters.page !== undefined) qs.set("page", String(filters.page));
+    if (filters.size !== undefined) qs.set("size", String(filters.size));
+    const query = qs.toString();
+    return api.get<CustomerStatement>(
+      `/v1/merchants/me/customers/${encodeURIComponent(reference)}/statement${query ? `?${query}` : ""}`,
+    );
+  },
+};
+
 export const API_BASE_URL = API_URL;

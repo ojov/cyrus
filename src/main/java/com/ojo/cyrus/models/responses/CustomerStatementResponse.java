@@ -2,14 +2,12 @@ package com.ojo.cyrus.models.responses;
 
 import org.springframework.data.domain.Page;
 
-import java.math.BigInteger;
-
 /**
- * A customer's identity summary plus their paginated transaction history. Money stays in kobo —
- * convert to naira only at the display edge.
+ * A customer's identity, reporting summary, and paginated (optionally filtered) transaction
+ * history. Money stays in kobo — convert to naira only at the display edge.
  */
 public record CustomerStatementResponse(
         CustomerResponse customer,
-        BigInteger lifetimeKobo,
+        StatementSummaryResponse summary,
         Page<StatementRowResponse> transactions
 ) {}

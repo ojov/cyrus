@@ -1,11 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CUSTOMERS } from "@/lib/mock";
 import { naira, statusClass } from "@/lib/utils";
+import { IconArrowRight } from "@/components/icons";
 
 export default function CustomersPage() {
   const router = useRouter();
+  const [reference, setReference] = useState("");
+
+  function lookup(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = reference.trim();
+    if (trimmed) router.push(`/dashboard/customers/${encodeURIComponent(trimmed)}`);
+  }
 
   return (
     <div className="space-y-5">
@@ -19,47 +28,72 @@ export default function CustomersPage() {
         <span className="db">Provisioned via API — read-only here</span>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-              <th className="px-4 py-3 font-medium">Customer</th>
-              <th className="px-4 py-3 font-medium">External ID</th>
-              <th className="px-4 py-3 font-medium">Account number</th>
-              <th className="px-4 py-3 font-medium">Tier</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 text-right font-medium">Lifetime</th>
-            </tr>
-          </thead>
-          <tbody>
-            {CUSTOMERS.map((c) => (
-              <tr
-                key={c.id}
-                onClick={() => router.push(`/dashboard/customers/${c.id}`)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    router.push(`/dashboard/customers/${c.id}`);
-                  }
-                }}
-                tabIndex={0}
-                role="button"
-                aria-label={`View ${c.name}`}
-                className="cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
-              >
-                <td className="px-4 py-3">
-                  <div className="font-medium">{c.name}</div>
-                  <div className="font-mono text-xs text-muted-foreground">{c.id}</div>
-                </td>
-                <td className="px-4 py-3 font-mono text-muted-foreground">{c.externalId}</td>
-                <td className="px-4 py-3 font-mono">{c.accountNumber}</td>
-                <td className="px-4 py-3"><span className={`db ${statusClass(c.tier)}`}>{c.tier}</span></td>
-                <td className="px-4 py-3"><span className={`db dot ${statusClass(c.status)}`}>{c.status}</span></td>
-                <td className="px-4 py-3 text-right font-medium tabular-nums">{naira(c.lifetimeKobo)}</td>
+      <form onSubmit={lookup} className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4">
+        <label htmlFor="ref-lookup" className="text-sm font-medium">
+          Look up a customer by reference
+        </label>
+        <input
+          id="ref-lookup"
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+          placeholder="user_123"
+          className="min-w-0 flex-1 rounded-md border border-border bg-muted px-3 py-2 font-mono text-sm outline-none focus:border-primary"
+        />
+        <button
+          type="submit"
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105"
+        >
+          View statement <IconArrowRight className="size-3.5" />
+        </button>
+      </form>
+
+      <div>
+        <p className="mb-2.5 text-xs text-muted-foreground">
+          Below is sample data — a full customer list endpoint doesn&apos;t exist yet, so browsing here is
+          illustrative only. Use the lookup above for a real customer&apos;s live statement.
+        </p>
+        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <th className="px-4 py-3 font-medium">Customer</th>
+                <th className="px-4 py-3 font-medium">External ID</th>
+                <th className="px-4 py-3 font-medium">Account number</th>
+                <th className="px-4 py-3 font-medium">Tier</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 text-right font-medium">Lifetime</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {CUSTOMERS.map((c) => (
+                <tr
+                  key={c.id}
+                  onClick={() => router.push(`/dashboard/customers/${encodeURIComponent(c.externalId)}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      router.push(`/dashboard/customers/${encodeURIComponent(c.externalId)}`);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View ${c.name}`}
+                  className="cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+                >
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{c.name}</div>
+                    <div className="font-mono text-xs text-muted-foreground">{c.id}</div>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-muted-foreground">{c.externalId}</td>
+                  <td className="px-4 py-3 font-mono">{c.accountNumber}</td>
+                  <td className="px-4 py-3"><span className={`db ${statusClass(c.tier)}`}>{c.tier}</span></td>
+                  <td className="px-4 py-3"><span className={`db dot ${statusClass(c.status)}`}>{c.status}</span></td>
+                  <td className="px-4 py-3 text-right font-medium tabular-nums">{naira(c.lifetimeKobo)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

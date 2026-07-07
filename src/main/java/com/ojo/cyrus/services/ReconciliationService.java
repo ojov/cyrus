@@ -16,13 +16,13 @@ import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.utils.FeeCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jobrunr.scheduling.JobScheduler;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,9 +34,11 @@ import java.util.UUID;
  * with a double-entry {@link LedgerEntryType#MERCHANT_WALLET_CREDIT} posting, atomic with the status
  * change.
  *
- * <p>Nomba/DB failures propagate (JobRunr retries the job). A clean "not found yet" result is not a
- * failure: this service re-schedules itself with backoff up to {@code reconciliation.max-attempts},
- * then flags the transaction {@code MANUAL_REVIEW}.
+ * <p>Reconciliation is no longer JobRunr-scheduled: {@link #reconcileAsync(UUID)} runs it immediately
+ * (off the ingesting request thread) right after a transaction is recorded, and
+ * {@link #sweepPendingReconciliations()} is a periodic fallback that catches anything still PENDING —
+ * a Nomba requery that wasn't confirmed yet, or an async attempt that itself failed. JobRunr is kept
+ * only for outbound merchant webhook delivery, which genuinely needs durable scheduled retries.
  */
 @Service
 @RequiredArgsConstructor
@@ -45,11 +47,49 @@ public class ReconciliationService {
     private final NombaTransactionClient nombaTransactionClient;
     private final TransactionRepository transactionRepository;
     private final PlatformTransactionManager transactionManager;
-    private final JobScheduler jobScheduler;
     private final ReconciliationProperties reconciliationProperties;
     private final MerchantWebhookService merchantWebhookService;
     private final LedgerService ledgerService;
     private final FeeProperties feeProperties;
+
+    /**
+     * Fire-and-forget entry point called right after a transaction is committed. Exceptions are
+     * caught and logged rather than propagated (there is no caller left to handle them on an async
+     * thread) — an unconfirmed or failed attempt here is simply picked up by the next sweep.
+     */
+    @Async
+    public void reconcileAsync(UUID transactionId) {
+        try {
+            reconcileTransactionById(transactionId);
+        } catch (Exception e) {
+            log.error("Async reconciliation failed for transaction {} — will retry on the next sweep",
+                    transactionId, e);
+        }
+    }
+
+    /**
+     * Periodic fallback for transactions still PENDING after their immediate {@link #reconcileAsync}
+     * attempt — either Nomba hadn't confirmed the transfer yet, or that attempt itself failed.
+     * {@link com.ojo.cyrus.repositories.TransactionRepository#findDueForReconciliation} already
+     * excludes anything already flagged {@code MANUAL_REVIEW} or past the attempt cap.
+     */
+    @Scheduled(fixedDelayString = "#{${app.reconciliation.delay-seconds} * 1000}")
+    public void sweepPendingReconciliations() {
+        Instant cutoff = Instant.now().minusSeconds(reconciliationProperties.delaySeconds());
+        List<Transaction> due = transactionRepository.findDueForReconciliation(
+                reconciliationProperties.maxAttempts(), cutoff);
+        if (due.isEmpty()) {
+            return;
+        }
+        log.info("Reconciliation sweep: {} transaction(s) due", due.size());
+        for (Transaction tx : due) {
+            try {
+                reconcileTransactionById(tx.getId());
+            } catch (Exception e) {
+                log.error("Sweep reconciliation failed for transaction {}", tx.getId(), e);
+            }
+        }
+    }
 
     public ReconciliationOutcome reconcileTransactionById(UUID transactionId) {
         Transaction tx = transactionRepository.findById(transactionId)
@@ -57,15 +97,20 @@ public class ReconciliationService {
 
         if (tx.getSessionId() == null || tx.getSessionId().isBlank()) {
             log.warn("Transaction {} has no sessionId, cannot requery — flagging for manual review", tx.getId());
+            markManualReview(tx.getId(), "No sessionId captured at ingestion — cannot requery Nomba");
             return ReconciliationOutcome.NOT_FOUND;
         }
 
-        // Nomba/DB failures deliberately propagate uncaught here — JobRunr retries the job.
+        // Nomba/DB failures deliberately propagate uncaught — the caller (reconcileAsync or the
+        // sweep) catches and logs; reconciliationAttempts is left unchanged so the sweep retries it.
         NombaTransactionData providerTx = nombaTransactionClient.requeryTransaction(tx.getSessionId());
 
         RequeryApplication result = applyRequeryResult(tx.getId(), providerTx);
-        if (result.outcome() == ReconciliationOutcome.NOT_FOUND) {
-            scheduleRetryOrGiveUp(tx.getId(), result.attempts());
+        if (result.outcome() == ReconciliationOutcome.NOT_FOUND
+                && result.attempts() >= reconciliationProperties.maxAttempts()) {
+            log.warn("Giving up on transaction={} after {} attempts — flagging for manual review",
+                    transactionId, result.attempts());
+            markManualReview(transactionId, "Not confirmed by Nomba after " + result.attempts() + " attempts");
         }
         return result.outcome();
     }
@@ -160,18 +205,6 @@ public class ReconciliationService {
 
             return new RequeryApplication(outcome, tx.getReconciliationAttempts());
         });
-    }
-
-    private void scheduleRetryOrGiveUp(UUID transactionId, int attempts) {
-        if (attempts >= reconciliationProperties.maxAttempts()) {
-            log.warn("Giving up on transaction={} after {} attempts — flagging for manual review", transactionId, attempts);
-            markManualReview(transactionId, "Not confirmed by Nomba after " + attempts + " attempts");
-            return;
-        }
-        Instant runAt = Instant.now().plusSeconds(reconciliationProperties.delaySeconds());
-        UUID retryJobId = UUID.nameUUIDFromBytes(
-                ("reconcile:" + transactionId).getBytes(StandardCharsets.UTF_8));
-        jobScheduler.schedule(retryJobId, runAt, () -> reconcileTransactionById(transactionId));
     }
 
     private void markManualReview(UUID transactionId, String details) {

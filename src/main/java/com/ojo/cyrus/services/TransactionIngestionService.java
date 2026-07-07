@@ -1,6 +1,5 @@
 package com.ojo.cyrus.services;
 
-import com.ojo.cyrus.config.properties.ReconciliationProperties;
 import com.ojo.cyrus.enums.LedgerEntryType;
 import com.ojo.cyrus.enums.MerchantCustomerStatus;
 import com.ojo.cyrus.enums.MerchantWebhookEventType;
@@ -20,7 +19,6 @@ import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jobrunr.scheduling.JobScheduler;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +26,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigInteger;
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -56,8 +53,6 @@ public class TransactionIngestionService {
     private final PaymentEventService paymentEventService;
     private final NombaWebhookAdapter nombaAdapter;
     private final ReconciliationService reconciliationService;
-    private final JobScheduler jobScheduler;
-    private final ReconciliationProperties reconciliationProperties;
     private final MerchantWebhookService merchantWebhookService;
     private final LedgerService ledgerService;
 
@@ -151,16 +146,18 @@ public class TransactionIngestionService {
     }
 
     /**
-     * Schedules the delayed reconciliation requery for a freshly-minted transaction as an
-     * afterCommit hook, so the JobRunr job only exists once the row is durably committed.
+     * Triggers reconciliation for a freshly-minted transaction as an afterCommit hook, so the async
+     * requery only fires once the row is durably committed — {@link ReconciliationService#reconcileAsync}
+     * runs it immediately off the ingesting request thread; anything it can't resolve right away
+     * (Nomba not yet confirming, or the async attempt itself failing) is picked up by the periodic
+     * sweep instead.
      */
     private void scheduleReconciliation(Transaction tx) {
         UUID transactionId = tx.getId();
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                Instant runAt = Instant.now().plusSeconds(reconciliationProperties.delaySeconds());
-                jobScheduler.schedule(transactionId, runAt, () -> reconciliationService.reconcileTransactionById(transactionId));
+                reconciliationService.reconcileAsync(transactionId);
             }
         });
     }

@@ -1,12 +1,12 @@
 import { TwoCol } from "@/components/docs/two-col";
-import { TryIt } from "@/components/docs/try-it";
+import { Example } from "@/components/docs/example";
 import { Code } from "@/components/ui/code-block";
 
 export default function PayoutsReferencePage() {
   return (
     <TwoCol
       aside={
-        <TryIt
+        <Example
           method="POST"
           path="/v1/merchants/me/payouts"
           body={`{

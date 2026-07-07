@@ -1,5 +1,6 @@
 package com.ojo.cyrus.controllers.developer;
 
+import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
@@ -19,6 +20,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/v1/customers")
@@ -57,18 +60,25 @@ public class CustomerController {
 
     @Operation(
             summary = "Get a customer's statement",
-            description = "Retrieves the customer's identity summary, lifetime received volume (kobo), " +
-                    "and a paginated, newest-first history of transactions into their dedicated virtual account.",
+            description = "Retrieves the customer's identity, a reporting summary (lifetime received volume, " +
+                    "transaction/pending counts, manual-review/discrepancy counts, last transaction date — " +
+                    "always over the customer's full history), and a paginated, newest-first transaction history. " +
+                    "The list can be narrowed with `from`/`to` (ISO-8601 instants) and/or `matchStatus` — e.g. " +
+                    "`matchStatus=DISCREPANCY` to pull up just the exception rows. The summary is unaffected by " +
+                    "these filters.",
             security = @SecurityRequirement(name = "ApiKeyAuth")
     )
     @GetMapping("/{reference}/statement")
     public CyrusApiResponse<CustomerStatementResponse> getStatement(
             @AuthenticationPrincipal Merchant merchant,
             @PathVariable String reference,
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            @RequestParam(required = false) MatchStatus matchStatus,
             @PageableDefault(size = 20) Pageable pageable) {
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Statement retrieved",
-                customerService.getStatement(merchant.getId(), reference, pageable));
+                customerService.getStatement(merchant.getId(), reference, from, to, matchStatus, pageable));
     }
 
     @Operation(

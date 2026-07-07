@@ -26,6 +26,8 @@ export function statusClass(status: string): string {
     case "ORPHANED":
     case "REVOKED":
     case "FAILED":
+    case "DISCREPANCY":
+    case "MANUAL_REVIEW":
       return "db-crit";
     case "TIER_2":
     case "TIER_3":
