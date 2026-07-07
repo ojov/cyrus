@@ -103,6 +103,12 @@ public class GlobalExceptionHandler {
         return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
     }
 
+    @ExceptionHandler(InsufficientFundsException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public CyrusApiResponse<ErrorDetails> handleInsufficientFunds(InsufficientFundsException ex) {
+        return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public CyrusApiResponse<ErrorDetails> handleValidation(MethodArgumentNotValidException ex) {

@@ -1,7 +1,6 @@
-package com.ojo.cyrus.controllers;
+package com.ojo.cyrus.controllers.dashboard;
 
-import com.ojo.cyrus.enums.EventStatus;
-import com.ojo.cyrus.enums.Provider;
+import com.ojo.cyrus.enums.NombaPaymentEventStatus;
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.requests.ReattributePaymentEventRequest;
@@ -39,18 +38,17 @@ public class PaymentEventController {
     private final MerchantService merchantService;
 
     @Operation(summary = "List payment events",
-            description = "Retrieve a paginated list of your own payment events, with optional status/provider filtering.",
+            description = "Retrieve a paginated list of your own payment events, with optional status filtering.",
             security = @SecurityRequirement(name = "BearerAuth"))
     @GetMapping
     public CyrusApiResponse<Page<PaymentEventListItem>> listEvents(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required = false) EventStatus status,
-            @RequestParam(required = false) Provider provider,
+            @RequestParam(required = false) NombaPaymentEventStatus status,
             @PageableDefault(size = 20) Pageable pageable) {
 
         UUID merchantId = merchantService.findByBusinessEmail(jwt.getSubject()).getId();
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Payment events retrieved",
-                paymentEventService.listEvents(merchantId, status, provider, pageable));
+                paymentEventService.listEvents(merchantId, status, pageable));
     }
 
     @Operation(summary = "Get payment event details",
@@ -81,9 +79,8 @@ public class PaymentEventController {
 
     @Operation(summary = "Reattribute a misdirected payment",
             description = "Manually attributes an orphaned (IGNORED) payment event to one of your customers, " +
-                    "for a payment whose provider payload doesn't resolve to a known virtual account (wrong/mistyped " +
-                    "account, decommissioned VA, etc.). Mints a transaction against the chosen customer and feeds it " +
-                    "into the normal reconciliation pipeline.",
+                    "for a payment whose provider payload doesn't resolve to a known virtual account. Mints a " +
+                    "transaction against the chosen customer and feeds it into the normal reconciliation pipeline.",
             security = @SecurityRequirement(name = "BearerAuth"))
     @PostMapping("/{id}/reattribute")
     public CyrusApiResponse<ReattributionResponse> reattribute(

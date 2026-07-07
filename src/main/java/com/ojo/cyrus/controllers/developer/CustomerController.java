@@ -1,4 +1,4 @@
-package com.ojo.cyrus.controllers;
+package com.ojo.cyrus.controllers.developer;
 
 import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.ResponseCode;

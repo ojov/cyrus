@@ -1,17 +1,14 @@
-package com.ojo.cyrus.controllers;
+package com.ojo.cyrus.controllers.dashboard;
 
 import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantWebhookStatus;
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.requests.CreateApiKeyRequest;
-import com.ojo.cyrus.models.requests.GoLiveRequest;
-import com.ojo.cyrus.models.requests.UpdateSubAccountsRequest;
 import com.ojo.cyrus.models.requests.WebhookRegistrationRequest;
 import com.ojo.cyrus.models.responses.ApiKeyListItem;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
 import com.ojo.cyrus.models.responses.MerchantStatsResponse;
-import com.ojo.cyrus.models.responses.SubAccountBalanceResponse;
 import com.ojo.cyrus.models.responses.WebhookConfigItem;
 import com.ojo.cyrus.models.responses.WebhookConfigResponse;
 import com.ojo.cyrus.models.responses.WebhookDeliveryItem;
@@ -41,54 +38,8 @@ public class MerchantController {
 
     private final MerchantService merchantService;
 
-    @Operation(
-            summary = "Get sub-account balances",
-            description = "Returns the balance of the parent account and all configured sub-accounts from Nomba.",
-            security = @SecurityRequirement(name = "BearerAuth")
-    )
-    @GetMapping("/me/subaccounts/balances")
-    public CyrusApiResponse<List<SubAccountBalanceResponse>> getSubAccountBalances(
-            @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue = "TEST") Environment environment) {
-
-        String email = jwt.getSubject();
-        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Balances retrieved",
-                merchantService.getSubAccountBalances(email, environment));
-    }
-
-    @Operation(
-            summary = "Update sub-accounts",
-            description = "Replaces the merchant's configured Nomba sub-account IDs. Use this to add new sub-accounts from the dashboard.",
-            security = @SecurityRequirement(name = "BearerAuth")
-    )
-    @PatchMapping("/me/subaccounts")
-    public CyrusApiResponse<Void> updateSubAccounts(
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody UpdateSubAccountsRequest request) {
-
-        String email = jwt.getSubject();
-        merchantService.updateSubAccounts(email, request.subAccountIds());
-        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Sub-accounts updated", null);
-    }
-
-    @Operation(
-            summary = "Activate live mode",
-            description = "Submit your LIVE Nomba client id and secret. Cyrus verifies them with Nomba, " +
-                    "then issues your live API key. Parent/sub-account ids are shared with test.",
-            security = @SecurityRequirement(name = "BearerAuth")
-    )
-    @PostMapping("/me/go-live")
-    public CyrusApiResponse<GeneratedApiKeysResponse> goLive(
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody GoLiveRequest request) {
-
-        String email = jwt.getSubject();
-        return CyrusApiResponse.success(ResponseCode.CREATED, "Live mode activated",
-                merchantService.goLive(email, request));
-    }
-
     @Operation(summary = "Dashboard stats",
-            description = "Customer and virtual-account counts for the admin dashboard.",
+            description = "Customer + virtual-account counts and TEST/LIVE wallet balances (kobo).",
             security = @SecurityRequirement(name = "BearerAuth"))
     @GetMapping("/me/stats")
     public CyrusApiResponse<MerchantStatsResponse> stats(@AuthenticationPrincipal Jwt jwt) {
@@ -106,7 +57,7 @@ public class MerchantController {
     }
 
     @Operation(summary = "Create an API key",
-            description = "Generates a new API key for the given environment. The raw key is returned once.",
+            description = "Generates a new API key for the given environment (TEST or LIVE). The raw key is returned once.",
             security = @SecurityRequirement(name = "BearerAuth"))
     @PostMapping("/me/api-keys")
     public CyrusApiResponse<GeneratedApiKeysResponse> createApiKey(
@@ -127,7 +78,7 @@ public class MerchantController {
     }
 
     @Operation(summary = "Register or update a webhook URL",
-            description = "Sets the URL Cyrus POSTs payment.* events to for the given environment. " +
+            description = "Sets the URL Cyrus POSTs payment.*/payout.* events to for the given environment. " +
                     "On first registration the signing secret is returned once — store it, it can't be retrieved again.",
             security = @SecurityRequirement(name = "BearerAuth"))
     @PutMapping("/me/webhooks/{environment}")

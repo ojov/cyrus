@@ -1,4 +1,4 @@
-package com.ojo.cyrus.controllers;
+package com.ojo.cyrus.controllers.dashboard;
 
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.enums.ResponseCode;
