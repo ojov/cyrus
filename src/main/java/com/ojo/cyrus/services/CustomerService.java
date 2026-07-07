@@ -173,9 +173,19 @@ public class CustomerService {
 
     /**
      * Sets the customer's status, cascading to their (1:1) virtual account. ACTIVE/SUSPENDED are
-     * reversible and Cyrus-local. CLOSED is terminal (soft-delete) and additionally expires the VA on
-     * Nomba's side. NOT_SUPPORTED keeps the Nomba expiry call (only on CLOSE) outside any DB
-     * transaction — it must succeed before the local CLOSED status is persisted.
+     * reversible and Cyrus-local only. CLOSED is terminal (soft-delete) and additionally expires
+     * the VA on Nomba's side via {@link NombaVirtualAccountClient#expireVirtualAccount}. NOT_SUPPORTED
+     * keeps the Nomba expiry call outside any DB transaction — it must succeed before the local
+     * CLOSED status is persisted.
+     *
+     * <p>Ideally, SUSPENDED would also call Nomba's suspend endpoint
+     * ({@code PUT /v1/accounts/suspend/{accountId}}) to halt inflows at the provider level, and
+     * SUSPENDED→ACTIVE would call it again to reactivate. That endpoint exists in
+     * {@link NombaVirtualAccountClient#suspendVirtualAccount} and in
+     * {@link com.ojo.cyrus.nomba.NombaApiUri#SUSPEND_VIRTUAL_ACCOUNT} but was disabled on our
+     * hackathon-provisioned Nomba account (returned 403), so the call is not wired into this flow.
+     * Once Nomba enables the feature, add the Nomba call here (same two-phase pattern as
+     * CLOSED/expire).
      */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public CustomerResponse updateStatus(UUID merchantId, String reference, MerchantCustomerStatus status) {

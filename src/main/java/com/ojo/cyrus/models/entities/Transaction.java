@@ -111,4 +111,7 @@ public class Transaction extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String rawPayload;
+
+    @Version
+    private Long version;
 }

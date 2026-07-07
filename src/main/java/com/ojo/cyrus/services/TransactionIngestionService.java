@@ -7,7 +7,6 @@ import com.ojo.cyrus.enums.MerchantWebhookEventType;
 import com.ojo.cyrus.enums.NombaPaymentEventStatus;
 import com.ojo.cyrus.enums.ReconciliationFailureReason;
 import com.ojo.cyrus.enums.TransactionStatus;
-import com.ojo.cyrus.enums.VirtualAccountStatus;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.exception.InvalidPaymentEventStateException;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
@@ -137,20 +136,7 @@ public class TransactionIngestionService {
         paymentEvent.setVirtualAccount(va);
         paymentEvent.setCustomerReference(customer.getExternalCustomerId());
 
-        // 7. A suspended/closed customer's VA still technically exists, but the money must never be
-        //    silently attributed to an inactive customer. Record it as an orphan instead so the
-        //    merchant can reattribute it (to this customer once reactivated, or elsewhere).
-        if (va.getStatus() != VirtualAccountStatus.ACTIVE) {
-            paymentEventService.updateStatus(paymentEvent.getId(), NombaPaymentEventStatus.IGNORED,
-                    ReconciliationFailureReason.INACTIVE_CUSTOMER,
-                    "Virtual account " + va.getAccountNumber() + " is " + va.getStatus()
-                            + " — payment not attributed to customer " + customer.getExternalCustomerId());
-            log.warn("Payment landed on non-ACTIVE VA {} ({}) for customer {} — recorded as orphan",
-                    va.getAccountNumber(), va.getStatus(), customer.getExternalCustomerId());
-            return Optional.empty();
-        }
-
-        // 8. Record the transaction, attributed to the customer (PENDING — wallet credit happens at
+        // 7. Record the transaction, attributed to the customer (PENDING — wallet credit happens at
         //    reconciliation, when Nomba confirms the transfer).
         Transaction tx = transactionRepository.save(
                 buildTransaction(event, rawPayload, customer, va, event.getPayer(), paymentEvent));

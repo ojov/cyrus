@@ -74,6 +74,8 @@ public class NombaVirtualAccountClient {
     /**
      * Permanently expires a virtual account on Nomba's side. {@code accountRef} is the same value sent
      * at creation (the customer's {@code externalCustomerId}). Irreversible.
+     *
+     * @see #suspendVirtualAccount(String) for the reversible counterpart.
      */
     public void expireVirtualAccount(String accountRef) {
         NombaApiResponse<NombaExpireVirtualAccountResponse> response = nombaRestClient.delete()
@@ -86,5 +88,28 @@ public class NombaVirtualAccountClient {
             throw new NombaIntegrationException("Nomba did not confirm expiry for account " + accountRef);
         }
         log.info("Expired virtual account {} on Nomba", accountRef);
+    }
+
+    /**
+     * Suspends (or unsuspends) a virtual account on Nomba's side. {@code accountRef} is the same
+     * value sent at creation (the customer's {@code externalCustomerId}). Reversible — call this
+     * again with the same value to reactivate.
+     *
+     * <p><strong>Not verified during the hackathon:</strong> Nomba disabled the suspend endpoint
+     * on our provisioned account (all identifier formats returned 403 "Forbidden"). The code and
+     * URI are correct per Nomba's published docs; once enabled by Nomba, this should work with
+     * no changes.
+     */
+    public void suspendVirtualAccount(String accountRef) {
+        NombaApiResponse<Boolean> response = nombaRestClient.put()
+                .uri(NombaApiUri.SUSPEND_VIRTUAL_ACCOUNT.path(), accountRef)
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+
+        Boolean data = NombaResponseSupport.requireData(response, "virtual account suspend for " + accountRef);
+        if (!Boolean.TRUE.equals(data)) {
+            throw new NombaIntegrationException("Nomba did not confirm suspend for account " + accountRef);
+        }
+        log.info("Suspended virtual account {} on Nomba", accountRef);
     }
 }
