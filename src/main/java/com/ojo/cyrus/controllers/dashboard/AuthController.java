@@ -42,6 +42,7 @@ public class AuthController {
     public CyrusApiResponse<MerchantRegistrationResponse> register(@Valid @RequestBody MerchantRegistrationRequest request){
         return CyrusApiResponse.success(ResponseCode.CREATED, "Merchant Created Successfully", authService.register(request));
     }
+
     @Operation(
             summary = "Merchant login",
             description = "Authenticates a merchant with email and password and returns a JWT for dashboard access.",
