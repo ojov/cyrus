@@ -22,7 +22,13 @@ public enum MerchantWebhookEventType {
 
     // Reconciliation could not confirm the transaction after the maximum attempts and flagged it
     // MANUAL_REVIEW for a human to check.
-    PAYMENT_FLAGGED("payment.flagged");
+    PAYMENT_FLAGGED("payment.flagged"),
+
+    // A merchant payout (withdrawal to a bank beneficiary) settled successfully on Nomba's side.
+    PAYOUT_COMPLETED("payout.completed"),
+
+    // A merchant payout failed permanently; the debited funds are returned to the wallet.
+    PAYOUT_FAILED("payout.failed");
 
     private final String wireName;
 }
