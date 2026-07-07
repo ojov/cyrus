@@ -61,7 +61,7 @@ export default function TransactionsReferencePage() {
       <div className="callout">
         <b>Full field-by-field reference.</b> This page covers the shape you&apos;ll use day to day — for every
         field, status enum, and error case, see the{" "}
-        <a href={`${API_URL}/scalar`} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+        <a href={`${API_URL}/docs`} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
           live, generated API reference
         </a>{" "}
         <IconArrowRight className="inline size-3.5" />

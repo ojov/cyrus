@@ -31,7 +31,7 @@ brings their own Nomba credentials" design.
 - **PostgreSQL** + Spring Data JPA + Hibernate. **Lombok** throughout.
 - Spring Security (OAuth2 Resource Server for JWT), springdoc OpenAPI (spec generation) + **Scalar** (API-reference UI; Swagger UI is disabled), Thymeleaf, Resend (email).
 - **JobRunr 8.7.0** — background job scheduling with PostgreSQL durability; reconciliation jobs run on configurable delay/retry schedule. Dashboard UI available on port 8000 (gated per environment in production).
-- Deployed on GCP; production API at `https://api.trycyrus.app` (API docs rendered by Scalar at `/scalar`, OpenAPI spec at `/v3/api-docs`).
+- Deployed on GCP; production API at `https://api.trycyrus.app` (API docs rendered by Scalar at `/docs`, OpenAPI spec at `/v3/api-docs`).
 
 ## Build / run / test
 
@@ -43,7 +43,7 @@ docker compose up -d         # local Postgres (see compose.yaml)
 ```
 
 - Local Postgres defaults (from `application.yaml`): `jdbc:postgresql://localhost:5438/cyrus`, user `cyrus` / `cyrus_password`. Note the **non-standard port 5438**.
-- API docs (Scalar): `http://localhost:8080/scalar`; OpenAPI JSON at `/v3/api-docs`.
+- API docs (Scalar): `http://localhost:8080/docs`; OpenAPI JSON at `/v3/api-docs`.
 - `spring-boot-docker-compose` is on the runtime classpath, so a local run can auto-start the DB container.
 
 ## Required configuration (env vars)
