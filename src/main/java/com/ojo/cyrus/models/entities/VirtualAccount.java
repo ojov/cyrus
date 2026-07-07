@@ -10,8 +10,7 @@ import lombok.experimental.SuperBuilder;
 /**
  * A dedicated virtual account provisioned on Nomba (under Cyrus's own account) and bound 1:1 to a
  * {@link MerchantCustomer}. Incoming transfers to {@code accountNumber} are attributed to the owning
- * customer → merchant. {@code environment} records whether it was created under Cyrus's sandbox or
- * live Nomba credentials, so rename/expire/requery calls hit the right base URL + token.
+ * customer → merchant.
  */
 @Entity
 @Table(name = "virtual_accounts")
@@ -33,8 +32,11 @@ public class VirtualAccount extends BaseEntity {
 
     private String bankName;
 
-    /** Nomba's identifier for this virtual account. */
-    @Column(unique = true)
+    /**
+     * Nomba's {@code accountHolderId} for this VA. NOT unique per VA — Nomba returns the owning
+     * account holder here (the parent/sub-account VAs are provisioned under), so every VA created
+     * under the same sub-account shares this value. {@code accountNumber} is the real per-VA key.
+     */
     private String providerReference;
 
     @Enumerated(EnumType.STRING)

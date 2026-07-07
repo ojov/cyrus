@@ -103,17 +103,11 @@ public class ReconciliationService {
                 diffs.add("Webhook amount=" + tx.getAmount() + ", Nomba requery amount=" + providerAmount);
             }
 
-            // Nomba's requery fee (fixedCharge) is the authoritative, confirmed fee — replaces
-            // whatever estimate the webhook carried. A mismatch is still surfaced as a DISCREPANCY.
-            BigInteger providerFee = (providerTx.fee() != null && !providerTx.fee().isBlank())
-                    ? NombaCurrencyUtil.nairaToKobo(providerTx.fee())
-                    : null;
-            if (providerFee != null) {
-                if (tx.getFee() != null && !providerFee.equals(tx.getFee())) {
-                    diffs.add("Webhook fee=" + tx.getFee() + ", Nomba requery fee=" + providerFee);
-                }
-                tx.setFee(providerFee);
-            }
+            // The requery response carries no fee field at all (verified against a real live
+            // response — see NombaTransactionData) — the webhook's transaction.fee, captured into
+            // tx.fee at ingestion, is the only fee Nomba ever reports. Once requery confirms the
+            // transaction is real, that webhook fee is trusted for the platform-fee calculation below.
+            BigInteger confirmedFee = tx.getFee();
 
             String txCurrency = tx.getCurrency() != null ? tx.getCurrency().name() : null;
             if (providerTx.currency() != null && txCurrency != null && !providerTx.currency().equalsIgnoreCase(txCurrency)) {
@@ -145,17 +139,20 @@ public class ReconciliationService {
                 ledgerService.credit(tx.getMerchant(), tx.getAmount(), tx,
                         LedgerEntryType.MERCHANT_WALLET_CREDIT, "Payment " + tx.getReference());
 
-                if (providerFee != null && providerFee.signum() > 0) {
-                    BigInteger totalFee = FeeCalculator.totalPlatformFee(providerFee, feeProperties.markupMultiplier());
-                    BigInteger cyrusMargin = totalFee.subtract(providerFee);
+                if (confirmedFee != null && confirmedFee.signum() > 0) {
+                    BigInteger totalFee = FeeCalculator.totalPlatformFee(confirmedFee, feeProperties.markupMultiplier());
+                    BigInteger cyrusMargin = totalFee.subtract(confirmedFee);
                     tx.setPlatformFeeKobo(cyrusMargin);
 
-                    ledgerService.debit(tx.getMerchant(), providerFee, tx,
+                    ledgerService.debit(tx.getMerchant(), confirmedFee, tx,
                             LedgerEntryType.PROVIDER_FEE, "Nomba fee for " + tx.getReference());
                     if (cyrusMargin.signum() > 0) {
                         ledgerService.debit(tx.getMerchant(), cyrusMargin, tx,
                                 LedgerEntryType.PLATFORM_FEE, "Cyrus platform fee for " + tx.getReference());
                     }
+                } else {
+                    log.warn("Transaction {} confirmed with no fee reported by the webhook — " +
+                            "crediting full gross with no platform fee applied", tx.getId());
                 }
 
                 merchantWebhookService.recordAndScheduleDispatch(tx, MerchantWebhookEventType.PAYMENT_SUCCEEDED);
