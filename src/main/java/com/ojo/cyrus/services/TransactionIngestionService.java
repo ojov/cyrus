@@ -1,10 +1,12 @@
 package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.config.properties.ReconciliationProperties;
+import com.ojo.cyrus.enums.CustomerStatus;
 import com.ojo.cyrus.enums.EventStatus;
 import com.ojo.cyrus.enums.MerchantWebhookEventType;
 import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.enums.TransactionStatus;
+import com.ojo.cyrus.enums.VirtualAccountStatus;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.exception.InvalidPaymentEventStateException;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
@@ -142,16 +144,31 @@ public class TransactionIngestionService {
             return Optional.empty();
         }
 
-        // 7. Record the transaction, attributed to the customer.
         VirtualAccount va = vaOpt.get();
-        Customer customer = va.getCustomer();
-        NormalizedPaymentEvent.Payer payer = event.getPayer();
 
         // The VA's owning merchant is authoritative — a hard FK, unlike the wallet-id match above —
         // so correct the event's merchant if the wallet lookup missed or (shouldn't happen) disagreed.
         if (paymentEvent.getMerchant() == null || !paymentEvent.getMerchant().getId().equals(va.getMerchant().getId())) {
             paymentEvent.setMerchant(va.getMerchant());
         }
+
+        // 7. A suspended/closed customer's VA still technically exists (Nomba has no concept of
+        //    "closed" on their side — this is Cyrus's own status), but the money must never be
+        //    silently attributed to an inactive customer. Record it as an orphan instead — same
+        //    bucket as an unknown VA — so it's neither lost nor mis-credited; the merchant can
+        //    reattribute it (to this customer once reactivated, or elsewhere) via the same flow.
+        if (va.getStatus() != VirtualAccountStatus.ACTIVE) {
+            paymentEventService.updateStatus(paymentEvent.getId(), EventStatus.IGNORED,
+                    "Virtual account " + va.getAccountNumber() + " is " + va.getStatus()
+                            + " — payment not attributed to customer " + va.getCustomer().getReference());
+            log.warn("Payment landed on non-ACTIVE VA {} ({}) for customer {} — recorded as orphan",
+                    va.getAccountNumber(), va.getStatus(), va.getCustomer().getReference());
+            return Optional.empty();
+        }
+
+        // 8. Record the transaction, attributed to the customer.
+        Customer customer = va.getCustomer();
+        NormalizedPaymentEvent.Payer payer = event.getPayer();
 
         Transaction tx = transactionRepository.save(
                 buildTransaction(event, rawPayload, customer, va, payer, paymentEvent));
@@ -251,6 +268,10 @@ public class TransactionIngestionService {
 
         Customer customer = customerRepository.findByMerchantIdAndReference(merchantId, customerReference)
                 .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + customerReference));
+        if (customer.getStatus() != CustomerStatus.ACTIVE) {
+            throw new InvalidPaymentEventStateException(
+                    "Cannot reattribute to customer " + customerReference + " — status is " + customer.getStatus());
+        }
         VirtualAccount va = virtualAccountRepository.findByCustomerId(customer.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Virtual account not found for customer"));
 

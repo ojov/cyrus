@@ -4,6 +4,9 @@ import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
+import com.ojo.cyrus.models.requests.UpdateCustomerRequest;
+import com.ojo.cyrus.models.requests.UpdateCustomerStatusRequest;
+import com.ojo.cyrus.models.requests.UpdateKycTierRequest;
 import com.ojo.cyrus.models.responses.CustomerResponse;
 import com.ojo.cyrus.models.responses.CustomerStatementResponse;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
@@ -67,5 +70,55 @@ public class CustomerController {
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Statement retrieved",
                 customerService.getStatement(merchant.getId(), reference, pageable));
+    }
+
+    @Operation(
+            summary = "Update a customer's profile",
+            description = "Partial update of firstName/lastName/email/phoneNumber. Your reference stays fixed. " +
+                    "A firstName/lastName change also renames the virtual account's bank account name to match.",
+            security = @SecurityRequirement(name = "ApiKeyAuth")
+    )
+    @PatchMapping("/{reference}")
+    public CyrusApiResponse<CustomerResponse> update(
+            @AuthenticationPrincipal Merchant merchant,
+            @PathVariable String reference,
+            @Valid @RequestBody UpdateCustomerRequest request) {
+
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customer updated",
+                customerService.rename(merchant.getId(), reference, request));
+    }
+
+    @Operation(
+            summary = "Set a customer's KYC tier",
+            description = "Cyrus doesn't verify KYC itself — call this whenever your own verification process " +
+                    "completes. The virtual account is unaffected by a tier change.",
+            security = @SecurityRequirement(name = "ApiKeyAuth")
+    )
+    @PostMapping("/{reference}/kyc-tier")
+    public CyrusApiResponse<CustomerResponse> updateKycTier(
+            @AuthenticationPrincipal Merchant merchant,
+            @PathVariable String reference,
+            @Valid @RequestBody UpdateKycTierRequest request) {
+
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "KYC tier updated",
+                customerService.updateKycTier(merchant.getId(), reference, request.tier()));
+    }
+
+    @Operation(
+            summary = "Suspend, reactivate, or close a customer",
+            description = "Cascades to the customer's virtual account. ACTIVE/SUSPENDED are freely reversible; " +
+                    "CLOSED is terminal — the customer and their transaction history stay intact, but no further " +
+                    "status change is accepted. A payment landing on a non-ACTIVE virtual account is recorded as " +
+                    "an orphan (not attributed to the customer) and is recoverable via the payment-events reattribute endpoint.",
+            security = @SecurityRequirement(name = "ApiKeyAuth")
+    )
+    @PatchMapping("/{reference}/status")
+    public CyrusApiResponse<CustomerResponse> updateStatus(
+            @AuthenticationPrincipal Merchant merchant,
+            @PathVariable String reference,
+            @Valid @RequestBody UpdateCustomerStatusRequest request) {
+
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customer status updated",
+                customerService.updateStatus(merchant.getId(), reference, request.status()));
     }
 }

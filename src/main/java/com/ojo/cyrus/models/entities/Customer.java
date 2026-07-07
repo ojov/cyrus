@@ -23,13 +23,17 @@ public class Customer extends BaseEntity {
     @Column(nullable = false)
     private String reference;
 
+    @Setter
     @Column(nullable = false)
     private String firstName;
 
+    @Setter
     private String lastName;
 
+    @Setter
     private String email;
 
+    @Setter
     private String phoneNumber;
 
     @Setter
