@@ -10,9 +10,10 @@ import java.util.UUID;
 @Repository
 public interface VirtualAccountRepository extends JpaRepository<VirtualAccount, UUID> {
 
-    Optional<VirtualAccount> findByCustomerId(UUID customerId);
+    Optional<VirtualAccount> findByMerchantCustomerId(UUID merchantCustomerId);
 
+    // Attribution entry point: an inbound transfer names the credited account number.
     Optional<VirtualAccount> findByAccountNumber(String accountNumber);
 
-    long countByMerchantId(UUID merchantId);
+    long countByMerchantCustomerMerchantId(UUID merchantId);
 }

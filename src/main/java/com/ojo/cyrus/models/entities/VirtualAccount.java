@@ -1,29 +1,29 @@
 package com.ojo.cyrus.models.entities;
 
-import com.ojo.cyrus.enums.Environment;
-import com.ojo.cyrus.enums.Provider;
+import com.ojo.cyrus.enums.CurrencyCode;
 import com.ojo.cyrus.enums.VirtualAccountStatus;
 import com.ojo.cyrus.models.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
+/**
+ * A dedicated virtual account provisioned on Nomba (under Cyrus's own account) and bound 1:1 to a
+ * {@link MerchantCustomer}. Incoming transfers to {@code accountNumber} are attributed to the owning
+ * customer → merchant.
+ */
 @Entity
 @Table(name = "virtual_accounts")
 @Getter
 @Setter
-@Builder
+@SuperBuilder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
 public class VirtualAccount extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "merchant_id", nullable = false)
-    private Merchant merchant;
-
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id", nullable = false, unique = true)
-    private Customer customer;
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "merchant_customer_id", nullable = false, unique = true)
+    private MerchantCustomer merchantCustomer;
 
     @Column(nullable = false, unique = true)
     private String accountNumber;
@@ -32,22 +32,20 @@ public class VirtualAccount extends BaseEntity {
 
     private String bankName;
 
-    private String currency;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Provider provider;
-
+    /**
+     * Nomba's {@code accountHolderId} for this VA. NOT unique per VA — Nomba returns the owning
+     * account holder here (the parent/sub-account VAs are provisioned under), so every VA created
+     * under the same sub-account shares this value. {@code accountNumber} is the real per-VA key.
+     */
     private String providerReference;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private VirtualAccountStatus status;
+    @Builder.Default
+    private CurrencyCode currency = CurrencyCode.NGN;
 
-    // Which Nomba credential set (TEST/LIVE) this VA was provisioned under — reconciliation needs
-    // this to know which merchant credentials to requery with. Defaults existing sandbox-only rows
-    // to TEST since Flyway isn't wired up yet and this column back-fills via ddl-auto.
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "varchar(255) default 'TEST'")
-    private Environment environment;
+    @Column(nullable = false)
+    @Builder.Default
+    private VirtualAccountStatus status = VirtualAccountStatus.ACTIVE;
 }

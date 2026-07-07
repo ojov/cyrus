@@ -16,9 +16,9 @@ export default function GettingStartedPage() {
         <li>
           <b>Create your Cyrus account</b>
           <span>
-            Sign up with your business email and your Nomba sandbox credentials (client ID and secret, parent account,
-            sub-account). After signup, open Dashboard → API keys, generate a <code>cyrus_test_</code> key, and copy it
-            immediately. Full keys are shown only once.
+            Sign up with your business name, email, and a password — that&apos;s it. Cyrus runs on its own Nomba account,
+            so you never need Nomba credentials of your own. After signup, open Dashboard → API keys, generate your key,
+            and copy it immediately. Full keys are shown only once.
           </span>
         </li>
         <li>
@@ -29,53 +29,47 @@ export default function GettingStartedPage() {
           <b>Receive payments</b>
           <span>
             Money sent to that account number is attributed to the customer and delivered to your webhook as a normalized{" "}
-            <code>payment.received</code> event.
+            <code>payment.succeeded</code> event, net of Nomba&apos;s fee and Cyrus&apos;s platform fee, credited to your wallet.
           </span>
         </li>
         <li>
-          <b>Go live</b>
+          <b>Pay out</b>
           <span>
-            When you are ready, add your live Nomba credentials in the dashboard (Settings → Go live) to unlock{" "}
-            <code>cyrus_live_</code> key generation. Create and copy your live key from Dashboard → API keys. Nothing else
-            in your integration changes.
+            Add a bank beneficiary and withdraw your wallet balance to it whenever you like — see Dashboard → Payouts.
           </span>
         </li>
       </ol>
 
       <Code>{`POST https://api.trycyrus.app/v1/customers
-Authorization: Bearer cyrus_test_9f2a…
+Authorization: Bearer cyrus_9f2a…
 
 {
-  "externalCustomerId": "user_123",
+  "reference": "user_123",
   "firstName": "Amara",
   "lastName": "Okafor"
 }
 
-→ 201 Created
+→ 200 OK
 {
-  "customerId": "cus_01HZY8",
-  "virtualAccount": {
-    "accountNumber": "0123456789",
-    "bankName": "Nomba MFB",
-    "status": "ACTIVE"
+  "data": {
+    "reference": "user_123",
+    "virtualAccount": {
+      "accountNumber": "0123456789",
+      "bankName": "Nombank MFB",
+      "status": "ACTIVE"
+    }
   }
 }`}</Code>
 
       <h3>Authenticate every request</h3>
       <p>
-        Cyrus authenticates with API keys — there is no separate API login. Generate keys in the dashboard and copy the
-        full value when it is shown. Send your key as a bearer token; the prefix picks the environment.
+        Cyrus authenticates with a single API key — there is no separate API login and no TEST/LIVE split. Generate your
+        key in the dashboard and copy the full value when it is shown.
       </p>
-      <Code>{`Authorization: Bearer cyrus_test_…   # sandbox
-Authorization: Bearer cyrus_live_…   # production`}</Code>
+      <Code>{`Authorization: Bearer cyrus_9f2a…`}</Code>
       <p className="text-sm text-muted-foreground">
         Your ops team uses a separate dashboard login (email and password) — it only governs the dashboard, never the API.
       </p>
-
-      <div className="callout">
-        <b>Sandbox note.</b> The Nomba sandbox allows 2 virtual accounts per account holder — enough to test provisioning and
-        reconciliation end-to-end before you go live.
-      </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
@@ -85,10 +79,10 @@ Authorization: Bearer cyrus_live_…   # production`}</Code>
           Create an account <IconArrowRight className="size-4" />
         </Link>
         <Link
-          href="/environments"
+          href="/reference/authentication"
           className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-accent"
         >
-          Environments
+          Authentication
         </Link>
       </div>
     </div>

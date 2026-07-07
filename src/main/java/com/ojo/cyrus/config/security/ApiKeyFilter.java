@@ -33,7 +33,6 @@ public class ApiKeyFilter extends OncePerRequestFilter {
                         apiKey,
                         Collections.emptyList()
                 );
-                request.setAttribute("ENVIRONMENT", key.getEnvironment());
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             });
         }

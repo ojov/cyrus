@@ -1,7 +1,6 @@
 package com.ojo.cyrus.models.entities;
 
 import com.ojo.cyrus.enums.ApiKeyStatus;
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.models.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -31,8 +30,6 @@ public class ApiKey extends BaseEntity {
     @Column(nullable = false)
     private ApiKeyStatus status;
     private Instant lastUsedAt;
-    @Enumerated(EnumType.STRING)
-    Environment environment;
     private Instant expiresAt;
     private Instant revokedAt;
 

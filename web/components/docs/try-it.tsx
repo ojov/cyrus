@@ -43,11 +43,11 @@ export function TryIt({
           <span className="method">{method}</span>
           <span className="path">{path}</span>
         </div>
-        <label className="text-xs font-semibold text-muted-foreground">Test API key</label>
+        <label className="text-xs font-semibold text-muted-foreground">Your API key</label>
         <input
           value={key}
           onChange={(e) => setKey(e.target.value)}
-          placeholder="cyrus_test_…"
+          placeholder="cyrus_…"
           className={cn(
             "w-full rounded-lg border bg-muted px-3 py-2 font-mono text-[13px] outline-none focus:border-primary",
             err ? "border-destructive" : "border-border",
@@ -70,7 +70,7 @@ export function TryIt({
         >
           {sent ? "Sent ✓" : "Send request"}
         </button>
-        {err && <span className="text-xs text-destructive">Enter your test API key to authorize the call.</span>}
+        {err && <span className="text-xs text-destructive">Enter your API key to authorize the call.</span>}
         {sent && (
           <div className="mt-1 border-t border-dashed border-border pt-2.5">
             <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">

@@ -1,7 +1,13 @@
 "use client";
 
+import { authApi } from "@/lib/api";
+
+/**
+ * Non-sensitive profile info only, for display (sidebar greeting, etc). The actual session is an
+ * httpOnly cookie set by the backend on login/register — this app never sees or stores the JWT
+ * itself, so this data is cosmetic and safe to keep in localStorage.
+ */
 export interface MerchantSession {
-  token: string;
   merchantId: string;
   businessName: string;
   businessEmail: string;
@@ -10,13 +16,6 @@ export interface MerchantSession {
 const STORAGE_KEY = "cyrus_merchant";
 
 export function saveSession(session: MerchantSession) {
-  const maxAge = 60 * 60 * 8; // 8h, matches backend token expiry
-  // Secure can be set from client JS (only sends the cookie over HTTPS); HttpOnly cannot —
-  // browsers only honor that flag on a Set-Cookie response header from the server, so as
-  // long as the token is issued to client JS in a JSON body, it's readable by any XSS on
-  // the page. Closing that gap fully requires the backend to set the cookie itself.
-  const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `cyrus_token=${encodeURIComponent(session.token)}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
 
@@ -29,7 +28,11 @@ export function getSession(): MerchantSession | null {
   }
 }
 
-export function clearSession() {
-  document.cookie = "cyrus_token=; path=/; max-age=0";
-  localStorage.removeItem(STORAGE_KEY);
+/** Clears the httpOnly session cookie (backend call) and the local display-profile cache. */
+export async function logout() {
+  try {
+    await authApi.logout();
+  } finally {
+    localStorage.removeItem(STORAGE_KEY);
+  }
 }

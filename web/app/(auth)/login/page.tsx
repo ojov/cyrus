@@ -26,7 +26,6 @@ export default function LoginPage() {
     try {
       const res = await authApi.login(email, password);
       saveSession({
-        token: res.data.token,
         merchantId: res.data.merchantId,
         businessName: res.data.businessName,
         businessEmail: res.data.businessEmail,

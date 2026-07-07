@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "nombainc": {
+      "source": "developer.nomba.com",
+      "sourceType": "well-known",
+      "computedHash": "68438212b72930cf129fbfb5a02f88650da5c3e68748ab70133c678a85f81722"
+    }
+  }
+}

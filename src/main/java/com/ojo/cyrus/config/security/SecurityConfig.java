@@ -46,6 +46,7 @@ public class SecurityConfig {
     private final RsaKeyProperties rsaKeys;
     private final CorsProperties corsProperties;
     private final ApiKeyFilter apiKeyFilter;
+    private final CookieBearerTokenResolver cookieBearerTokenResolver;
 
     private static final String[] PUBLIC_URLS = {
             "/v1/auth/login",
@@ -54,8 +55,12 @@ public class SecurityConfig {
             "/v1/auth/resend-verification",
             "/v1/auth/forgot-password",
             "/v1/auth/reset-password",
+            // Clearing the session cookie must work even if the JWT is already expired/invalid.
+            "/v1/auth/logout",
             "/v1/webhooks/**",
             "/swagger-ui/**",
+            "/scalar/**",
+            "/scalar.js",
             "/swagger-ui.html",
             "/docs",
             "/v3/api-docs/**",
@@ -87,8 +92,9 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
-                        jwt.decoder(jwtDecoder())
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(cookieBearerTokenResolver)
+                        .jwt(jwt -> jwt.decoder(jwtDecoder())
                                 .jwtAuthenticationConverter(jwtAuthenticationConverter())))
                 .build();
     }
@@ -139,6 +145,11 @@ public class SecurityConfig {
         config.setAllowedOrigins(corsProperties.allowedOrigins());
         config.setAllowedMethods(corsProperties.allowedMethods());
         config.setAllowedHeaders(corsProperties.allowedHeaders());
+        // Required for the browser to send/receive the httpOnly auth cookie cross-origin (the
+        // frontend and this API are different origins even in prod, e.g. trycyrus.app vs
+        // api.trycyrus.app). Paired with an explicit origin allowlist above — never wildcard "*"
+        // origins with credentials enabled, browsers reject that combination anyway.
+        config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;

@@ -1,15 +1,19 @@
 package com.ojo.cyrus.services;
 
+import com.ojo.cyrus.config.properties.FeeProperties;
 import com.ojo.cyrus.config.properties.ReconciliationProperties;
+import com.ojo.cyrus.enums.LedgerEntryType;
 import com.ojo.cyrus.enums.MatchStatus;
+import com.ojo.cyrus.enums.MerchantWebhookEventType;
 import com.ojo.cyrus.enums.ReconciliationOutcome;
 import com.ojo.cyrus.enums.TransactionStatus;
+import com.ojo.cyrus.models.dto.RequeryApplication;
 import com.ojo.cyrus.models.entities.Transaction;
-import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
-import com.ojo.cyrus.nomba.NombaClient;
-import com.ojo.cyrus.nomba.dto.NombaCredentials;
+import com.ojo.cyrus.nomba.NombaTransactionClient;
 import com.ojo.cyrus.nomba.dto.NombaTransactionData;
+import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.repositories.TransactionRepository;
+import com.ojo.cyrus.utils.FeeCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jobrunr.scheduling.JobScheduler;
@@ -18,76 +22,61 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Reconciles a payment transaction against Nomba's requery endpoint to confirm receipt and match
- * amounts. Given a requestId (webhook delivery identifier), finds the Transaction and validates it
- * against Nomba's independent record.
+ * Reconciles a payment transaction against Nomba's requery endpoint (the source of truth) to confirm
+ * receipt and match amounts. On the transition PENDING → SUCCESSFUL it credits the merchant's wallet
+ * with a double-entry {@link LedgerEntryType#MERCHANT_WALLET_CREDIT} posting, atomic with the status
+ * change.
  *
- * <p>Nomba/DB failures (timeouts, 5xx, connection errors) are NOT caught here — they propagate so
- * JobRunr's own retry/backoff takes over the job, the same mechanism it uses for any other failed
- * job. A clean "not found yet" result (session unrecognized or still settling) is different: it's
- * not a failure, so JobRunr's retry doesn't apply — instead this service re-schedules itself with
- * backoff, up to {@code reconciliation.max-attempts}, then gives up and flags the transaction
- * {@code MANUAL_REVIEW} for a human to look at.
+ * <p>Nomba/DB failures propagate (JobRunr retries the job). A clean "not found yet" result is not a
+ * failure: this service re-schedules itself with backoff up to {@code reconciliation.max-attempts},
+ * then flags the transaction {@code MANUAL_REVIEW}.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ReconciliationService {
-    private final MerchantService merchantService;
-    private final NombaClient nombaClient;
+    private final NombaTransactionClient nombaTransactionClient;
     private final TransactionRepository transactionRepository;
     private final PlatformTransactionManager transactionManager;
     private final JobScheduler jobScheduler;
     private final ReconciliationProperties reconciliationProperties;
+    private final MerchantWebhookService merchantWebhookService;
+    private final LedgerService ledgerService;
+    private final FeeProperties feeProperties;
 
-    /**
-     * Reconciles a transaction against Nomba's requery endpoint using the webhook requestId.
-     * Updates the transaction's matchStatus and status based on the outcome, and — for a "not
-     * found yet" result — schedules its own retry rather than returning a final answer.
-     *
-     * @param requestId the requestId denormalized onto Transaction (same value as the originating
-     *                   PaymentEvent's requestId)
-     * @return the outcome: MATCHED (confirmed, amounts agree), DISCREPANCY (confirmed, field mismatch),
-     *         or NOT_FOUND (not yet confirmed — a retry has been scheduled, or attempts are exhausted)
-     */
-    public ReconciliationOutcome reconcileByRequestId(String requestId) {
-        Transaction tx = transactionRepository.findByRequestId(requestId)
-                .orElseThrow(() -> new IllegalStateException("No transaction found for requestId=" + requestId));
+    public ReconciliationOutcome reconcileTransactionById(UUID transactionId) {
+        Transaction tx = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new IllegalStateException("No transaction found for transactionId=" + transactionId));
 
         if (tx.getSessionId() == null || tx.getSessionId().isBlank()) {
             log.warn("Transaction {} has no sessionId, cannot requery — flagging for manual review", tx.getId());
-            markManualReview(requestId, "No Nomba sessionId recorded; cannot requery");
             return ReconciliationOutcome.NOT_FOUND;
         }
 
         // Nomba/DB failures deliberately propagate uncaught here — JobRunr retries the job.
-        NombaCredentials creds = merchantService.getNombaCredentials(tx.getMerchant().getId());
-        NombaTransactionData providerTx = nombaClient.requeryTransaction(creds, tx.getSessionId(), tx.getEnvironment());
+        NombaTransactionData providerTx = nombaTransactionClient.requeryTransaction(tx.getSessionId());
 
         RequeryApplication result = applyRequeryResult(tx.getId(), providerTx);
         if (result.outcome() == ReconciliationOutcome.NOT_FOUND) {
-            scheduleRetryOrGiveUp(requestId, result.attempts());
+            scheduleRetryOrGiveUp(tx.getId(), result.attempts());
         }
         return result.outcome();
     }
 
-    private record RequeryApplication(ReconciliationOutcome outcome, int attempts) {}
-
     /**
-     * "Found" is inferred from a non-blank {@code transactionId} in the response, not the
-     * response's own status field — live testing showed Nomba returns a generic success envelope
-     * with a zeroed-out transaction for a session it doesn't recognize.
+     * "Found" is inferred from a non-blank {@code transactionId} in the response, not the response's
+     * own status field — live testing showed Nomba returns a generic success envelope with a zeroed
+     * transaction for a session it doesn't recognize.
      */
     private RequeryApplication applyRequeryResult(UUID transactionId, NombaTransactionData providerTx) {
         return new TransactionTemplate(transactionManager).execute(status -> {
-            // Re-fetch inside this transaction: tx was loaded outside any transaction by the
-            // caller and is detached, so mutating it directly here would not persist.
             Transaction tx = transactionRepository.findById(transactionId).orElseThrow();
             tx.setLastReconciledAt(Instant.now());
 
@@ -100,11 +89,11 @@ public class ReconciliationService {
                 return new RequeryApplication(ReconciliationOutcome.NOT_FOUND, attempts);
             }
 
-            // Nomba confirmed the transfer — promote to SUCCESSFUL, but only from PENDING: a
-            // reversal webhook may have flipped this to REVERSED while the job was waiting, and
-            // requery confirming the ORIGINAL transfer must not undo the clawback (REVERSED ->
-            // SUCCESSFUL would report a clawed-back payment as successful).
-            if (tx.getStatus() == TransactionStatus.PENDING) {
+            // Nomba confirmed the transfer — promote to SUCCESSFUL, but only from PENDING: a reversal
+            // webhook may have flipped this to REVERSED while the job waited, and confirming the
+            // ORIGINAL transfer must not undo the clawback.
+            boolean promoted = tx.getStatus() == TransactionStatus.PENDING;
+            if (promoted) {
                 tx.setStatus(TransactionStatus.SUCCESSFUL);
             }
 
@@ -113,49 +102,85 @@ public class ReconciliationService {
             if (!providerAmount.equals(tx.getAmount())) {
                 diffs.add("Webhook amount=" + tx.getAmount() + ", Nomba requery amount=" + providerAmount);
             }
-            // Compare fees only when both sides report one — a live VA-credit requery response
-            // carries no fee field at all, and treating that absence as zero would manufacture a
-            // false DISCREPANCY against the webhook's real fee.
-            if (tx.getFee() != null && providerTx.fee() != null && !providerTx.fee().isBlank()) {
-                BigInteger providerFee = NombaCurrencyUtil.nairaToKobo(providerTx.fee());
-                if (!providerFee.equals(tx.getFee())) {
-                    diffs.add("Webhook fee=" + tx.getFee() + ", Nomba requery fee=" + providerFee);
-                }
-            }
-            if (providerTx.currency() != null && !providerTx.currency().equalsIgnoreCase(tx.getCurrency())) {
-                diffs.add("Webhook currency=" + tx.getCurrency() + ", Nomba requery currency=" + providerTx.currency());
+
+            // The requery response carries no fee field at all (verified against a real live
+            // response — see NombaTransactionData) — the webhook's transaction.fee, captured into
+            // tx.fee at ingestion, is the only fee Nomba ever reports. Once requery confirms the
+            // transaction is real, that webhook fee is trusted for the platform-fee calculation below.
+            BigInteger confirmedFee = tx.getFee();
+
+            String txCurrency = tx.getCurrency() != null ? tx.getCurrency().name() : null;
+            if (providerTx.currency() != null && txCurrency != null && !providerTx.currency().equalsIgnoreCase(txCurrency)) {
+                diffs.add("Webhook currency=" + txCurrency + ", Nomba requery currency=" + providerTx.currency());
             }
 
+            ReconciliationOutcome outcome;
             if (diffs.isEmpty()) {
                 tx.setMatchStatus(MatchStatus.MATCHED);
                 tx.setMatchStatusDetails(null);
                 log.info("Transaction {} reconciled: MATCHED", tx.getId());
-                return new RequeryApplication(ReconciliationOutcome.MATCHED, tx.getReconciliationAttempts());
+                outcome = ReconciliationOutcome.MATCHED;
+            } else {
+                tx.setMatchStatus(MatchStatus.DISCREPANCY);
+                tx.setMatchStatusDetails(String.join("; ", diffs));
+                log.warn("Transaction {} reconciled: DISCREPANCY - {}", tx.getId(), String.join("; ", diffs));
+                outcome = ReconciliationOutcome.DISCREPANCY;
             }
 
-            tx.setMatchStatus(MatchStatus.DISCREPANCY);
-            tx.setMatchStatusDetails(String.join("; ", diffs));
-            log.warn("Transaction {} reconciled: DISCREPANCY - {}", tx.getId(), String.join("; ", diffs));
-            return new RequeryApplication(ReconciliationOutcome.DISCREPANCY, tx.getReconciliationAttempts());
+            // On confirmation, credit the merchant wallet (once, on the PENDING → SUCCESSFUL edge) and
+            // notify the merchant. MATCHED and DISCREPANCY both settle the money (a DISCREPANCY is a
+            // reconciliation concern carried on matchStatus); both are atomic with the status change.
+            //
+            // The gross amount is credited, then Nomba's own fee (PROVIDER_FEE) and Cyrus's markup
+            // on top of it (PLATFORM_FEE — see FeeProperties) are debited back out, so the wallet's
+            // net change is amount - totalFee. This is the actual revenue model: Cyrus marks up
+            // Nomba's confirmed fee by `app.fees.markup-multiplier` and keeps the difference.
+            if (promoted) {
+                ledgerService.credit(tx.getMerchant(), tx.getAmount(), tx,
+                        LedgerEntryType.MERCHANT_WALLET_CREDIT, "Payment " + tx.getReference());
+
+                if (confirmedFee != null && confirmedFee.signum() > 0) {
+                    BigInteger totalFee = FeeCalculator.totalPlatformFee(confirmedFee, feeProperties.markupMultiplier());
+                    BigInteger cyrusMargin = totalFee.subtract(confirmedFee);
+                    tx.setPlatformFeeKobo(cyrusMargin);
+
+                    ledgerService.debit(tx.getMerchant(), confirmedFee, tx,
+                            LedgerEntryType.PROVIDER_FEE, "Nomba fee for " + tx.getReference());
+                    if (cyrusMargin.signum() > 0) {
+                        ledgerService.debit(tx.getMerchant(), cyrusMargin, tx,
+                                LedgerEntryType.PLATFORM_FEE, "Cyrus platform fee for " + tx.getReference());
+                    }
+                } else {
+                    log.warn("Transaction {} confirmed with no fee reported by the webhook — " +
+                            "crediting full gross with no platform fee applied", tx.getId());
+                }
+
+                merchantWebhookService.recordAndScheduleDispatch(tx, MerchantWebhookEventType.PAYMENT_SUCCEEDED);
+            }
+
+            return new RequeryApplication(outcome, tx.getReconciliationAttempts());
         });
     }
 
-    private void scheduleRetryOrGiveUp(String requestId, int attempts) {
+    private void scheduleRetryOrGiveUp(UUID transactionId, int attempts) {
         if (attempts >= reconciliationProperties.maxAttempts()) {
-            log.warn("Giving up on requestId={} after {} attempts — flagging for manual review", requestId, attempts);
-            markManualReview(requestId, "Not confirmed by Nomba after " + attempts + " attempts");
+            log.warn("Giving up on transaction={} after {} attempts — flagging for manual review", transactionId, attempts);
+            markManualReview(transactionId, "Not confirmed by Nomba after " + attempts + " attempts");
             return;
         }
         Instant runAt = Instant.now().plusSeconds(reconciliationProperties.delaySeconds());
-        jobScheduler.schedule(UUID.randomUUID(), runAt, () -> reconcileByRequestId(requestId));
+        UUID retryJobId = UUID.nameUUIDFromBytes(
+                ("reconcile:" + transactionId).getBytes(StandardCharsets.UTF_8));
+        jobScheduler.schedule(retryJobId, runAt, () -> reconcileTransactionById(transactionId));
     }
 
-    private void markManualReview(String requestId, String details) {
+    private void markManualReview(UUID transactionId, String details) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status ->
-                transactionRepository.findByRequestId(requestId).ifPresent(tx -> {
+                transactionRepository.findById(transactionId).ifPresent(tx -> {
                     tx.setMatchStatus(MatchStatus.MANUAL_REVIEW);
                     tx.setMatchStatusDetails(details);
                     tx.setLastReconciledAt(Instant.now());
+                    merchantWebhookService.recordAndScheduleDispatch(tx, MerchantWebhookEventType.PAYMENT_FLAGGED);
                 }));
     }
 }

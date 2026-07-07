@@ -2,14 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { dashboardApi, type ApiKeyItem } from "@/lib/api";
-import { cn, statusClass } from "@/lib/utils";
-
-const ENVS = ["TEST", "LIVE"] as const;
+import { statusClass } from "@/lib/utils";
 
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [env, setEnv] = useState<(typeof ENVS)[number]>("TEST");
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +32,7 @@ export default function ApiKeysPage() {
     setCreating(true);
     setError(null);
     try {
-      const res = await dashboardApi.createApiKey(env);
+      const res = await dashboardApi.createApiKey();
       const apiKey = res.data?.apiKeys?.[0]?.apiKey;
       if (!apiKey) {
         // Distinct from "user closed the panel" — missing key data on a 2xx is a real
@@ -119,31 +116,14 @@ export default function ApiKeysPage() {
               Copy the full key when it appears. Existing keys only show their prefix.
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-md border border-border p-0.5">
-              {ENVS.map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  onClick={() => setEnv(e)}
-                  className={cn(
-                    "rounded px-3 py-1.5 text-sm transition",
-                    env === e ? "bg-primary font-medium text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={create}
-              disabled={creating}
-              className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
-            >
-              {creating ? "Creating…" : "+ Generate key"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={create}
+            disabled={creating}
+            className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
+          >
+            {creating ? "Creating…" : "+ Generate key"}
+          </button>
         </div>
       </div>
 
@@ -162,7 +142,6 @@ export default function ApiKeysPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <code className="truncate font-mono text-sm">{k.prefix}••••••••</code>
-                    <span className="db">{k.environment}</span>
                     <span className={`db dot ${statusClass(k.status)}`}>{k.status}</span>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">

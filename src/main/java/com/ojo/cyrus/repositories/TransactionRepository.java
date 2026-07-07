@@ -1,10 +1,10 @@
 package com.ojo.cyrus.repositories;
 
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MatchStatus;
-import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.models.entities.Transaction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,16 +18,21 @@ import java.util.UUID;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
-    boolean existsByProviderAndProviderTransactionId(Provider provider, String providerTransactionId);
 
-    Optional<Transaction> findByProviderAndProviderTransactionId(Provider provider, String providerTransactionId);
+    // Dedup key for an inbound payment — Nomba's transaction id (single provider now, so no
+    // composite with provider).
+    boolean existsByProviderTransactionId(String providerTransactionId);
+
+    Optional<Transaction> findByProviderTransactionId(String providerTransactionId);
+
+    Optional<Transaction> findByReference(String reference);
 
     // Fetch by webhook requestId for direct reconciliation lookup.
     Optional<Transaction> findByRequestId(String requestId);
 
     // Fallback match for a reversal whose transactionId doesn't line up with the original —
     // sessionId is the other stable identifier Nomba carries across the transfer's lifecycle.
-    Optional<Transaction> findByProviderAndSessionId(Provider provider, String sessionId);
+    Optional<Transaction> findBySessionId(String sessionId);
 
     // Reconciliation candidates: unmatched transactions past the grace period (skip anything too
     // recent — the webhook may just not have caught up yet).
@@ -35,9 +40,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     @Query("""
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
-            WHERE t.merchant.id = :merchantId AND t.environment = :environment AND t.status = :status
+            WHERE t.merchant.id = :merchantId AND t.status = :status
             """)
-    BigInteger sumAmountByMerchantAndEnvironmentAndStatus(@Param("merchantId") UUID merchantId,
-                                                           @Param("environment") Environment environment,
-                                                           @Param("status") TransactionStatus status);
+    BigInteger sumAmountByMerchantAndStatus(@Param("merchantId") UUID merchantId,
+                                            @Param("status") TransactionStatus status);
+
+    // Customer statement — newest first, paginated.
+    Page<Transaction> findByCustomerIdOrderByReceivedAtDesc(UUID customerId, Pageable pageable);
+
+    @Query("""
+            SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
+            WHERE t.customer.id = :customerId AND t.status = :status
+            """)
+    BigInteger sumAmountByCustomerAndStatus(@Param("customerId") UUID customerId,
+                                            @Param("status") TransactionStatus status);
 }

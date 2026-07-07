@@ -1,2 +1,7 @@
 resend:
   from-email: ${FROM_EMAIL:Cyrus <noreply@trycyrus.app>}
+
+
+scalar:
+  enabled: true
+  url: /v3/api-docs

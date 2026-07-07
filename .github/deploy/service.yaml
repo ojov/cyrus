@@ -50,6 +50,13 @@ spec:
               value: '300'
             - name: APP_RECONCILIATION_MAX_ATTEMPTS
               value: '5'
+            # Outbound merchant webhooks: delivery attempts and exponential backoff bounds (seconds)
+            - name: APP_WEBHOOK_MAX_ATTEMPTS
+              value: '5'
+            - name: APP_WEBHOOK_INITIAL_BACKOFF_SECONDS
+              value: '60'
+            - name: APP_WEBHOOK_MAX_BACKOFF_SECONDS
+              value: '3600'
             # --- Secrets (Secret Manager references) ---
             - name: DB_URL
               valueFrom:
@@ -75,6 +82,20 @@ spec:
             - name: NOMBA_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef: { name: NOMBA_WEBHOOK_SECRET, key: latest }
+            # Cyrus's own platform Nomba account (single credential set — no TEST/LIVE split).
+            # Create these secrets in Secret Manager.
+            - name: NOMBA_ACCOUNT_ID
+              valueFrom:
+                secretKeyRef: { name: NOMBA_ACCOUNT_ID, key: latest }
+            - name: NOMBA_SUB_ACCOUNT_ID
+              valueFrom:
+                secretKeyRef: { name: NOMBA_SUB_ACCOUNT_ID, key: latest }
+            - name: NOMBA_LIVE_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: NOMBA_LIVE_CLIENT_ID, key: latest }
+            - name: NOMBA_LIVE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: NOMBA_LIVE_CLIENT_SECRET, key: latest }
   traffic:
     - latestRevision: true
       percent: 100

@@ -1,11 +1,10 @@
 package com.ojo.cyrus.nomba.service;
 
-import com.ojo.cyrus.enums.EventStatus;
-import com.ojo.cyrus.enums.Provider;
+import com.ojo.cyrus.enums.NombaPaymentEventStatus;
 import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.exception.WebhookSignatureException;
-import com.ojo.cyrus.models.dto.CyrusPaymentEvent;
-import com.ojo.cyrus.models.entities.PaymentEvent;
+import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
+import com.ojo.cyrus.models.entities.NombaPaymentEvent;
 import com.ojo.cyrus.nomba.NombaWebhookAdapter;
 import com.ojo.cyrus.services.PaymentEventService;
 import com.ojo.cyrus.services.TransactionIngestionService;
@@ -39,12 +38,11 @@ public class NombaWebhookService {
         JsonNode root = objectMapper.readTree(rawPayload);
 
         String requestId = root.path("requestId").asText();
-
         String eventType = root.path("event_type").asText();
         log.info("Accepted Nomba webhook requestId={} event={}", requestId, eventType);
 
         // 2. Normalize the raw provider payload into a Cyrus event.
-        CyrusPaymentEvent event;
+        NormalizedPaymentEvent event;
         try {
             event = adapter.toCyrusEvent(rawPayload);
         } catch (NombaIntegrationException e) {
@@ -56,8 +54,7 @@ public class NombaWebhookService {
         }
 
         // 3. Record + attribute (idempotent, transactional). Ingestion itself schedules the
-        //    delayed reconciliation requery (afterCommit) for any transaction it mints, so every
-        //    ingestion path — webhook, admin replay — reconciles without the caller wiring it up.
+        //    delayed reconciliation requery (afterCommit) for any transaction it mints.
         ingestionService.ingest(event, rawPayload);
     }
 
@@ -81,9 +78,9 @@ public class NombaWebhookService {
 
         String finalRequestId = requestId;
         String finalEventType = eventType;
-        PaymentEvent event = paymentEventService.findByRequestId(requestId)
-                .orElseGet(() -> paymentEventService.recordEvent(finalRequestId, Provider.NOMBA, finalEventType, rawPayload));
-        paymentEventService.updateStatus(event.getId(), EventStatus.FAILED,
+        NombaPaymentEvent event = paymentEventService.findByRequestId(requestId)
+                .orElseGet(() -> paymentEventService.recordUnparseable(finalRequestId, finalEventType, rawPayload));
+        paymentEventService.updateStatus(event.getId(), NombaPaymentEventStatus.FAILED,
                 "Unprocessable payload: " + cause.getMessage());
     }
 }

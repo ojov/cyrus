@@ -3,11 +3,11 @@ export type DocPage = { href: string; title: string; group?: string };
 /** Ordered docs navigation — drives the sidebar, the crumb, and the prev/next pager. */
 export const DOC_PAGES: DocPage[] = [
   { href: "/", title: "Getting Started" },
-  { href: "/environments", title: "Environments" },
   { href: "/reference/authentication", title: "Authentication", group: "API Reference" },
   { href: "/reference/virtual-accounts", title: "Virtual Accounts", group: "API Reference" },
   { href: "/reference/payments", title: "Payments", group: "API Reference" },
   { href: "/reference/transactions", title: "Transactions", group: "API Reference" },
+  { href: "/reference/payouts", title: "Payouts", group: "API Reference" },
   { href: "/reference/webhooks", title: "Webhooks", group: "API Reference" },
   { href: "/reference/errors", title: "Errors", group: "API Reference" },
   { href: "/api-keys", title: "API Keys" },
