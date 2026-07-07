@@ -1,6 +1,5 @@
 package com.ojo.cyrus.models.dto;
 
-import com.ojo.cyrus.enums.Provider;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -11,7 +10,6 @@ import java.time.Instant;
 @Getter
 public class NormalizedPaymentEvent {
 
-    private Provider provider;
     private String requestId;
     private String eventType;
     private String providerTransactionId;

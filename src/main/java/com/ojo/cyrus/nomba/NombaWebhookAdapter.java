@@ -1,6 +1,5 @@
 package com.ojo.cyrus.nomba;
 
-import com.ojo.cyrus.enums.Provider;
 import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
@@ -34,7 +33,6 @@ public class NombaWebhookAdapter {
             JsonNode merchant = data.path("merchant");
 
             return NormalizedPaymentEvent.builder()
-                    .provider(Provider.NOMBA)
                     .eventType(text(root, "event_type"))
                     .requestId(text(root, "requestId"))
                     .providerTransactionId(text(tx, "transactionId"))
