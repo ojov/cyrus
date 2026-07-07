@@ -18,17 +18,32 @@ spring:
     open-in-view: false
   flyway:
     enabled: false
+# API docs are rendered by Scalar (not Swagger UI). springdoc still generates the OpenAPI spec at
+# /v3/api-docs, which Scalar consumes; the Swagger UI bundle is disabled.
 springdoc:
   swagger-ui:
-    path: /docs
-    enabled: true
+    enabled: false
+scalar:
+  enabled: true
+  url: /v3/api-docs
 
 
+# Cyrus's single platform Nomba account. accountId + subAccountId are SHARED across TEST/LIVE;
+# only clientId/clientSecret differ per environment. Sandbox creds are required to boot; LIVE creds
+# are optional (leave the LIVE env vars unset until you go live).
 nomba:
   sandbox-url: https://sandbox.nomba.com
   production-url: https://api.nomba.com
   timeout-ms: 30000
   webhook-secret: ${NOMBA_WEBHOOK_SECRET}
+  account-id: ${NOMBA_ACCOUNT_ID}
+  sub-account-id: ${NOMBA_SUB_ACCOUNT_ID:}
+  sandbox:
+    client-id: ${NOMBA_SANDBOX_CLIENT_ID}
+    client-secret: ${NOMBA_SANDBOX_CLIENT_SECRET}
+  live:
+    client-id: ${NOMBA_LIVE_CLIENT_ID:}
+    client-secret: ${NOMBA_LIVE_CLIENT_SECRET:}
 app:
   base-url: ${APP_BASE_URL:http://localhost:${SERVER_PORT:8080}}
   # Where the Next.js app lives — used to build links (e.g. password reset) that must open in the

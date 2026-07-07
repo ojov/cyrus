@@ -82,6 +82,28 @@ spec:
             - name: NOMBA_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef: { name: NOMBA_WEBHOOK_SECRET, key: latest }
+            # Cyrus's own platform Nomba account. accountId is shared across TEST/LIVE; only the
+            # client id/secret differ per environment. Create these secrets in Secret Manager.
+            - name: NOMBA_ACCOUNT_ID
+              valueFrom:
+                secretKeyRef: { name: NOMBA_ACCOUNT_ID, key: latest }
+            # Optional: uncomment if VAs are provisioned under a sub-account (create the secret first).
+            # - name: NOMBA_SUB_ACCOUNT_ID
+            #   valueFrom:
+            #     secretKeyRef: { name: NOMBA_SUB_ACCOUNT_ID, key: latest }
+            - name: NOMBA_SANDBOX_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: NOMBA_SANDBOX_CLIENT_ID, key: latest }
+            - name: NOMBA_SANDBOX_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: NOMBA_SANDBOX_CLIENT_SECRET, key: latest }
+            # LIVE credentials — uncomment once the Secret Manager secrets exist (app boots without them).
+            # - name: NOMBA_LIVE_CLIENT_ID
+            #   valueFrom:
+            #     secretKeyRef: { name: NOMBA_LIVE_CLIENT_ID, key: latest }
+            # - name: NOMBA_LIVE_CLIENT_SECRET
+            #   valueFrom:
+            #     secretKeyRef: { name: NOMBA_LIVE_CLIENT_SECRET, key: latest }
   traffic:
     - latestRevision: true
       percent: 100

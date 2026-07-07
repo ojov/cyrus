@@ -4,4 +4,4 @@ resend:
 
 scalar:
   enabled: true
-  url: https://example.com/openapi.json
+  url: /v3/api-docs

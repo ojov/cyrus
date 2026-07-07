@@ -7,14 +7,20 @@
 
 ## What Cyrus is
 
-Cyrus is a **customer payment identity infrastructure layer** — not a payment processor and not a wallet. Nomba provides the payment rails; Cyrus sits above it and provides **identity, reliability, and orchestration**:
+Cyrus is a **customer payment infrastructure layer** on top of Nomba. It runs on a **single Nomba
+account of its own** — merchants sign up on Cyrus and never hold or hand over Nomba credentials.
 
-- Maps a persistent `Customer` identity → a dedicated `VirtualAccount` → incoming `Transaction`s → the owning `Merchant`.
+- Maps a persistent `MerchantCustomer` identity → a dedicated `VirtualAccount` (provisioned under Cyrus's Nomba account) → incoming `Transaction`s → the owning `Merchant`.
 - Provisions and manages virtual-account lifecycle via a provider abstraction (Nomba first).
-- Is meant to reliably process payment webhooks (idempotent, deduplicated) and reconcile provider records against internal records.
+- Reliably processes payment webhooks (idempotent, deduplicated) and reconciles provider records against internal records.
 - Exposes provider-agnostic APIs and normalized webhooks so developers never touch raw Nomba payloads.
 
-Cyrus does **not** hold funds. Money flows Customer → Virtual Account → Merchant's provider account directly.
+**Custody/ledger model:** because payments settle into *Cyrus's* Nomba account, Cyrus tracks who is
+owed what. It keeps a per-merchant `Wallet` (one per environment) whose balance is a running total of
+an append-only, double-entry `LedgerEntry` trail — credited when reconciliation confirms a payment,
+debited on reversals and payouts. Merchants withdraw to a bank `Beneficiary` via a `Payout` (Nomba
+`POST /v2/transfers/bank`). This **replaces** the earlier "Cyrus never holds funds / each merchant
+brings their own Nomba credentials" design.
 
 **Project context:** built for the Nomba hackathon; judged primarily on **reconciliation accuracy** and **developer API quality**. Prioritize correctness in those two areas.
 
@@ -23,9 +29,9 @@ Cyrus does **not** hold funds. Money flows Customer → Virtual Account → Merc
 - **Java 25**, **Spring Boot 4.1.0**, Maven (use the wrapper `./mvnw`).
 - Base package: `com.ojo.cyrus`.
 - **PostgreSQL** + Spring Data JPA + Hibernate. **Lombok** throughout.
-- Spring Security (OAuth2 Resource Server for JWT), springdoc OpenAPI, Thymeleaf, Resend (email).
+- Spring Security (OAuth2 Resource Server for JWT), springdoc OpenAPI (spec generation) + **Scalar** (API-reference UI; Swagger UI is disabled), Thymeleaf, Resend (email).
 - **JobRunr 8.7.0** — background job scheduling with PostgreSQL durability; reconciliation jobs run on configurable delay/retry schedule. Dashboard UI available on port 8000 (gated per environment in production).
-- Deployed on GCP; production API at `https://api.trycyrus.app` (docs at `/swagger-ui/index.html`).
+- Deployed on GCP; production API at `https://api.trycyrus.app` (API docs rendered by Scalar at `/scalar`, OpenAPI spec at `/v3/api-docs`).
 
 ## Build / run / test
 
@@ -37,27 +43,33 @@ docker compose up -d         # local Postgres (see compose.yaml)
 ```
 
 - Local Postgres defaults (from `application.yaml`): `jdbc:postgresql://localhost:5438/cyrus`, user `cyrus` / `cyrus_password`. Note the **non-standard port 5438**.
-- Swagger UI: `http://localhost:8080/docs` (also `/swagger-ui/index.html`); OpenAPI JSON at `/v3/api-docs`.
+- API docs (Scalar): `http://localhost:8080/scalar`; OpenAPI JSON at `/v3/api-docs`.
 - `spring-boot-docker-compose` is on the runtime classpath, so a local run can auto-start the DB container.
 
 ## Required configuration (env vars)
 
 Set these before running (see `application.yaml` for the full list and defaults):
 
-- `APP_ENCRYPTION_KEY` — base64 AES key; **encrypts Nomba credentials at rest**. Required. Must Base64-decode to 16/24/32 bytes (`openssl rand -base64 32`); validated at startup (`AppProperties`) so a malformed key fails the boot, not the first register. Must be **identical everywhere and stable** — data encrypted under one key can't be decrypted under another. Set it via Secret Manager, not an unquoted shell var (a `$` in the value gets mangled by shell interpolation → invalid Base64).
+- **Nomba platform account** (Cyrus's own — replaces per-merchant credentials). `accountId` + `subAccountId` are **shared across TEST/LIVE**; only client id/secret differ per environment:
+  - `NOMBA_ACCOUNT_ID` — parent account id (sent as the `accountId` header). Required.
+  - `NOMBA_SUB_ACCOUNT_ID` — optional; when set, VAs are provisioned under that sub-account.
+  - `NOMBA_SANDBOX_CLIENT_ID` / `NOMBA_SANDBOX_CLIENT_SECRET` — TEST OAuth creds. Required to boot.
+  - `NOMBA_LIVE_CLIENT_ID` / `NOMBA_LIVE_CLIENT_SECRET` — LIVE OAuth creds. Optional (leave unset until going live; LIVE calls fail fast with a clear error until present).
+  - `NOMBA_WEBHOOK_SECRET` — HMAC secret for verifying inbound Nomba webhooks.
+- `APP_ENCRYPTION_KEY` — base64 AES key; now **encrypts the per-merchant outbound-webhook signing secret** at rest (Nomba credentials are no longer stored — they're platform env config). Required. Must Base64-decode to 16/24/32 bytes (`openssl rand -base64 32`); validated at startup (`AppProperties`). Must be **identical everywhere and stable**. Set via Secret Manager, not an unquoted shell var.
 - `RSA_PUBLIC_KEY`, `RSA_PRIVATE_KEY` — RSA keypair used to sign/verify JWTs.
 - `RESEND_API_KEY` — transactional email.
 - `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `APP_ENV` (`dev` default) — optional overrides.
 
 ## Architecture map (`src/main/java/com/ojo/cyrus`)
 
-- `controllers/` — REST endpoints: `AuthController`, `CustomerController`, `MerchantController`, `EmailVerificationController`, `WebhookController` (see gap note below).
-- `services/` (+ `services/impl`) — business logic: `AuthService`, `CustomerService` (create/get + `getStatement` — customer identity + paginated transaction history), `MerchantService`, `ApiKeyService`, `TokenService`, `EmailService`/`ResendEmailService`, `MerchantUserDetailsService`, `TransactionIngestionService`, `ReconciliationService`, `MerchantWebhookService` (outbox creation), `MerchantWebhookDispatcher` (JobRunr delivery job, retry/backoff orchestration), `MerchantWebhookClient` (signs + POSTs, no DB/JobRunr concerns).
-- `nomba/` — provider integration: `NombaClient`, `NombaAuthenticationService` (token acquisition/refresh + cache), `NombaWebhookAdapter`, `service/NombaWebhookService`, `service/NombaSignatureService`, `utils/CredentialMapper`, `utils/NombaCurrencyUtil` (canonical naira→kobo), `NombaCredentials`, `dto/`.
-- `models/entities/` — JPA entities: `Merchant`, `Customer` (has `status`/`kycTier`, mutable via field-level `@Setter` only — everything else is builder-only/immutable), `VirtualAccount`, `ApiKey`, `Transaction`, `PaymentEvent`, `MerchantWebhookEvent`, `VerificationToken` (all extend `BaseEntity`; `AuditConfig` provides JPA auditing).
+- `controllers/` — split by audience into three packages: `controllers/developer/` (API-key chain: `CustomerController`), `controllers/dashboard/` (JWT chain: `AuthController`, `MerchantController`, `PaymentEventController`, `WalletController`, `BeneficiaryController`, `PayoutController`), `controllers/provider/` (`NombaWebhookController` — inbound Nomba webhook, HMAC-authenticated).
+- `services/` — business logic: `AuthService`, `CustomerService` (create/get/rename/status/kyc + `getStatement`), `MerchantService` (dashboard: api-keys, webhook config, stats — NO Nomba creds/go-live any more), `ApiKeyService`, `TokenService`, `EmailService`/`ResendEmailService`, `MerchantUserDetailsService`, `TransactionIngestionService`, `ReconciliationService`, `WalletService` (provision/read balances), `LedgerService` (the single writer of wallet balances — pessimistic-locked double-entry postings), `BeneficiaryService`, `PayoutService` (two-phase: reserve→transfer→finalize/refund), `MerchantWebhookService`/`MerchantWebhookDispatcher`/`MerchantWebhookClient`.
+- `nomba/` — provider integration, rebuilt the Spring Boot 4 way: `NombaConfig` builds one `RestClient` per `Environment` (base URL + auth interceptor baked in) exposed via `NombaRestClients`; `NombaAuthProvider` (env-keyed token cache, own bare client); thin `@Component` clients `NombaVirtualAccountClient`, `NombaTransactionClient`, `NombaTransferClient` (payouts/bank lookup/list), `NombaBalanceClient`; `NombaApiUri` (path catalog); `NombaWebhookAdapter`, `service/NombaWebhookService`, `service/NombaSignatureService`, `utils/NombaCurrencyUtil` (canonical naira→kobo), `dto/`. (There is no more per-merchant `NombaClient`/`NombaAuthenticationService`/`NombaCredentials`/`CredentialMapper`.)
+- `models/entities/` — JPA entities (all extend `BaseEntity`; `AuditConfig` provides auditing): `Merchant` (no Nomba creds; per-env outbound `webhookConfigs`), `MerchantCustomer` (`externalCustomerId` unique per merchant, doubles as the Nomba `accountRef`; `status`/`kycTier`), `VirtualAccount` (1:1 to `MerchantCustomer`), `Transaction`, `NombaPaymentEvent` (idempotent by `requestId`), `Wallet` (per merchant+environment, `@Version`), `LedgerEntry` (signed kobo, double-entry), `Beneficiary`, `Payout`, `MerchantWebhookEvent` + `WebhookDelivery`, `ApiKey`, `Token`. Money is always `BigInteger` kobo.
 - `models/requests/` + `models/responses/` — API DTOs. All responses use the `CyrusApiResponse<T>` envelope with a `ResponseCode`. `models/dto/` — internal (non-API) DTOs, e.g. `NormalizedPaymentEvent`, `DeliveryOutcome`, or a snapshot record carried from a read phase into a write phase across an external call (`CustomerRenameSnapshot`, `CustomerStatusSnapshot`). **Prefer a dedicated file over a record inlined in a service** — only inline one when that's what actually keeps the surrounding method clean (e.g. a truly single-use, throwaway shape), not as the default.
 - `config/` — `NombaConfig`, `ResendConfig`, `SwaggerConfig`, `AuditConfig`; `config/security/` (auth, below); `config/properties/` — typed `@ConfigurationProperties` (`AppProperties`, `NombaProperties`, `ResendProperties`, `RsaKeyProperties`, `CorsProperties`).
-- `enums/` — domain enums: `KycTier`, `CustomerStatus`, `MerchantStatus`, `VirtualAccountStatus`, `EventStatus`, `MatchStatus`, `TransactionStatus`, `ReconciliationOutcome`, `MerchantWebhookStatus`, `MerchantWebhookEventType`, `ApiKeyStatus`, `Environment`, `Provider`, `ResponseCode`.
+- `enums/` — domain enums: `KycTier` (`TIER_1/2/3`), `MerchantCustomerStatus`, `MerchantStatus`, `VirtualAccountStatus`, `TransactionStatus`, `TransactionType`, `MatchStatus`, `ReconciliationOutcome`, `NombaPaymentEventType`/`NombaPaymentEventStatus`/`ReconciliationFailureReason`, `LedgerEntryType`, `PayoutStatus`, `CurrencyCode`, `MerchantWebhookStatus`, `MerchantWebhookEventType`, `ApiKeyStatus`, `Environment`, `Provider`, `ResponseCode`.
 - `exception/` — `GlobalExceptionHandler` (`@RestControllerAdvice`) + typed exceptions (incl. `InvalidWebhookUrlException` → 400, `InvalidPaymentEventStateException` → 409, `InvalidCustomerStateException` → 409); return errors through it, not ad-hoc responses.
 - `utils/` — `CryptoUtil`, `Mapper`, `WebhookUrlValidator` (SSRF guard — rejects loopback/link-local/private/multicast targets for merchant webhook URLs).
 
@@ -103,7 +115,7 @@ Reconciliation accuracy and developer API quality remain the priority surface.
 - **Error contract:** failures use the `CyrusApiResponse` envelope (`code`, `description`, `message`, `status:false`, `timestamp`). The `data` field carries an `ErrorDetails` **only when it adds something beyond the envelope** — `fieldErrors` on validation (400) or a `traceId` on server/upstream errors (5xx); plain client errors have no `data`. Handlers log the actual throwable and return a **client-safe message** — never leak stack traces or raw provider payloads. Client (4xx) errors log the exception at `warn`; 5xx errors log at `error` with a short `traceId` echoed to the caller for support correlation. **Add a handler here rather than catching in services**, and don't log-before-throwing in services: the handler always logs the throwable, so a bare `throw` is enough to be diagnosable.
 - Use the `config/properties` `@ConfigurationProperties` types for config access — don't scatter `@Value` reads.
 - Prefer the provider abstraction (`nomba/`, `Provider` enum) over hard-coding Nomba specifics when adding provider-facing logic.
-- **Never hold a DB transaction open across an external (Nomba) HTTP call** — it ties up the connection and holds locks for the provider's latency. Pattern: resolve/**materialize** what the call needs inside a short read-only tx (see `MerchantService.getNombaCredentials`), make the HTTP call with no tx open, then persist results in a separate short tx. Use `TransactionTemplate` (not a self-invoked `@Transactional` method — Spring's proxy ignores self-calls and non-public methods). Watch `Merchant`'s lazy `@ElementCollection`s (`nombaCredentials`, `nombaSubAccountIds`): with `open-in-view: false` they must be materialized before the tx closes or you'll hit `LazyInitializationException` (`CredentialMapper.fromMerchant` copies them for this reason).
+- **Never hold a DB transaction open across an external (Nomba) HTTP call** — it ties up the connection and holds locks for the provider's latency. Pattern: **materialize** what the call needs inside a short read-only tx (into a detached snapshot record — e.g. `CustomerRenameSnapshot`/`CustomerStatusSnapshot`), make the HTTP call with no tx open, then persist results in a separate short tx. Use `TransactionTemplate` (not a self-invoked `@Transactional` method — Spring's proxy ignores self-calls). Live examples: `CustomerService.rename`/`updateStatus` (read snapshot → Nomba VA rename/expire → persist) and `PayoutService` (reserve funds in a tx → Nomba transfer with no tx open → finalize/refund in a tx). With `open-in-view: false`, any lazy association must be read before its tx closes or you'll hit `LazyInitializationException`.
 - **Money uses `BigInteger`, always in minor units (kobo) — never naira, never floating-point.** ₦1 = 100 kobo; represent, compute, and persist every amount as integer kobo in a `BigInteger`. Do **not** use `float`/`double` for money, and do **not** store major-unit naira. Convert to naira only at the display edge (e.g. frontend), never in stored values or arithmetic.
   - **Provider boundary:** Nomba reports amounts in **naira** as a decimal string (e.g. `"281946.0"`), so scale ×100 to kobo when data crosses into Cyrus — the canonical conversion is `NombaCurrencyUtil.nairaToKobo(...)` (`BigDecimal.movePointRight(2)` → `HALF_EVEN` → `BigInteger`), used by webhook ingestion, requery, and balance checks alike. Convert via that single helper, don't re-implement it.
 - Lombok is enabled; match the existing annotation style.
