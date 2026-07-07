@@ -52,8 +52,7 @@ public class NombaConfig {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
         factory.setReadTimeout(Duration.ofMillis(props.timeoutMs()));
 
-        NombaProperties.Credentials creds = props.credentials(env);
-        String accountId = creds != null ? creds.accountId() : null;
+        String accountId = props.accountId();
 
         return RestClient.builder()
                 .baseUrl(props.baseUrl(env))

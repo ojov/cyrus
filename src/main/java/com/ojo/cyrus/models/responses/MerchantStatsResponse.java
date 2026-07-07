@@ -1,8 +1,11 @@
 package com.ojo.cyrus.models.responses;
 
-/** Operational counts for the admin dashboard. */
+import java.math.BigInteger;
+
+/** Operational snapshot for the merchant dashboard. Wallet balances are integer kobo. */
 public record MerchantStatsResponse(
         long customers,
         long virtualAccounts,
-        boolean liveModeActive
+        BigInteger testWalletBalance,
+        BigInteger liveWalletBalance
 ) {}

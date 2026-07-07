@@ -1,18 +1,15 @@
 package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.config.properties.AppProperties;
-import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantStatus;
 import com.ojo.cyrus.enums.TokenType;
 import com.ojo.cyrus.exception.EntityNotFoundException;
-import com.ojo.cyrus.models.NombaCredential;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.Token;
 import com.ojo.cyrus.models.requests.LoginRequest;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
 import com.ojo.cyrus.models.responses.LoginResponse;
 import com.ojo.cyrus.models.responses.MerchantRegistrationResponse;
-import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -37,18 +34,16 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final AppProperties appProperties;
+    private final WalletService walletService;
 
     public MerchantRegistrationResponse register(MerchantRegistrationRequest request) {
         merchantService.validateMerchantExists(request);
-        String encodedPassword = passwordEncoder.encode(request.password());
         Merchant merchantEntity = mapToMerchantEntity(request);
-        merchantEntity.setPasswordHash(encodedPassword);
-        if (request.nombaClientSecret() != null) {
-            String encrypted = CryptoUtil.encrypt(request.nombaClientSecret(), appProperties.encryptionKey());
-            merchantEntity.getNombaCredentials().put(Environment.TEST,
-                    new NombaCredential(request.nombaClientId(), encrypted));
-        }
+        merchantEntity.setPasswordHash(passwordEncoder.encode(request.password()));
         Merchant merchant = merchantService.save(merchantEntity);
+        // Provision the merchant's TEST + LIVE wallets up front so payment credits always have a
+        // wallet to post against.
+        walletService.provisionWallets(merchant);
         sendVerificationEmail(merchant);
         String jwt = tokenService.generateToken(merchant.getBusinessEmail(), "ROLE_MERCHANT");
         return new MerchantRegistrationResponse(merchant.getId(), merchant.getBusinessName(),

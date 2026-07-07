@@ -1,7 +1,7 @@
 package com.ojo.cyrus.models.responses;
 
-import com.ojo.cyrus.enums.CustomerStatus;
 import com.ojo.cyrus.enums.KycTier;
+import com.ojo.cyrus.enums.MerchantCustomerStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
@@ -19,7 +19,7 @@ public record CustomerResponse(
         String lastName,
         String email,
         String phoneNumber,
-        CustomerStatus status,
+        MerchantCustomerStatus status,
         KycTier kycTier,
 
         @Schema(description = "The dedicated virtual account provisioned for this customer")

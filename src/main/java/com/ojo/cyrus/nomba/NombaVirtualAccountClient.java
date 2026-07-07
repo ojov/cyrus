@@ -37,7 +37,7 @@ public class NombaVirtualAccountClient {
         String idempotentKey = CryptoUtil.sha256("va-create:" + env + ":" + request.accountRef());
         log.info("Creating virtual account on Nomba ({}) [idempotency: {}]", env, idempotentKey);
 
-        String sub = subAccountId(env);
+        String sub = props.subAccountId();
         boolean underSub = sub != null && !sub.isBlank();
         String path = underSub ? NombaApiUri.VIRTUAL_ACCOUNT_UNDER_SUBACCOUNT.path() : NombaApiUri.VIRTUAL_ACCOUNT.path();
         Object[] uriVars = underSub ? new Object[]{sub} : new Object[0];
@@ -89,10 +89,5 @@ public class NombaVirtualAccountClient {
             throw new NombaIntegrationException("Nomba did not confirm expiry for account " + accountRef);
         }
         log.info("Expired virtual account {} on Nomba ({})", accountRef, env);
-    }
-
-    private String subAccountId(Environment env) {
-        NombaProperties.Credentials creds = props.credentials(env);
-        return creds != null ? creds.subAccountId() : null;
     }
 }

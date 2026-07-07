@@ -1,12 +1,16 @@
 package com.ojo.cyrus.utils;
 
-import com.ojo.cyrus.enums.*;
-import com.ojo.cyrus.models.NombaCredential;
+import com.ojo.cyrus.enums.CurrencyCode;
+import com.ojo.cyrus.enums.Environment;
+import com.ojo.cyrus.enums.MatchStatus;
+import com.ojo.cyrus.enums.MerchantStatus;
+import com.ojo.cyrus.enums.TransactionStatus;
+import com.ojo.cyrus.enums.TransactionType;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
-import com.ojo.cyrus.models.entities.Customer;
 import com.ojo.cyrus.models.entities.Merchant;
+import com.ojo.cyrus.models.entities.MerchantCustomer;
 import com.ojo.cyrus.models.entities.MerchantWebhookEvent;
-import com.ojo.cyrus.models.entities.PaymentEvent;
+import com.ojo.cyrus.models.entities.NombaPaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
@@ -19,13 +23,15 @@ import com.ojo.cyrus.nomba.dto.NombaCreateVirtualAccountRequest;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
 import lombok.experimental.UtilityClass;
 
+import java.util.UUID;
+
 @UtilityClass
 public class Mapper {
 
-    public static Customer toCustomer(Merchant merchant, CreateCustomerRequest request) {
-        return Customer.builder()
+    public static MerchantCustomer toMerchantCustomer(Merchant merchant, CreateCustomerRequest request) {
+        return MerchantCustomer.builder()
                 .merchant(merchant)
-                .reference(request.reference())
+                .externalCustomerId(request.reference())
                 .firstName(request.firstName())
                 .lastName(request.lastName())
                 .email(request.email())
@@ -33,33 +39,35 @@ public class Mapper {
                 .build();
     }
 
-    public static NombaCreateVirtualAccountRequest toNombaRequest(Customer customer, String bvn) {
-        String accountName = customer.getLastName() != null && !customer.getLastName().isBlank()
-                ? customer.getFirstName() + " " + customer.getLastName()
-                : customer.getFirstName();
-        return new NombaCreateVirtualAccountRequest(customer.getReference(), accountName, bvn);
+    /** Builds the Nomba VA-creation request. {@code accountRef} is the customer's externalCustomerId. */
+    public static NombaCreateVirtualAccountRequest toNombaRequest(MerchantCustomer customer, String bvn) {
+        return new NombaCreateVirtualAccountRequest(customer.getExternalCustomerId(), accountName(customer), bvn);
     }
 
-    public static VirtualAccount toVirtualAccount(Merchant merchant, Customer customer, NombaVirtualAccountData data,
-                                                   Environment env) {
+    /** The bank-account holder name derived from the customer's name (first + last when present). */
+    public static String accountName(MerchantCustomer customer) {
+        return (customer.getLastName() != null && !customer.getLastName().isBlank())
+                ? customer.getFirstName() + " " + customer.getLastName()
+                : customer.getFirstName();
+    }
+
+    public static VirtualAccount toVirtualAccount(MerchantCustomer customer, NombaVirtualAccountData data,
+                                                  Environment env) {
         return VirtualAccount.builder()
-                .merchant(merchant)
-                .customer(customer)
+                .merchantCustomer(customer)
                 .accountNumber(data.bankAccountNumber())
                 .accountName(data.bankAccountName())
                 .bankName(data.bankName())
-                .currency(data.currency())
-                .provider(Provider.NOMBA)
+                .currency(CurrencyCode.NGN)
                 .providerReference(data.accountHolderId())
-                .status(VirtualAccountStatus.ACTIVE)
                 .environment(env)
                 .build();
     }
 
-    public static CustomerResponse toCustomerResponse(Customer customer, VirtualAccount va) {
+    public static CustomerResponse toCustomerResponse(MerchantCustomer customer, VirtualAccount va) {
         return new CustomerResponse(
                 customer.getId(),
-                customer.getReference(),
+                customer.getExternalCustomerId(),
                 customer.getFirstName(),
                 customer.getLastName(),
                 customer.getEmail(),
@@ -71,7 +79,7 @@ public class Mapper {
                         va.getAccountNumber(),
                         va.getAccountName(),
                         va.getBankName(),
-                        va.getCurrency(),
+                        va.getCurrency().name(),
                         va.getStatus().name()
                 ),
                 customer.getCreatedAt()
@@ -79,34 +87,29 @@ public class Mapper {
     }
 
     public static Merchant mapToMerchantEntity(MerchantRegistrationRequest request) {
-        Merchant merchant = Merchant.builder()
+        return Merchant.builder()
                 .businessName(request.businessName())
                 .businessEmail(request.businessEmail())
                 .passwordHash(request.password())
-                .nombaParentAccountId(request.nombaParentAccountId())
-                .nombaSubAccountIds(request.subAccountIds())
                 .status(MerchantStatus.PENDING_VERIFICATION)
                 .build();
-
-        if (request.nombaClientId() != null) {
-            merchant.getNombaCredentials().put(Environment.TEST,
-                    new NombaCredential(request.nombaClientId(), request.nombaClientSecret()));
-        }
-
-        return merchant;
     }
-    public static Transaction buildTransaction(NormalizedPaymentEvent event, String rawPayload, Customer customer, VirtualAccount va, NormalizedPaymentEvent.Payer payer, PaymentEvent paymentEvent) {
-        Transaction tx = Transaction.builder()
+
+    public static Transaction buildTransaction(NormalizedPaymentEvent event, String rawPayload,
+                                               MerchantCustomer customer, VirtualAccount va,
+                                               NormalizedPaymentEvent.Payer payer, NombaPaymentEvent paymentEvent) {
+        return Transaction.builder()
                 .merchant(customer.getMerchant())
                 .customer(customer)
                 .virtualAccount(va)
-                .provider(event.getProvider())
+                .type(TransactionType.CUSTOMER_PAYMENT)
+                .reference(generateReference("txn"))
                 .providerTransactionId(event.getProviderTransactionId())
                 .requestId(paymentEvent.getRequestId())
                 .sessionId(event.getSessionId())
                 .amount(event.getAmount())
                 .fee(event.getFee())
-                .currency(event.getCurrency())
+                .currency(CurrencyCode.NGN)
                 .environment(va.getEnvironment())
                 .payerName(payer != null ? payer.getName() : null)
                 .payerAccountNumber(payer != null ? payer.getAccountNumber() : null)
@@ -119,7 +122,11 @@ public class Mapper {
                 .receivedAt(event.getEventTime())
                 .rawPayload(rawPayload)
                 .build();
-        return tx;
+    }
+
+    /** A short, unique, developer-facing reference, e.g. {@code txn_a1b2c3...}. */
+    public static String generateReference(String prefix) {
+        return prefix + "_" + UUID.randomUUID().toString().replace("-", "");
     }
 
     public static WebhookDeliveryItem toWebhookDeliveryItem(MerchantWebhookEvent event) {
@@ -140,26 +147,24 @@ public class Mapper {
                 event.getCreatedAt());
     }
 
-    public static PaymentEventListItem toPaymentEventListItem(PaymentEvent event) {
+    public static PaymentEventListItem toPaymentEventListItem(NombaPaymentEvent event) {
         return new PaymentEventListItem(
                 event.getId(),
                 event.getRequestId(),
-                event.getProvider(),
                 event.getEventType(),
                 event.getStatus(),
                 event.getStatusDetails(),
                 event.getCreatedAt());
     }
 
-    public static PaymentEventResponse toPaymentEventResponse(PaymentEvent event) {
+    public static PaymentEventResponse toPaymentEventResponse(NombaPaymentEvent event) {
         return new PaymentEventResponse(
                 event.getId(),
                 event.getRequestId(),
-                event.getProvider(),
                 event.getEventType(),
                 event.getStatus(),
                 event.getStatusDetails(),
-                event.getPayload(),
+                event.getRawPayload(),
                 event.getCreatedAt());
     }
 }

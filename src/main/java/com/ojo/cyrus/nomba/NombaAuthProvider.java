@@ -73,7 +73,7 @@ public class NombaAuthProvider {
 
         NombaApiResponse<NombaTokenData> response = authRestClient.post()
                 .uri(props.baseUrl(env) + NombaApiUri.TOKEN_ISSUE.path())
-                .header("accountId", creds.accountId())
+                .header("accountId", props.accountId())
                 .body(new NombaTokenRequest("client_credentials", creds.clientId(), creds.clientSecret()))
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});

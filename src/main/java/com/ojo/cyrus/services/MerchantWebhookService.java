@@ -4,7 +4,7 @@ import com.ojo.cyrus.enums.Environment;
 import com.ojo.cyrus.enums.MerchantWebhookEventType;
 import com.ojo.cyrus.enums.MerchantWebhookStatus;
 import com.ojo.cyrus.models.WebhookConfig;
-import com.ojo.cyrus.models.entities.Customer;
+import com.ojo.cyrus.models.entities.MerchantCustomer;
 import com.ojo.cyrus.models.entities.MerchantWebhookEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
@@ -112,14 +112,14 @@ public class MerchantWebhookService {
         } else {
             data.putNull("feeKobo");
         }
-        data.put("currency", tx.getCurrency());
+        data.put("currency", tx.getCurrency() != null ? tx.getCurrency().name() : null);
         data.put("status", tx.getStatus() != null ? tx.getStatus().name() : null);
         data.put("matchStatus", tx.getMatchStatus() != null ? tx.getMatchStatus().name() : null);
         data.put("sessionId", tx.getSessionId());
         data.put("providerTransactionId", tx.getProviderTransactionId());
 
-        Customer customer = tx.getCustomer();
-        data.put("customerReference", customer != null ? customer.getReference() : null);
+        MerchantCustomer customer = tx.getCustomer();
+        data.put("customerReference", customer != null ? customer.getExternalCustomerId() : null);
         VirtualAccount va = tx.getVirtualAccount();
         data.put("virtualAccountNumber", va != null ? va.getAccountNumber() : null);
 

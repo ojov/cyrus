@@ -1,6 +1,6 @@
 package com.ojo.cyrus.models.requests;
 
-import com.ojo.cyrus.enums.CustomerStatus;
+import com.ojo.cyrus.enums.MerchantCustomerStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 
@@ -13,5 +13,5 @@ import jakarta.validation.constraints.NotNull;
 public record UpdateCustomerStatusRequest(
         @Schema(description = "The status to set")
         @NotNull(message = "Status is required")
-        CustomerStatus status
+        MerchantCustomerStatus status
 ) {}
