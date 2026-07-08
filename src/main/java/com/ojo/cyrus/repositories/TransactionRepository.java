@@ -3,8 +3,6 @@ package com.ojo.cyrus.repositories;
 import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.models.entities.Transaction;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -59,22 +57,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             """)
     BigInteger sumAmountByMerchantAndStatus(@Param("merchantId") UUID merchantId,
                                             @Param("status") TransactionStatus status);
-
-    // Customer statement, filterable: from/to/matchStatus are all optional (null = no filter on
-    // that field) — a single query covers the unfiltered case and every combination of filters.
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE t.customer.id = :customerId
-            AND (:from IS NULL OR t.receivedAt >= :from)
-            AND (:to IS NULL OR t.receivedAt <= :to)
-            AND (:matchStatus IS NULL OR t.matchStatus = :matchStatus)
-            ORDER BY t.receivedAt DESC
-            """)
-    Page<Transaction> findStatementRows(@Param("customerId") UUID customerId,
-                                        @Param("from") Instant from,
-                                        @Param("to") Instant to,
-                                        @Param("matchStatus") MatchStatus matchStatus,
-                                        Pageable pageable);
 
     @Query("""
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t

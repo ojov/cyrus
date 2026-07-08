@@ -29,7 +29,10 @@ import com.ojo.cyrus.utils.Mapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
@@ -100,8 +103,24 @@ public class CustomerService {
         VirtualAccount va = requireVirtualAccount(customer.getId());
         UUID customerId = customer.getId();
 
-        Page<Transaction> transactions =
-                transactionRepository.findStatementRows(customerId, from, to, matchStatus, pageable);
+        // Built via Specification rather than a `(:param IS NULL OR ...)` JPQL guard — Postgres's
+        // JDBC driver can't infer a bind parameter's type when the value is actually null and the
+        // only context is an `IS NULL` check (a real "could not determine data type of parameter"
+        // failure, caught live). Specification simply omits the predicate for an absent filter, so
+        // no null ever gets bound for a skipped one.
+        Specification<Transaction> spec = (root, query, cb) -> cb.equal(root.get("customer").get("id"), customerId);
+        if (from != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("receivedAt"), from));
+        }
+        if (to != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("receivedAt"), to));
+        }
+        if (matchStatus != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("matchStatus"), matchStatus));
+        }
+        Pageable sorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "receivedAt"));
+        Page<Transaction> transactions = transactionRepository.findAll(spec, sorted);
 
         StatementSummaryResponse summary = new StatementSummaryResponse(
                 transactionRepository.sumAmountByCustomerAndStatus(customerId, TransactionStatus.SUCCESSFUL),
