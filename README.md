@@ -10,11 +10,24 @@ per-merchant wallet (double-entry ledger), and lets you pay them back out — wi
 touching Nomba credentials directly. Cyrus holds one Nomba account; every merchant on Cyrus gets a
 single API key, a wallet, and a webhook config.
 
-**Live API:** [https://api.trycyrus.app](https://api.trycyrus.app)
-**API Reference:** [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) — generated live
-from the running API (via [Scalar](https://scalar.com)), always in sync with what's actually deployed.
-**Developer docs / dashboard:** [https://trycyrus.app](https://trycyrus.app)
+**Dashboard:** [https://trycyrus.app](https://trycyrus.app) — ops dashboard + developer documentation
+**API Reference:** [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) — live Scalar UI,
+test every endpoint directly with your API key via the "Authorize" button
 
+---
+
+## 🧪 Reviewer Quick Start
+
+Jump straight in without creating an account:
+
+| Resource | Value |
+|---|---|
+| **Login email** | `oticconsults@gmail.com` |
+| **Login password** | `A4@cyrusprod` |
+| **API key** | `cyrus_9fxz-ZEGPxaRQZmsFpN91O7qJTDW5Vq0p1u6buZkiqI` |
+| **API Reference** | [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) |
+
+Test the API key directly in the Scalar UI at [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) 
 ---
 
 ## ✨ Key Features
@@ -36,8 +49,7 @@ from the running API (via [Scalar](https://scalar.com)), always in sync with wha
 
 - **Framework:** Spring Boot 4.1.0 · **Language:** Java 25
 - **Security:** Spring Security (OAuth2 Resource Server, RSA-signed JWT) + API-key auth
-- **Database:** PostgreSQL + Spring Data JPA/Hibernate (`ddl-auto: update` — Flyway is a dependency but
-  disabled while the schema is still churning; see `AGENTS.md`)
+- **Database:** PostgreSQL + Spring Data JPA/Hibernate + Flyway (schema migrations, `ddl-auto: validate`)
 - **Background jobs:** JobRunr (outbound merchant webhook delivery retries only — reconciliation runs
   via `@Async`/`@Scheduled` on virtual threads, not JobRunr)
 - **Email:** Resend · **API docs:** springdoc OpenAPI + Scalar
