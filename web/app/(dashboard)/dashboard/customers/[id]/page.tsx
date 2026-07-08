@@ -23,9 +23,16 @@ export default function CustomerDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
 
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [matchStatus, setMatchStatus] = useState("");
+  // Draft state bound to the filter inputs — kept separate from the applied state below so
+  // picking a date doesn't refetch until "Apply" is actually clicked.
+  const [fromInput, setFromInput] = useState("");
+  const [toInput, setToInput] = useState("");
+  const [matchStatusInput, setMatchStatusInput] = useState("");
+
+  // Applied state — only this feeds `load`'s dependency array / the actual API call.
+  const [appliedFrom, setAppliedFrom] = useState("");
+  const [appliedTo, setAppliedTo] = useState("");
+  const [appliedMatchStatus, setAppliedMatchStatus] = useState("");
   const [page, setPage] = useState(0);
 
   const load = useCallback(async () => {
@@ -33,9 +40,12 @@ export default function CustomerDetailPage() {
     setError(null);
     try {
       const res = await customerApi.getStatement(reference, {
-        from: from ? new Date(from).toISOString() : undefined,
-        to: to ? new Date(to).toISOString() : undefined,
-        matchStatus: matchStatus || undefined,
+        // Start of the selected day (UTC) — "from" only needs a lower bound.
+        from: appliedFrom ? new Date(`${appliedFrom}T00:00:00.000Z`).toISOString() : undefined,
+        // End of the selected day (UTC), not midnight — otherwise "to: 5 Jul" would exclude
+        // almost all of the 5th itself, since the backend filter is inclusive (`receivedAt <= to`).
+        to: appliedTo ? new Date(`${appliedTo}T23:59:59.999Z`).toISOString() : undefined,
+        matchStatus: appliedMatchStatus || undefined,
         page,
         size: PAGE_SIZE,
       });
@@ -51,7 +61,7 @@ export default function CustomerDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [reference, from, to, matchStatus, page]);
+  }, [reference, appliedFrom, appliedTo, appliedMatchStatus, page]);
 
   useEffect(() => {
     Promise.resolve().then(load);
@@ -59,13 +69,19 @@ export default function CustomerDetailPage() {
 
   function applyFilters(e: React.FormEvent) {
     e.preventDefault();
+    setAppliedFrom(fromInput);
+    setAppliedTo(toInput);
+    setAppliedMatchStatus(matchStatusInput);
     setPage(0);
   }
 
   function clearFilters() {
-    setFrom("");
-    setTo("");
-    setMatchStatus("");
+    setFromInput("");
+    setToInput("");
+    setMatchStatusInput("");
+    setAppliedFrom("");
+    setAppliedTo("");
+    setAppliedMatchStatus("");
     setPage(0);
   }
 
@@ -181,22 +197,22 @@ export default function CustomerDetailPage() {
           <form onSubmit={applyFilters} className="flex flex-wrap items-center gap-2">
             <input
               type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              value={fromInput}
+              onChange={(e) => setFromInput(e.target.value)}
               className="rounded-md border border-border bg-muted px-2.5 py-1.5 text-xs outline-none focus:border-primary"
               aria-label="From date"
             />
             <span className="text-xs text-muted-foreground">to</span>
             <input
               type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
+              value={toInput}
+              onChange={(e) => setToInput(e.target.value)}
               className="rounded-md border border-border bg-muted px-2.5 py-1.5 text-xs outline-none focus:border-primary"
               aria-label="To date"
             />
             <select
-              value={matchStatus}
-              onChange={(e) => setMatchStatus(e.target.value)}
+              value={matchStatusInput}
+              onChange={(e) => setMatchStatusInput(e.target.value)}
               className="rounded-md border border-border bg-muted px-2.5 py-1.5 text-xs outline-none focus:border-primary"
               aria-label="Match status"
             >
@@ -211,7 +227,7 @@ export default function CustomerDetailPage() {
             >
               Apply
             </button>
-            {(from || to || matchStatus) && (
+            {(fromInput || toInput || matchStatusInput) && (
               <button
                 type="button"
                 onClick={clearFilters}

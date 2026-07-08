@@ -120,10 +120,17 @@ export interface BeneficiaryItem {
   createdAt: string;
 }
 
+export interface BankItem {
+  code: string;
+  name: string;
+}
+
 export const beneficiaryApi = {
   list: () => api.get<{ data: BeneficiaryItem[] }>("/v1/merchants/me/beneficiaries"),
   create: (payload: { nickname: string; accountNumber: string; bankCode: string; bankName: string }) =>
     api.post<{ data: BeneficiaryItem }>("/v1/merchants/me/beneficiaries", payload),
+  // The bank code must come from here, not be hand-typed — it's what a payout transfer is keyed by.
+  listBanks: () => api.get<{ data: BankItem[] }>("/v1/merchants/me/beneficiaries/banks"),
 };
 
 // ---- Payouts ----
