@@ -3,6 +3,17 @@ export function cn(...classes: Array<string | false | null | undefined>): string
   return classes.filter(Boolean).join(" ");
 }
 
+/**
+ * Validates a post-login redirect target before it's ever passed to `router.push`. Without this,
+ * a `?callbackUrl=` query param is an open-redirect vector: an attacker-crafted link could send a
+ * user through a real login and then off to an external phishing page. Requiring the `/ops` prefix
+ * (the only auth-gated area) is a strict allowlist — it also rules out protocol-relative URLs
+ * (`//evil.com`) and absolute URLs (`https://evil.com`), since neither starts with that string.
+ */
+export function safeOpsCallback(callbackUrl: string | null): string | null {
+  return callbackUrl && callbackUrl.startsWith("/ops") ? callbackUrl : null;
+}
+
 /** Format integer kobo (minor units) as a naira string, e.g. 5000000 → "₦50,000.00". */
 export function naira(kobo: number): string {
   return "₦" + (kobo / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

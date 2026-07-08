@@ -32,7 +32,7 @@ export default function BeneficiariesPage() {
 
   useEffect(() => {
     if (form.accountNumber.trim().length < 10 || banks.length > 0) return;
-    setLoadingBanks(true);
+    Promise.resolve().then(() => setLoadingBanks(true));
     beneficiaryApi.listBanks()
       .then((res) => setBanks(res.data ?? []))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load bank list"))
