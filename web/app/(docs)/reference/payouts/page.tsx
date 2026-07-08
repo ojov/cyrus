@@ -29,8 +29,11 @@ export default function PayoutsReferencePage() {
       </p>
       <h3>Register a beneficiary first</h3>
       <p>
-        A beneficiary is the destination bank account. Cyrus verifies the account name against Nomba when you add one, so
-        you always see the real account holder before sending money.
+        A beneficiary is the destination bank account. Its <code>bankCode</code> should come from{" "}
+        <code>GET /v1/merchants/me/beneficiaries/banks</code> rather than being hand-typed — that&apos;s the exact list
+        Nomba recognizes at transfer time, so a mistyped code can never make it into a saved beneficiary. Cyrus also
+        verifies the account name against Nomba when you add one, so you always see the real account holder before
+        sending money.
       </p>
       <Code>{`POST /v1/merchants/me/beneficiaries
 {
