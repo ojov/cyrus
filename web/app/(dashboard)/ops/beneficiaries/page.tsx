@@ -12,13 +12,13 @@ export default function BeneficiariesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [loadingBanks, setLoadingBanks] = useState(false);
   const [form, setForm] = useState({ nickname: "", accountNumber: "", bankCode: "" });
 
   const load = useCallback(async () => {
     try {
-      const [beneficiaries, bankList] = await Promise.all([beneficiaryApi.list(), beneficiaryApi.listBanks()]);
-      setItems(beneficiaries.data ?? []);
-      setBanks(bankList.data ?? []);
+      const res = await beneficiaryApi.list();
+      setItems(res.data ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load beneficiaries");
     } finally {
@@ -30,6 +30,15 @@ export default function BeneficiariesPage() {
     Promise.resolve().then(load);
   }, [load]);
 
+  useEffect(() => {
+    if (form.accountNumber.trim().length < 10 || banks.length > 0) return;
+    setLoadingBanks(true);
+    beneficiaryApi.listBanks()
+      .then((res) => setBanks(res.data ?? []))
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load bank list"))
+      .finally(() => setLoadingBanks(false));
+  }, [form.accountNumber, banks.length]);
+
   function set(key: keyof typeof form) {
     return (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
   }
@@ -38,6 +47,10 @@ export default function BeneficiariesPage() {
     const bank = banks.find((b) => b.code === form.bankCode);
     if (!form.nickname.trim() || !form.accountNumber.trim() || !bank) {
       setError("Fill in every field, including selecting a bank.");
+      return;
+    }
+    if (loadingBanks) {
+      setError("Please wait for the bank list to finish loading.");
       return;
     }
     setCreating(true);
@@ -81,7 +94,9 @@ export default function BeneficiariesPage() {
           <input className={field} placeholder="Nickname (e.g. Main GTBank)" value={form.nickname} onChange={set("nickname")} />
           <input className={field} placeholder="Account number" value={form.accountNumber} onChange={set("accountNumber")} />
           <select className={`${field} col-span-2`} value={form.bankCode} onChange={set("bankCode")}>
-            <option value="">Select bank…</option>
+            <option value="">
+              {banks.length > 0 ? "Select bank…" : loadingBanks ? "Loading banks…" : "Enter account number first"}
+            </option>
             {banks.map((b) => (
               <option key={b.code} value={b.code}>{b.name}</option>
             ))}
@@ -90,10 +105,10 @@ export default function BeneficiariesPage() {
         <button
           type="button"
           onClick={create}
-          disabled={creating || banks.length === 0}
+          disabled={creating || loadingBanks || banks.length === 0}
           className="mt-3 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
         >
-          {creating ? "Adding…" : "+ Add beneficiary"}
+          {creating ? "Adding…" : loadingBanks ? "Loading banks…" : "+ Add beneficiary"}
         </button>
       </div>
 
