@@ -71,9 +71,14 @@ public class BeneficiaryService {
      * actually recognizes at transfer time.
      */
     public List<BankResponse> listBanks() {
-        return nombaTransferClient.listBanks().stream()
-                .map(b -> new BankResponse(b.code(), b.name()))
-                .toList();
+        try {
+            return nombaTransferClient.listBanks().stream()
+                    .map(b -> new BankResponse(b.code(), b.name()))
+                    .toList();
+        } catch (RuntimeException e) {
+            log.warn("Failed to fetch bank list from Nomba, returning empty: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     @Transactional(readOnly = true)

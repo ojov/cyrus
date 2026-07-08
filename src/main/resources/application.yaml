@@ -98,7 +98,7 @@ app:
     # Comma-separated origins (Spring binds a comma-separated value to the list). No trailing
     # slashes — each must match the browser Origin header exactly. Override via CORS_ALLOWED_ORIGINS
     # (e.g. to add Vercel preview URLs).
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://trycyrus.app}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://trycyrus.app,https://api.trycyrus.app}
     allowed-methods:
       - GET
       - POST

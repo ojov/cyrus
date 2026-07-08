@@ -33,7 +33,7 @@ public class CustomerController {
 
     @Operation(
             summary = "Create a customer",
-            description = "Creates a customer record and immediately provisions a dedicated virtual account via your connected payment provider.",
+            description = "Creates a customer record and immediately provisions a dedicated virtual account for your customer to make payments to you.",
             security = @SecurityRequirement(name = "ApiKeyAuth")
     )
     @PostMapping
