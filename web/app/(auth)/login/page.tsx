@@ -1,16 +1,27 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { authApi } from "@/lib/api";
 import { saveSession } from "@/lib/auth";
+import { safeOpsCallback } from "@/lib/utils";
 import { AuthCard, AuthCardHeader } from "@/components/auth/auth-card";
 import { Field } from "@/components/auth/form-field";
 import { FormError } from "@/components/auth/form-error";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = safeOpsCallback(searchParams.get("callbackUrl"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,7 +41,7 @@ export default function LoginPage() {
         businessName: res.data.businessName,
         businessEmail: res.data.businessEmail,
       });
-      router.push("/ops");
+      router.push(callbackUrl ?? "/ops");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
       setBusy(false);
@@ -96,7 +107,7 @@ export default function LoginPage() {
         <span className="h-px flex-1 bg-border" />
       </div>
       <Link
-        href="/register"
+        href={callbackUrl ? `/register?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/register"}
         className="block w-full rounded-lg border border-border px-3 py-2.5 text-center text-sm font-semibold transition hover:bg-accent"
       >
         Create an account

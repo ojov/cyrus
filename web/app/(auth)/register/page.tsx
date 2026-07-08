@@ -1,16 +1,27 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { authApi } from "@/lib/api";
 import { saveSession } from "@/lib/auth";
+import { safeOpsCallback } from "@/lib/utils";
 import { AuthCard, AuthCardHeader } from "@/components/auth/auth-card";
 import { Field } from "@/components/auth/form-field";
 import { FormError } from "@/components/auth/form-error";
 
 export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = safeOpsCallback(searchParams.get("callbackUrl"));
   const [form, setForm] = useState({ businessName: "", businessEmail: "", password: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +41,7 @@ export default function RegisterPage() {
         businessName: res.data.businessName,
         businessEmail: res.data.businessEmail,
       });
-      router.push("/ops");
+      router.push(callbackUrl ?? "/ops");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
       setBusy(false);
@@ -57,7 +68,10 @@ export default function RegisterPage() {
 
       <p className="mt-4 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-primary hover:underline">
+        <Link
+          href={callbackUrl ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/login"}
+          className="font-semibold text-primary hover:underline"
+        >
           Sign in
         </Link>
       </p>

@@ -13,7 +13,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    dashboardApi.stats().catch(() => router.replace("/login"));
+    dashboardApi.stats().catch(() => {
+      const target = window.location.pathname + window.location.search;
+      router.replace(`/login?callbackUrl=${encodeURIComponent(target)}`);
+    });
   }, [router]);
 
   return <>{children}</>;
