@@ -148,7 +148,11 @@ public class Mapper {
                 event.getRequestId(),
                 event.getEventType(),
                 event.getStatus(),
+                event.getFailureReason(),
                 event.getStatusDetails(),
+                event.getAmount(),
+                event.getAccountNumber(),
+                event.getCustomerReference(),
                 event.getCreatedAt());
     }
 
@@ -158,7 +162,11 @@ public class Mapper {
                 event.getRequestId(),
                 event.getEventType(),
                 event.getStatus(),
+                event.getFailureReason(),
                 event.getStatusDetails(),
+                event.getAmount(),
+                event.getAccountNumber(),
+                event.getCustomerReference(),
                 event.getRawPayload(),
                 event.getCreatedAt());
     }

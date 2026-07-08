@@ -153,6 +153,48 @@ export const payoutApi = {
     api.post<{ data: PayoutItem }>("/v1/merchants/me/payouts", payload),
 };
 
+// ---- Payment events (exceptions / misdirected-payment triage) ----
+export interface PaymentEventItem {
+  id: string;
+  requestId: string;
+  eventType: string;
+  status: string;
+  failureReason: string | null;
+  statusDetails: string | null;
+  amount: number | null;
+  accountNumber: string | null;
+  customerReference: string | null;
+  createdAt: string;
+}
+
+export interface PaymentEventDetail extends PaymentEventItem {
+  payload: string | null;
+}
+
+export interface PaymentEventPage {
+  content: PaymentEventItem[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
+export const paymentEventApi = {
+  list: (status?: string) => {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return api.get<{ data: PaymentEventPage }>(`/v1/admin/payment-events${qs}`);
+  },
+  get: (id: string) => api.get<{ data: PaymentEventDetail }>(`/v1/admin/payment-events/${id}`),
+  replay: (id: string) => api.post<{ data: null }>(`/v1/admin/payment-events/${id}/replay`, {}),
+  reattribute: (id: string, customerReference: string) =>
+    api.post<{ data: { transactionId: string; customerReference: string } }>(
+      `/v1/admin/payment-events/${id}/reattribute`,
+      { customerReference },
+    ),
+};
+
 // ---- Webhooks ----
 export interface WebhookConfigItem {
   url: string;

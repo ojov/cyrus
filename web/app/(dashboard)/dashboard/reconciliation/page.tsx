@@ -1,47 +1,94 @@
 "use client";
 
-import { useState } from "react";
-import { EXCEPTIONS, OVERVIEW } from "@/lib/mock";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { paymentEventApi, type PaymentEventItem } from "@/lib/api";
 import { naira, statusClass } from "@/lib/utils";
 
 const TABS = [
-  { id: "attention", label: "Needs attention" },
-  { id: "orphaned", label: "Orphaned" },
-  { id: "resolved", label: "Resolved" },
+  { id: "attention", label: "Needs attention", status: "IGNORED" },
+  { id: "reattributed", label: "Reattributed", status: "REATTRIBUTED" },
+  { id: "all", label: "All", status: undefined },
 ] as const;
 
 export default function ReconciliationPage() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("attention");
+  const [events, setEvents] = useState<PaymentEventItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [reattributingId, setReattributingId] = useState<string | null>(null);
+  const [reattributeRef, setReattributeRef] = useState("");
 
-  const rows =
-    tab === "resolved" ? [] : tab === "orphaned" ? EXCEPTIONS.filter((e) => e.type === "ORPHANED") : EXCEPTIONS;
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const status = TABS.find((t) => t.id === tab)?.status;
+      const res = await paymentEventApi.list(status);
+      setEvents(res.data.content);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load payment events");
+    } finally {
+      setLoading(false);
+    }
+  }, [tab]);
 
-  const r = OVERVIEW.recon;
-  const summary = [
-    { label: "Matched", value: r.matched, cls: "text-green-600 dark:text-green-400", sub: `${((r.matched / r.total) * 100).toFixed(1)}%` },
-    { label: "Partial", value: r.partial, cls: "text-amber-600 dark:text-amber-400", sub: "amount mismatch" },
-    { label: "Orphaned", value: r.orphaned, cls: "text-red-600 dark:text-red-400", sub: "no matching account" },
-    { label: "Missing webhook", value: r.missing, cls: "text-amber-600 dark:text-amber-400", sub: "found on requery" },
-  ];
+  useEffect(() => {
+    Promise.resolve().then(load);
+  }, [load]);
+
+  async function replay(id: string) {
+    setBusyId(id);
+    setError(null);
+    try {
+      await paymentEventApi.replay(id);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to replay event");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function startReattribute(id: string) {
+    setReattributingId(id);
+    setReattributeRef("");
+    setError(null);
+  }
+
+  async function confirmReattribute(id: string) {
+    if (!reattributeRef.trim()) {
+      setError("Enter the customer reference this payment belongs to.");
+      return;
+    }
+    setBusyId(id);
+    setError(null);
+    try {
+      await paymentEventApi.reattribute(id, reattributeRef.trim());
+      setReattributingId(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to reattribute event");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold">Reconciliation &amp; exceptions</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Cyrus compares the Nomba records against internal state and surfaces anything that does not line up.
+          Raw inbound payment events — orphaned/misdirected payments awaiting reattribution, and anything else
+          that didn&apos;t cleanly attribute to a customer.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {summary.map((s) => (
-          <div key={s.label} className="rounded-xl border border-border bg-card p-4">
-            <div className="text-xs text-muted-foreground">{s.label}</div>
-            <div className={`mt-2 text-2xl font-bold tabular-nums ${s.cls}`}>{s.value}</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">{s.sub}</div>
-          </div>
-        ))}
-      </div>
+      {error && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       <div className="inline-flex gap-1 rounded-lg border border-border bg-muted p-1">
         {TABS.map((t) => (
@@ -55,7 +102,6 @@ export default function ReconciliationPage() {
             }`}
           >
             {t.label}
-            {t.id === "attention" && ` (${EXCEPTIONS.length})`}
           </button>
         ))}
       </div>
@@ -64,42 +110,102 @@ export default function ReconciliationPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-              <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-4 py-3 font-medium">Detail</th>
-              <th className="px-4 py-3 font-medium">Payer</th>
-              <th className="px-4 py-3 font-medium">Provider ref</th>
+              <th className="px-4 py-3 font-medium">Received</th>
+              <th className="px-4 py-3 font-medium">Event</th>
+              <th className="px-4 py-3 font-medium">Reason</th>
+              <th className="px-4 py-3 font-medium">Account / customer</th>
               <th className="px-4 py-3 text-right font-medium">Amount</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">Loading…</td>
+              </tr>
+            ) : events.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                  {tab === "resolved" ? "No resolved exceptions yet." : "All reconciled ✓"}
+                  {tab === "attention" ? "Nothing needs attention right now ✓" : "No events found."}
                 </td>
               </tr>
             ) : (
-              rows.map((e) => (
-                <tr key={e.ref + e.detail} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3"><span className={`db dot ${statusClass(e.type)}`}>{e.type}</span></td>
-                  <td className="px-4 py-3">{e.detail}</td>
-                  <td className="px-4 py-3">{e.payer}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{e.ref}</td>
-                  <td className="px-4 py-3 text-right font-medium tabular-nums">{naira(e.amountKobo)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                        e.action === "Ingest"
-                          ? "bg-primary text-primary-foreground hover:brightness-105"
-                          : "border border-border hover:bg-accent"
-                      }`}
-                    >
-                      {e.action}
-                    </button>
-                  </td>
-                </tr>
+              events.map((e) => (
+                <Fragment key={e.id}>
+                  <tr className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      <span className={`db dot ${statusClass(e.status)}`}>{e.status}</span>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{e.eventType}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {e.failureReason && <span className={`db ${statusClass(e.failureReason)}`}>{e.failureReason}</span>}
+                      {e.statusDetails && <div className="mt-1 max-w-xs text-xs text-muted-foreground">{e.statusDetails}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-mono text-xs">{e.accountNumber ?? "—"}</div>
+                      {e.customerReference && <div className="mt-0.5 text-xs text-muted-foreground">{e.customerReference}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">
+                      {e.amount ? naira(e.amount) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        {e.status === "IGNORED" && (
+                          <button
+                            type="button"
+                            onClick={() => startReattribute(e.id)}
+                            disabled={busyId === e.id}
+                            className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
+                          >
+                            Reattribute
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => replay(e.id)}
+                          disabled={busyId === e.id}
+                          className="rounded-md border border-border px-2.5 py-1 text-xs font-medium transition hover:bg-accent disabled:opacity-60"
+                        >
+                          {busyId === e.id ? "…" : "Replay"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {reattributingId === e.id && (
+                    <tr className="border-b border-border bg-muted/30 last:border-0">
+                      <td colSpan={6} className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label htmlFor={`reattribute-${e.id}`} className="text-xs font-medium">
+                            Attribute to customer reference:
+                          </label>
+                          <input
+                            id={`reattribute-${e.id}`}
+                            value={reattributeRef}
+                            onChange={(ev) => setReattributeRef(ev.target.value)}
+                            placeholder="user_123"
+                            className="rounded-md border border-border bg-card px-2.5 py-1.5 font-mono text-xs outline-none focus:border-primary"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => confirmReattribute(e.id)}
+                            disabled={busyId === e.id}
+                            className="rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
+                          >
+                            {busyId === e.id ? "Attributing…" : "Confirm"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setReattributingId(null)}
+                            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium transition hover:bg-accent"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))
             )}
           </tbody>
