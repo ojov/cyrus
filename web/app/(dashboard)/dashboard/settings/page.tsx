@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { authApi, webhookApi, type WebhookConfigItem } from "@/lib/api";
+import { authApi, webhookApi, type WebhookConfigItem, type WebhookDeliveryItem } from "@/lib/api";
 import { getSession } from "@/lib/auth";
+import { statusClass } from "@/lib/utils";
 
 const field =
   "w-full rounded-lg border border-border bg-muted px-3 py-2 font-mono text-[13px] outline-none focus:border-primary";
+
+const DELIVERY_STATUSES = ["PENDING", "DELIVERED", "RETRYING", "FAILED"];
 
 export default function SettingsPage() {
   const [config, setConfig] = useState<WebhookConfigItem | null>(null);
@@ -19,6 +22,10 @@ export default function SettingsPage() {
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
 
+  const [deliveries, setDeliveries] = useState<WebhookDeliveryItem[]>([]);
+  const [deliveriesLoading, setDeliveriesLoading] = useState(true);
+  const [deliveryStatus, setDeliveryStatus] = useState("");
+
   const load = useCallback(async () => {
     try {
       const res = await webhookApi.get();
@@ -31,9 +38,25 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const loadDeliveries = useCallback(async () => {
+    setDeliveriesLoading(true);
+    try {
+      const res = await webhookApi.deliveries(deliveryStatus || undefined);
+      setDeliveries(res.data.content);
+    } catch {
+      // Same as above — an empty/failed delivery history isn't worth a page-level error banner.
+    } finally {
+      setDeliveriesLoading(false);
+    }
+  }, [deliveryStatus]);
+
   useEffect(() => {
     Promise.resolve().then(load);
   }, [load]);
+
+  useEffect(() => {
+    Promise.resolve().then(loadDeliveries);
+  }, [loadDeliveries]);
 
   async function saveWebhook() {
     if (!url.trim()) {
@@ -130,6 +153,59 @@ export default function SettingsPage() {
             )}
           </>
         )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+          <b className="text-sm">Delivery history</b>
+          <select
+            value={deliveryStatus}
+            onChange={(e) => setDeliveryStatus(e.target.value)}
+            className="rounded-md border border-border bg-muted px-2.5 py-1.5 text-xs outline-none focus:border-primary"
+          >
+            <option value="">All statuses</option>
+            {DELIVERY_STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <th className="px-3 py-2 font-medium">Sent</th>
+                <th className="px-3 py-2 font-medium">Event</th>
+                <th className="px-3 py-2 font-medium">Status</th>
+                <th className="px-3 py-2 font-medium">Attempts</th>
+                <th className="px-3 py-2 font-medium">Response</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deliveriesLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">Loading…</td>
+                </tr>
+              ) : deliveries.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">No deliveries yet.</td>
+                </tr>
+              ) : (
+                deliveries.map((d) => (
+                  <tr key={d.id} className="border-b border-border last:border-0">
+                    <td className="px-3 py-2 text-muted-foreground">{new Date(d.createdAt).toLocaleString()}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{d.eventType}</td>
+                    <td className="px-3 py-2"><span className={`db dot ${statusClass(d.status)}`}>{d.status}</span></td>
+                    <td className="px-3 py-2 tabular-nums">{d.attempts}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      {d.lastResponseCode ?? "—"}
+                      {d.lastError && <span className="ml-1.5 text-destructive">{d.lastError}</span>}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5">

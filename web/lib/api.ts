@@ -73,8 +73,27 @@ export const authApi = {
 // ---- Dashboard (JWT-authed) ----
 // Cyrus runs on a single Nomba account — no TEST/LIVE split. One API key, one wallet,
 // one webhook config per merchant.
+export interface ReconciliationSummary {
+  matched: number;
+  discrepancy: number;
+  manualReview: number;
+  pending: number;
+  orphaned: number;
+}
+
+export interface DailyInflow {
+  date: string;
+  amountKobo: number;
+}
+
 export interface DashboardStats {
-  data: { customers: number; virtualAccounts: number; walletBalance: number };
+  data: {
+    customers: number;
+    virtualAccounts: number;
+    walletBalance: number;
+    reconciliation: ReconciliationSummary;
+    inflowLast7Days: DailyInflow[];
+  };
 }
 
 export interface ApiKeyItem {
@@ -153,6 +172,48 @@ export const payoutApi = {
     api.post<{ data: PayoutItem }>("/v1/merchants/me/payouts", payload),
 };
 
+// ---- Payment events (exceptions / misdirected-payment triage) ----
+export interface PaymentEventItem {
+  id: string;
+  requestId: string;
+  eventType: string;
+  status: string;
+  failureReason: string | null;
+  statusDetails: string | null;
+  amount: number | null;
+  accountNumber: string | null;
+  customerReference: string | null;
+  createdAt: string;
+}
+
+export interface PaymentEventDetail extends PaymentEventItem {
+  payload: string | null;
+}
+
+export interface PaymentEventPage {
+  content: PaymentEventItem[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
+export const paymentEventApi = {
+  list: (status?: string) => {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return api.get<{ data: PaymentEventPage }>(`/v1/admin/payment-events${qs}`);
+  },
+  get: (id: string) => api.get<{ data: PaymentEventDetail }>(`/v1/admin/payment-events/${id}`),
+  replay: (id: string) => api.post<{ data: null }>(`/v1/admin/payment-events/${id}/replay`, {}),
+  reattribute: (id: string, customerReference: string) =>
+    api.post<{ data: { transactionId: string; customerReference: string } }>(
+      `/v1/admin/payment-events/${id}/reattribute`,
+      { customerReference },
+    ),
+};
+
 // ---- Webhooks ----
 export interface WebhookConfigItem {
   url: string;
@@ -163,11 +224,39 @@ export interface WebhookConfigResponse {
   data: { url: string; secret: string | null; hasSecret: boolean };
 }
 
+export interface WebhookDeliveryItem {
+  id: string;
+  transactionId: string | null;
+  eventType: string;
+  status: string;
+  webhookUrl: string;
+  attempts: number;
+  lastResponseCode: number | null;
+  lastError: string | null;
+  nextRetryAt: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+}
+
+export interface WebhookDeliveryPage {
+  content: WebhookDeliveryItem[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
 export const webhookApi = {
   get: () => api.get<{ data: WebhookConfigItem | null }>("/v1/merchants/me/webhooks"),
   set: (url: string) => api.put<WebhookConfigResponse>("/v1/merchants/me/webhooks", { url }),
   rotateSecret: () => api.post<WebhookConfigResponse>("/v1/merchants/me/webhooks/rotate-secret", {}),
   remove: () => api.delete<{ data: null }>("/v1/merchants/me/webhooks"),
+  deliveries: (status?: string) => {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return api.get<{ data: WebhookDeliveryPage }>(`/v1/merchants/me/webhooks/deliveries${qs}`);
+  },
 };
 
 // ---- Customers (dashboard mirror of the developer-facing, API-key-gated /v1/customers/** ----
@@ -250,6 +339,59 @@ export const customerApi = {
       `/v1/merchants/me/customers/${encodeURIComponent(reference)}/statement${query ? `?${query}` : ""}`,
     );
   },
+};
+
+// ---- Transactions (dashboard mirror of the developer-facing, API-key-gated /v1/transactions/**) ----
+export interface TransactionItem {
+  reference: string;
+  type: string;
+  customerReference: string | null;
+  date: string;
+  payer: string | null;
+  providerTransactionId: string | null;
+  status: string;
+  matchStatus: string;
+  amountKobo: number;
+  feeKobo: number | null;
+}
+
+export interface TransactionPage {
+  content: TransactionItem[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface TransactionFilters {
+  customerReference?: string;
+  type?: string;
+  status?: string;
+  matchStatus?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  size?: number;
+}
+
+export const transactionApi = {
+  list: (filters: TransactionFilters = {}) => {
+    const qs = new URLSearchParams();
+    if (filters.customerReference) qs.set("customerReference", filters.customerReference);
+    if (filters.type) qs.set("type", filters.type);
+    if (filters.status) qs.set("status", filters.status);
+    if (filters.matchStatus) qs.set("matchStatus", filters.matchStatus);
+    if (filters.from) qs.set("from", filters.from);
+    if (filters.to) qs.set("to", filters.to);
+    if (filters.page !== undefined) qs.set("page", String(filters.page));
+    if (filters.size !== undefined) qs.set("size", String(filters.size));
+    const query = qs.toString();
+    return api.get<{ data: TransactionPage }>(`/v1/merchants/me/transactions${query ? `?${query}` : ""}`);
+  },
+  get: (reference: string) =>
+    api.get<{ data: TransactionItem }>(`/v1/merchants/me/transactions/${encodeURIComponent(reference)}`),
 };
 
 export const API_BASE_URL = API_URL;

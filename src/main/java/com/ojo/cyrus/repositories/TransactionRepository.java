@@ -26,6 +26,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     Optional<Transaction> findByReference(String reference);
 
+    // Ownership-checked lookup for the developer-facing Transactions API.
+    Optional<Transaction> findByReferenceAndMerchantId(String reference, UUID merchantId);
+
     // Fetch by webhook requestId for direct reconciliation lookup.
     Optional<Transaction> findByRequestId(String requestId);
 
@@ -75,4 +78,26 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     @Query("SELECT MAX(t.receivedAt) FROM Transaction t WHERE t.customer.id = :customerId")
     Instant findLastReceivedAtByCustomerId(@Param("customerId") UUID customerId);
+
+    // Overview reconciliation-health counts — merchant-wide, current snapshot (not date-bounded).
+    long countByMerchantIdAndMatchStatus(UUID merchantId, MatchStatus matchStatus);
+
+    long countByMerchantIdAndStatus(UUID merchantId, TransactionStatus status);
+
+    // Daily inflow for the Overview sparkline. Native + date_trunc since JPQL has no portable
+    // day-grouping function; only days with at least one row come back, so the service fills the
+    // gaps (a quiet day is 0, not a missing point on the chart). The day is formatted as plain
+    // 'YYYY-MM-DD' text (to_char), not left as a timestamptz/date value — found live that letting
+    // the JDBC driver map a timestamptz result reinterprets it through the JVM's default timezone
+    // (not the Postgres session's, which is UTC), silently shifting the day by a day. A plain string
+    // has nothing left to reinterpret.
+    @Query(value = """
+            SELECT to_char(date_trunc('day', received_at), 'YYYY-MM-DD') AS day, COALESCE(SUM(amount), 0) AS total
+            FROM transactions
+            WHERE merchant_id = :merchantId AND status = 'SUCCESSFUL' AND type = 'CUSTOMER_PAYMENT'
+              AND received_at >= :since
+            GROUP BY day
+            ORDER BY day
+            """, nativeQuery = true)
+    List<Object[]> sumDailyInflowSince(@Param("merchantId") UUID merchantId, @Param("since") Instant since);
 }

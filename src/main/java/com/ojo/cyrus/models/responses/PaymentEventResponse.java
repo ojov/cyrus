@@ -2,7 +2,9 @@ package com.ojo.cyrus.models.responses;
 
 import com.ojo.cyrus.enums.NombaPaymentEventStatus;
 import com.ojo.cyrus.enums.NombaPaymentEventType;
+import com.ojo.cyrus.enums.ReconciliationFailureReason;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -13,7 +15,11 @@ public record PaymentEventResponse(
         String requestId,
         NombaPaymentEventType eventType,
         NombaPaymentEventStatus status,
+        ReconciliationFailureReason failureReason,
         String statusDetails,
+        BigInteger amount,
+        String accountNumber,
+        String customerReference,
         String payload,
         Instant createdAt
 ) {}

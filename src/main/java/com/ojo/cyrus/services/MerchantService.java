@@ -1,7 +1,10 @@
 package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.config.properties.AppProperties;
+import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.MerchantWebhookStatus;
+import com.ojo.cyrus.enums.NombaPaymentEventStatus;
+import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.exception.AlreadyExistsException;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.models.WebhookConfig;
@@ -16,6 +19,8 @@ import com.ojo.cyrus.models.responses.WebhookDeliveryItem;
 import com.ojo.cyrus.repositories.MerchantCustomerRepository;
 import com.ojo.cyrus.repositories.MerchantRepository;
 import com.ojo.cyrus.repositories.MerchantWebhookEventRepository;
+import com.ojo.cyrus.repositories.NombaPaymentEventRepository;
+import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import com.ojo.cyrus.utils.CryptoUtil;
 import com.ojo.cyrus.utils.Mapper;
@@ -27,7 +32,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -47,9 +60,12 @@ public class MerchantService {
     private final MerchantCustomerRepository merchantCustomerRepository;
     private final VirtualAccountRepository virtualAccountRepository;
     private final MerchantWebhookEventRepository webhookEventRepository;
+    private final TransactionRepository transactionRepository;
+    private final NombaPaymentEventRepository paymentEventRepository;
     private final WalletService walletService;
 
     private static final String WEBHOOK_SECRET_PREFIX = "whsec_";
+    private static final int INFLOW_SERIES_DAYS = 7;
 
     @Transactional(readOnly = true)
     public Merchant findById(UUID id) {
@@ -69,10 +85,51 @@ public class MerchantService {
     @Transactional(readOnly = true)
     public MerchantStatsResponse getStats(String email) {
         Merchant merchant = findByBusinessEmail(email);
+        UUID merchantId = merchant.getId();
+
+        var reconciliation = new MerchantStatsResponse.ReconciliationSummary(
+                transactionRepository.countByMerchantIdAndMatchStatus(merchantId, MatchStatus.MATCHED),
+                transactionRepository.countByMerchantIdAndMatchStatus(merchantId, MatchStatus.DISCREPANCY),
+                transactionRepository.countByMerchantIdAndMatchStatus(merchantId, MatchStatus.MANUAL_REVIEW),
+                transactionRepository.countByMerchantIdAndStatus(merchantId, TransactionStatus.PENDING),
+                paymentEventRepository.countByMerchantIdAndStatus(merchantId, NombaPaymentEventStatus.IGNORED));
+
         return new MerchantStatsResponse(
-                merchantCustomerRepository.countByMerchantId(merchant.getId()),
-                virtualAccountRepository.countByMerchantCustomerMerchantId(merchant.getId()),
-                walletService.getBalance(merchant.getId()));
+                merchantCustomerRepository.countByMerchantId(merchantId),
+                virtualAccountRepository.countByMerchantCustomerMerchantId(merchantId),
+                walletService.getBalance(merchantId),
+                reconciliation,
+                buildInflowSeries(merchantId));
+    }
+
+    /**
+     * Last {@value INFLOW_SERIES_DAYS} days of confirmed inbound volume, zero-filled for any day
+     * with no successful transactions — a quiet day is a real 0 point on the chart, not a gap.
+     */
+    private List<MerchantStatsResponse.DailyInflow> buildInflowSeries(UUID merchantId) {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        Instant since = today.minusDays(INFLOW_SERIES_DAYS - 1L).atStartOfDay(ZoneOffset.UTC).toInstant();
+
+        Map<LocalDate, BigInteger> byDay = new HashMap<>();
+        for (Object[] row : transactionRepository.sumDailyInflowSince(merchantId, since)) {
+            byDay.put(LocalDate.parse((String) row[0]), toBigInteger(row[1]));
+        }
+
+        List<MerchantStatsResponse.DailyInflow> series = new ArrayList<>();
+        for (int i = INFLOW_SERIES_DAYS - 1; i >= 0; i--) {
+            LocalDate day = today.minusDays(i);
+            series.add(new MerchantStatsResponse.DailyInflow(day, byDay.getOrDefault(day, BigInteger.ZERO)));
+        }
+        return series;
+    }
+
+    private static BigInteger toBigInteger(Object value) {
+        return switch (value) {
+            case BigDecimal bd -> bd.toBigInteger();
+            case BigInteger bi -> bi;
+            case Long l -> BigInteger.valueOf(l);
+            default -> new BigDecimal(value.toString()).toBigInteger();
+        };
     }
 
     @Transactional(readOnly = true)

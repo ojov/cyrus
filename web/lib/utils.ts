@@ -15,6 +15,9 @@ export function statusClass(status: string): string {
     case "ACTIVE":
     case "SUCCESSFUL":
     case "SUCCESS":
+    case "PROCESSED":
+    case "REATTRIBUTED":
+    case "DELIVERED":
       return "db-good";
     case "PARTIAL":
     case "UNMATCHED":
@@ -22,12 +25,23 @@ export function statusClass(status: string): string {
     case "SUSPENDED":
     case "PENDING":
     case "PROCESSING":
+    case "RECEIVED":
+    case "RETRYING":
+    case "INACTIVE_CUSTOMER":
+    case "PROVIDER_UNCONFIRMED":
       return "db-warn";
     case "ORPHANED":
     case "REVOKED":
     case "FAILED":
     case "DISCREPANCY":
     case "MANUAL_REVIEW":
+    case "IGNORED":
+    case "PROCESSED_DUPLICATE":
+    case "UNKNOWN_VIRTUAL_ACCOUNT":
+    case "NON_CREDIT_EVENT":
+    case "DUPLICATE":
+    case "SIGNATURE_MISMATCH":
+    case "AMOUNT_MISMATCH":
       return "db-crit";
     case "TIER_2":
     case "TIER_3":

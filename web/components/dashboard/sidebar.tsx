@@ -6,7 +6,7 @@ import { Logo } from "@/components/logo";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getSession, logout } from "@/lib/auth";
-import { EXCEPTIONS } from "@/lib/mock";
+import { useDashboardStats } from "@/components/dashboard/stats-context";
 import {
   IconGrid,
   IconUsers,
@@ -28,13 +28,11 @@ type NavItem = {
   badge?: string;
 };
 
-// Reconciliation badge count tracks the same EXCEPTIONS list the page itself renders,
-// so the sidebar can't silently drift from what "Needs attention" actually shows.
-const NAV: NavItem[] = [
+const BASE_NAV: Omit<NavItem, "badge">[] = [
   { href: "/dashboard", label: "Overview", Icon: IconGrid, exact: true },
   { href: "/dashboard/customers", label: "Customers", Icon: IconUsers },
   { href: "/dashboard/transactions", label: "Transactions", Icon: IconSwap },
-  { href: "/dashboard/reconciliation", label: "Reconciliation", Icon: IconChecklist, badge: String(EXCEPTIONS.length) },
+  { href: "/dashboard/reconciliation", label: "Reconciliation", Icon: IconChecklist },
   { href: "/dashboard/wallet", label: "Wallet", Icon: IconWallet },
   { href: "/dashboard/beneficiaries", label: "Beneficiaries", Icon: IconBank },
   { href: "/dashboard/payouts", label: "Payouts", Icon: IconSend },
@@ -46,6 +44,16 @@ export function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const session = getSession();
+  const { stats } = useDashboardStats();
+
+  // Reconciliation badge tracks the same real "needs attention" count (orphaned + manual review)
+  // the Overview and Reconciliation pages themselves compute, so the sidebar can't drift from it.
+  const needsAttention = stats ? stats.reconciliation.orphaned + stats.reconciliation.manualReview : 0;
+  const nav: NavItem[] = BASE_NAV.map((item) =>
+    item.href === "/dashboard/reconciliation" && needsAttention > 0
+      ? { ...item, badge: String(needsAttention) }
+      : item,
+  );
 
   async function handleLogout() {
     await logout();
@@ -65,7 +73,7 @@ export function DashboardSidebar() {
       </div>
 
       <nav className="flex-1 space-y-0.5 px-3 py-4">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
           return (
             <Link
