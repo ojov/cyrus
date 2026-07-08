@@ -6,6 +6,7 @@ import com.ojo.cyrus.enums.MerchantWebhookEventType;
 import com.ojo.cyrus.enums.NombaPaymentEventStatus;
 import com.ojo.cyrus.enums.ReconciliationFailureReason;
 import com.ojo.cyrus.enums.TransactionStatus;
+import com.ojo.cyrus.enums.VirtualAccountStatus;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.exception.InvalidPaymentEventStateException;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
@@ -37,7 +38,9 @@ import static com.ojo.cyrus.utils.Mapper.buildTransaction;
  *
  * <p>Attribution is now purely by credited account number → {@link VirtualAccount} →
  * {@link MerchantCustomer} → merchant. There is a single Nomba account (Cyrus's), so there is no
- * per-merchant wallet-id resolution any more; an unknown account number simply has no owner.
+ * per-merchant wallet-id resolution any more; an unknown account number simply has no owner. A known
+ * VA that isn't {@link VirtualAccountStatus#ACTIVE} (suspended/closed customer) is treated the same
+ * as an unknown one — recorded as an orphan, never silently attributed.
  *
  * <p>A webhook is a notification, not proof — a genuine VA credit is recorded as
  * {@link TransactionStatus#PENDING}, never {@code SUCCESSFUL}. Only {@link ReconciliationService},
@@ -132,7 +135,22 @@ public class TransactionIngestionService {
         paymentEvent.setVirtualAccount(va);
         paymentEvent.setCustomerReference(customer.getExternalCustomerId());
 
-        // 7. Record the transaction, attributed to the customer (PENDING — wallet credit happens at
+        // 7. A suspended/closed customer's VA still technically exists on Nomba's side (Nomba has no
+        //    concept of "closed" until the expiry call runs — this is Cyrus's own status), but the
+        //    money must never be silently attributed to an inactive customer. Record it as an orphan
+        //    instead — same bucket as an unknown VA — so it's neither lost nor mis-credited; the
+        //    merchant can reattribute it (once reactivated, or elsewhere) via the same flow.
+        if (va.getStatus() != VirtualAccountStatus.ACTIVE) {
+            paymentEventService.updateStatus(paymentEvent.getId(), NombaPaymentEventStatus.IGNORED,
+                    ReconciliationFailureReason.INACTIVE_CUSTOMER,
+                    "Virtual account " + va.getAccountNumber() + " is " + va.getStatus()
+                            + " — payment not attributed to customer " + customer.getExternalCustomerId());
+            log.warn("Payment landed on non-ACTIVE VA {} ({}) for customer {} — recorded as orphan",
+                    va.getAccountNumber(), va.getStatus(), customer.getExternalCustomerId());
+            return Optional.empty();
+        }
+
+        // 8. Record the transaction, attributed to the customer (PENDING — wallet credit happens at
         //    reconciliation, when Nomba confirms the transfer).
         Transaction tx = transactionRepository.save(
                 buildTransaction(event, rawPayload, customer, va, event.getPayer(), paymentEvent));
