@@ -26,6 +26,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     Optional<Transaction> findByReference(String reference);
 
+    // Ownership-checked lookup for the developer-facing Transactions API.
+    Optional<Transaction> findByReferenceAndMerchantId(String reference, UUID merchantId);
+
     // Fetch by webhook requestId for direct reconciliation lookup.
     Optional<Transaction> findByRequestId(String requestId);
 
