@@ -45,6 +45,8 @@ spec:
               value: https://trycyrus.app
             - name: CORS_ALLOWED_ORIGINS
               value: https://trycyrus.app,http://localhost:3000
+            - name: FROM_EMAIL
+              value: Cyrus <noreply@trycyrus.app>
             # Reconciliation engine: delay (seconds) between webhook and first requery, and max-attempts before MANUAL_REVIEW
             - name: APP_RECONCILIATION_DELAY_SECONDS
               value: '300'
