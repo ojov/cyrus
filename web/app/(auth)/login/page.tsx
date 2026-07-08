@@ -30,7 +30,7 @@ export default function LoginPage() {
         businessName: res.data.businessName,
         businessEmail: res.data.businessEmail,
       });
-      router.push("/dashboard");
+      router.push("/ops");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
       setBusy(false);

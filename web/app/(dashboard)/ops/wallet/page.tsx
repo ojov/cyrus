@@ -50,13 +50,13 @@ export default function WalletPage() {
         <div className="mt-2 text-4xl font-bold tabular-nums">{loading ? "—" : naira(balance ?? 0)}</div>
         <div className="mt-5 flex gap-3 border-t border-border pt-5">
           <Link
-            href="/dashboard/payouts"
+            href="/ops/payouts"
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105"
           >
             Send a payout <IconArrowRight className="size-3.5" />
           </Link>
           <Link
-            href="/dashboard/beneficiaries"
+            href="/ops/beneficiaries"
             className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm font-medium transition hover:bg-accent"
           >
             Manage beneficiaries

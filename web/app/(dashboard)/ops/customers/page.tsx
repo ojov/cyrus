@@ -13,7 +13,7 @@ export default function CustomersPage() {
   function lookup(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = reference.trim();
-    if (trimmed) router.push(`/dashboard/customers/${encodeURIComponent(trimmed)}`);
+    if (trimmed) router.push(`/ops/customers/${encodeURIComponent(trimmed)}`);
   }
 
   return (
@@ -68,11 +68,11 @@ export default function CustomersPage() {
               {CUSTOMERS.map((c) => (
                 <tr
                   key={c.id}
-                  onClick={() => router.push(`/dashboard/customers/${encodeURIComponent(c.externalId)}`)}
+                  onClick={() => router.push(`/ops/customers/${encodeURIComponent(c.externalId)}`)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      router.push(`/dashboard/customers/${encodeURIComponent(c.externalId)}`);
+                      router.push(`/ops/customers/${encodeURIComponent(c.externalId)}`);
                     }
                   }}
                   tabIndex={0}

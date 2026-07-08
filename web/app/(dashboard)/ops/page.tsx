@@ -101,7 +101,7 @@ export default function OverviewPage() {
           <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
             <span className="text-xs text-muted-foreground">{needsAttention} item{needsAttention === 1 ? "" : "s"} need attention</span>
             <Link
-              href="/dashboard/reconciliation"
+              href="/ops/reconciliation"
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-accent"
             >
               Review exceptions <IconArrowRight className="size-3.5" />

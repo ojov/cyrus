@@ -30,7 +30,7 @@ export default function RegisterPage() {
         businessName: res.data.businessName,
         businessEmail: res.data.businessEmail,
       });
-      router.push("/dashboard");
+      router.push("/ops");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
       setBusy(false);

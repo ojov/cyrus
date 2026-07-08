@@ -35,3 +35,5 @@ build_output.txt
 
 ### VS Code ###
 .vscode/
+.vercel
+.env*

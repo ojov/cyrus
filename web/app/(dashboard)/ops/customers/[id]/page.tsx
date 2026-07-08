@@ -89,7 +89,7 @@ export default function CustomerDetailPage() {
     return (
       <div className="space-y-4">
         <Link
-          href="/dashboard/customers"
+          href="/ops/customers"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-primary"
         >
           <IconArrowLeft className="size-4" /> All customers
@@ -104,7 +104,7 @@ export default function CustomerDetailPage() {
   return (
     <div className="space-y-6">
       <Link
-        href="/dashboard/customers"
+        href="/ops/customers"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-primary"
       >
         <IconArrowLeft className="size-4" /> All customers

@@ -20,8 +20,18 @@ prototype. Separate from the Java backend at the repo root.
   not an interactive console (there's no real "try it" call-through; don't reintroduce fake interactivity).
   A permanent link to the live Scalar API reference (`${NEXT_PUBLIC_API_URL}/docs`) lives in the sidebar
   as the actual source of truth for exact shapes.
-- `app/(dashboard)/` — **login-gated ops** (`AuthGuard` → `/login`). Overview · Customers ·
-  Customer detail (statement) · Transactions · Reconciliation · API keys · Settings.
+- `app/(dashboard)/` — **login-gated ops, served at `/ops`** (`AuthGuard` → `/login`). Overview · Customers ·
+  Customer detail (statement) · Transactions · Reconciliation · API keys · Settings. **Not `/dashboard`** —
+  the inner folder is named `ops/` (the `(dashboard)` route group itself doesn't affect the URL, only the
+  segment folder inside it does). Renamed from `/dashboard` after discovering `trycyrus.app` has an
+  edge-level redirect of `/dashboard` → `/login` that isn't in this repo, `next.config.ts`, `vercel.json`,
+  Vercel's redirects/firewall/deployment-protection/domain config (all checked and empty/unavailable on
+  the current plan), or any deployed function (confirmed via `vercel logs` — those requests show no
+  function-invocation marker at all, meaning it's intercepted purely at Vercel's edge before the app ever
+  runs). Reproduced on every tested deployment behind the domain regardless of content, so it's tied to
+  the domain/account itself, not a stale build. Never resolved the actual cause; renaming the route was
+  the fast unblock. If revisiting: file a Vercel support ticket with this history before trying to reuse
+  `/dashboard` again.
 - `app/(auth)/` — `/login`, `/register` (hit the real backend, save a session cookie + localStorage).
 
 ## Conventions

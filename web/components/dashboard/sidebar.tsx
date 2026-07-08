@@ -29,15 +29,15 @@ type NavItem = {
 };
 
 const BASE_NAV: Omit<NavItem, "badge">[] = [
-  { href: "/dashboard", label: "Overview", Icon: IconGrid, exact: true },
-  { href: "/dashboard/customers", label: "Customers", Icon: IconUsers },
-  { href: "/dashboard/transactions", label: "Transactions", Icon: IconSwap },
-  { href: "/dashboard/reconciliation", label: "Reconciliation", Icon: IconChecklist },
-  { href: "/dashboard/wallet", label: "Wallet", Icon: IconWallet },
-  { href: "/dashboard/beneficiaries", label: "Beneficiaries", Icon: IconBank },
-  { href: "/dashboard/payouts", label: "Payouts", Icon: IconSend },
-  { href: "/dashboard/api-keys", label: "API keys", Icon: IconKey },
-  { href: "/dashboard/settings", label: "Settings", Icon: IconSettings },
+  { href: "/ops", label: "Overview", Icon: IconGrid, exact: true },
+  { href: "/ops/customers", label: "Customers", Icon: IconUsers },
+  { href: "/ops/transactions", label: "Transactions", Icon: IconSwap },
+  { href: "/ops/reconciliation", label: "Reconciliation", Icon: IconChecklist },
+  { href: "/ops/wallet", label: "Wallet", Icon: IconWallet },
+  { href: "/ops/beneficiaries", label: "Beneficiaries", Icon: IconBank },
+  { href: "/ops/payouts", label: "Payouts", Icon: IconSend },
+  { href: "/ops/api-keys", label: "API keys", Icon: IconKey },
+  { href: "/ops/settings", label: "Settings", Icon: IconSettings },
 ];
 
 export function DashboardSidebar() {
@@ -50,7 +50,7 @@ export function DashboardSidebar() {
   // the Overview and Reconciliation pages themselves compute, so the sidebar can't drift from it.
   const needsAttention = stats ? stats.reconciliation.orphaned + stats.reconciliation.manualReview : 0;
   const nav: NavItem[] = BASE_NAV.map((item) =>
-    item.href === "/dashboard/reconciliation" && needsAttention > 0
+    item.href === "/ops/reconciliation" && needsAttention > 0
       ? { ...item, badge: String(needsAttention) }
       : item,
   );
