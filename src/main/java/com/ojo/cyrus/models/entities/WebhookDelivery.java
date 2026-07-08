@@ -29,7 +29,7 @@ public class WebhookDelivery extends BaseEntity {
 
     private Integer responseStatus;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String responseBody;
 
     @Column(length = 1000)

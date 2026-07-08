@@ -54,7 +54,7 @@ public class MerchantCustomer extends BaseEntity {
     private KycTier kycTier = KycTier.TIER_1;
 
     /** Optional JSON metadata supplied by the merchant at creation. */
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String metadata;
 
     @OneToOne(mappedBy = "merchantCustomer", fetch = FetchType.LAZY, cascade = CascadeType.ALL)

@@ -1,6 +1,7 @@
 package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.KycTier;
+import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.MerchantCustomerStatus;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.enums.VirtualAccountStatus;
@@ -18,6 +19,7 @@ import com.ojo.cyrus.models.requests.UpdateCustomerRequest;
 import com.ojo.cyrus.models.responses.CustomerResponse;
 import com.ojo.cyrus.models.responses.CustomerStatementResponse;
 import com.ojo.cyrus.models.responses.StatementRowResponse;
+import com.ojo.cyrus.models.responses.StatementSummaryResponse;
 import com.ojo.cyrus.nomba.NombaVirtualAccountClient;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
 import com.ojo.cyrus.repositories.MerchantCustomerRepository;
@@ -27,13 +29,17 @@ import com.ojo.cyrus.utils.Mapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -84,22 +90,50 @@ public class CustomerService {
     }
 
     /**
-     * A customer's identity summary plus their paginated inbound-transaction history, scoped to
-     * {@code merchantId} so one merchant can never read another merchant's customer data.
+     * A customer's identity, a reporting summary (always over their full history), and a
+     * paginated, newest-first transaction history — optionally narrowed to a date range and/or
+     * a single {@link MatchStatus} (e.g. pull up just the {@code DISCREPANCY}/{@code MANUAL_REVIEW}
+     * exception rows). Scoped to {@code merchantId} so one merchant can never read another
+     * merchant's customer data.
      */
     @Transactional(readOnly = true)
-    public CustomerStatementResponse getStatement(UUID merchantId, String reference, Pageable pageable) {
+    public CustomerStatementResponse getStatement(UUID merchantId, String reference, Instant from, Instant to,
+            MatchStatus matchStatus, Pageable pageable) {
         MerchantCustomer customer = requireCustomer(merchantId, reference);
         VirtualAccount va = requireVirtualAccount(customer.getId());
+        UUID customerId = customer.getId();
 
-        Page<Transaction> transactions =
-                transactionRepository.findByCustomerIdOrderByReceivedAtDesc(customer.getId(), pageable);
-        var lifetimeKobo = transactionRepository.sumAmountByCustomerAndStatus(
-                customer.getId(), TransactionStatus.SUCCESSFUL);
+        // Built via Specification rather than a `(:param IS NULL OR ...)` JPQL guard — Postgres's
+        // JDBC driver can't infer a bind parameter's type when the value is actually null and the
+        // only context is an `IS NULL` check (a real "could not determine data type of parameter"
+        // failure, caught live). Specification simply omits the predicate for an absent filter, so
+        // no null ever gets bound for a skipped one.
+        Specification<Transaction> spec = (root, query, cb) -> cb.equal(root.get("customer").get("id"), customerId);
+        if (from != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("receivedAt"), from));
+        }
+        if (to != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("receivedAt"), to));
+        }
+        if (matchStatus != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("matchStatus"), matchStatus));
+        }
+        Pageable sorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "receivedAt"));
+        Page<Transaction> transactions = transactionRepository.findAll(spec, sorted);
+
+        StatementSummaryResponse summary = new StatementSummaryResponse(
+                transactionRepository.sumAmountByCustomerAndStatus(customerId, TransactionStatus.SUCCESSFUL),
+                transactionRepository.countByCustomerId(customerId),
+                transactionRepository.countByCustomerIdAndStatus(customerId, TransactionStatus.PENDING),
+                transactionRepository.sumAmountByCustomerAndStatus(customerId, TransactionStatus.PENDING),
+                transactionRepository.countByCustomerIdAndMatchStatus(customerId, MatchStatus.MANUAL_REVIEW),
+                transactionRepository.countByCustomerIdAndMatchStatus(customerId, MatchStatus.DISCREPANCY),
+                transactionRepository.findLastReceivedAtByCustomerId(customerId));
 
         return new CustomerStatementResponse(
                 Mapper.toCustomerResponse(customer, va),
-                lifetimeKobo,
+                summary,
                 transactions.map(tx -> new StatementRowResponse(
                         tx.getReceivedAt(),
                         tx.getPayerName(),

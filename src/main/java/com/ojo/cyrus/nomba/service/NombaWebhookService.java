@@ -40,6 +40,11 @@ public class NombaWebhookService {
         String requestId = root.path("requestId").asText();
         String eventType = root.path("event_type").asText();
         log.info("Accepted Nomba webhook requestId={} event={}", requestId, eventType);
+        // Logged only after signature verification (so this is always a genuine Nomba payload, never
+        // arbitrary unauthenticated input) — lets a real prod payload be pulled straight from GCP Cloud
+        // Logging and replayed as a local mock, without needing prod DB access (the same payload is also
+        // durably persisted in nomba_payment_events.raw_payload for later reference).
+        log.info("Nomba webhook payload requestId={} rawPayload={}", requestId, rawPayload);
 
         // 2. Normalize the raw provider payload into a Cyrus event.
         NormalizedPaymentEvent event;

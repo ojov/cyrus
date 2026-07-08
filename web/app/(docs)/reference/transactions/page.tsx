@@ -1,5 +1,5 @@
 import { TwoCol } from "@/components/docs/two-col";
-import { TryIt } from "@/components/docs/try-it";
+import { Example } from "@/components/docs/example";
 import { Endpoint } from "@/components/docs/endpoint";
 import { Code } from "@/components/ui/code-block";
 import { IconArrowRight } from "@/components/icons";
@@ -10,7 +10,7 @@ export default function TransactionsReferencePage() {
   return (
     <TwoCol
       aside={
-        <TryIt
+        <Example
           method="GET"
           path="/v1/customers/user_123/statement"
           response={`{

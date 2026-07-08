@@ -1,12 +1,12 @@
 import { TwoCol } from "@/components/docs/two-col";
-import { TryIt } from "@/components/docs/try-it";
+import { Example } from "@/components/docs/example";
 import { Endpoint } from "@/components/docs/endpoint";
 
 export default function VirtualAccountsReferencePage() {
   return (
     <TwoCol
       aside={
-        <TryIt
+        <Example
           method="POST"
           path="/v1/customers"
           body={`{

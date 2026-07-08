@@ -5,6 +5,7 @@ import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.models.entities.Beneficiary;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.CreateBeneficiaryRequest;
+import com.ojo.cyrus.models.responses.BankResponse;
 import com.ojo.cyrus.models.responses.BeneficiaryResponse;
 import com.ojo.cyrus.nomba.NombaTransferClient;
 import com.ojo.cyrus.nomba.dto.NombaBankLookupData;
@@ -61,6 +62,18 @@ public class BeneficiaryService {
     public List<BeneficiaryResponse> list(UUID merchantId) {
         return beneficiaryRepository.findByMerchantIdOrderByCreatedAtDesc(merchantId)
                 .stream().map(BeneficiaryService::toResponse).toList();
+    }
+
+    /**
+     * The payable banks and their NIP codes, for populating a bank picker when registering a
+     * beneficiary — the code must come from this list, not be hand-typed, so the (bankCode, bankName)
+     * pair saved on a {@link Beneficiary} is always internally consistent and something Nomba
+     * actually recognizes at transfer time.
+     */
+    public List<BankResponse> listBanks() {
+        return nombaTransferClient.listBanks().stream()
+                .map(b -> new BankResponse(b.code(), b.name()))
+                .toList();
     }
 
     @Transactional(readOnly = true)

@@ -2,6 +2,7 @@ package com.ojo.cyrus.controllers.dashboard;
 
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.requests.CreateBeneficiaryRequest;
+import com.ojo.cyrus.models.responses.BankResponse;
 import com.ojo.cyrus.models.responses.BeneficiaryResponse;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.services.BeneficiaryService;
@@ -47,5 +48,14 @@ public class BeneficiaryController {
         UUID merchantId = merchantService.findByBusinessEmail(jwt.getSubject()).getId();
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Beneficiaries retrieved",
                 beneficiaryService.list(merchantId));
+    }
+
+    @Operation(summary = "List payable banks",
+            description = "The banks and NIP codes to pick from when registering a beneficiary — select a bank " +
+                    "here rather than hand-typing a code, so it's guaranteed to be one Nomba actually recognizes.",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @GetMapping("/banks")
+    public CyrusApiResponse<List<BankResponse>> listBanks() {
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Banks retrieved", beneficiaryService.listBanks());
     }
 }

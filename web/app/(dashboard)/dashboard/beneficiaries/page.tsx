@@ -1,22 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { beneficiaryApi, type BeneficiaryItem } from "@/lib/api";
+import { beneficiaryApi, type BankItem, type BeneficiaryItem } from "@/lib/api";
 
 const field =
   "w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none focus:border-primary";
 
 export default function BeneficiariesPage() {
   const [items, setItems] = useState<BeneficiaryItem[]>([]);
+  const [banks, setBanks] = useState<BankItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ nickname: "", accountNumber: "", bankCode: "", bankName: "" });
+  const [form, setForm] = useState({ nickname: "", accountNumber: "", bankCode: "" });
 
   const load = useCallback(async () => {
     try {
-      const res = await beneficiaryApi.list();
-      setItems(res.data ?? []);
+      const [beneficiaries, bankList] = await Promise.all([beneficiaryApi.list(), beneficiaryApi.listBanks()]);
+      setItems(beneficiaries.data ?? []);
+      setBanks(bankList.data ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load beneficiaries");
     } finally {
@@ -33,15 +35,23 @@ export default function BeneficiariesPage() {
   }
 
   async function create() {
-    if (!form.nickname.trim() || !form.accountNumber.trim() || !form.bankCode.trim() || !form.bankName.trim()) {
-      setError("Fill in every field.");
+    const bank = banks.find((b) => b.code === form.bankCode);
+    if (!form.nickname.trim() || !form.accountNumber.trim() || !bank) {
+      setError("Fill in every field, including selecting a bank.");
       return;
     }
     setCreating(true);
     setError(null);
     try {
-      await beneficiaryApi.create(form);
-      setForm({ nickname: "", accountNumber: "", bankCode: "", bankName: "" });
+      // The bank code came from the picker (populated from Nomba's own bank list), never hand-typed —
+      // bankName is derived from that same selection so the pair sent to the backend can never mismatch.
+      await beneficiaryApi.create({
+        nickname: form.nickname,
+        accountNumber: form.accountNumber,
+        bankCode: bank.code,
+        bankName: bank.name,
+      });
+      setForm({ nickname: "", accountNumber: "", bankCode: "" });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add beneficiary");
@@ -70,13 +80,17 @@ export default function BeneficiariesPage() {
         <div className="mt-3 grid grid-cols-2 gap-3">
           <input className={field} placeholder="Nickname (e.g. Main GTBank)" value={form.nickname} onChange={set("nickname")} />
           <input className={field} placeholder="Account number" value={form.accountNumber} onChange={set("accountNumber")} />
-          <input className={field} placeholder="Bank code (NIP)" value={form.bankCode} onChange={set("bankCode")} />
-          <input className={field} placeholder="Bank name" value={form.bankName} onChange={set("bankName")} />
+          <select className={`${field} col-span-2`} value={form.bankCode} onChange={set("bankCode")}>
+            <option value="">Select bank…</option>
+            {banks.map((b) => (
+              <option key={b.code} value={b.code}>{b.name}</option>
+            ))}
+          </select>
         </div>
         <button
           type="button"
           onClick={create}
-          disabled={creating}
+          disabled={creating || banks.length === 0}
           className="mt-3 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
         >
           {creating ? "Adding…" : "+ Add beneficiary"}

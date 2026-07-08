@@ -1,43 +1,47 @@
-# 🛡️ Cyrus Mobile Backend API
+# 🛡️ Cyrus
 
 [![Java Version](https://img.shields.io/badge/Java-25-orange.svg)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](#)
 
-A robust, enterprise-grade REST API backend for managing virtual accounts and merchant operations. Built with Spring Boot and optimized for deployment on Google Cloud Platform (GCP).
+Cyrus is a **customer payment identity infrastructure layer** built on Nomba. It gives each of your
+customers a persistent identity and a dedicated virtual bank account, holds the resulting funds in a
+per-merchant wallet (double-entry ledger), and lets you pay them back out — without your business ever
+touching Nomba credentials directly. Cyrus holds one Nomba account; every merchant on Cyrus gets a
+single API key, a wallet, and a webhook config.
 
-## 🚀 Overview
-
-Cyrus is a powerful merchant dashboard platform that enables businesses to seamlessly create and manage virtual accounts for their customers. Our backend provides a secure, scalable API with dual-mode authentication:
-- **Dashboard Access:** JWT-based session management.
-- **External Integrations:** Secure API Key authentication for server-to-server communication.
-
-**Live API:** [https://api.trycyrus.app](https://api.trycyrus.app)  
-**Documentation:** [https://api.trycyrus.app/swagger-ui/index.html](https://api.trycyrus.app/swagger-ui/index.html)
+**Live API:** [https://api.trycyrus.app](https://api.trycyrus.app)
+**API Reference:** [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) — generated live
+from the running API (via [Scalar](https://scalar.com)), always in sync with what's actually deployed.
+**Developer docs / dashboard:** [https://trycyrus.app](https://trycyrus.app)
 
 ---
 
 ## ✨ Key Features
 
-- **🏦 Virtual Account Provisioning** - Real-time generation of unique bank accounts via Nomba integration.
-- **🔐 Dual Authentication** - Secure access via JWT for frontend and API Keys for backend integrations.
-- **🧪 Environment Switching** - Built-in support for `TEST` and `LIVE` environments with dedicated API keys.
-- **👤 Merchant Management** - Full lifecycle management including registration, verification, and profile updates.
-- **📊 Balance Monitoring** - Real-time tracking of parent and sub-account balances.
-- **🛠️ Developer First** - Comprehensive Swagger/OpenAPI documentation and standardized error handling.
+- **🏦 Virtual account provisioning** — a dedicated Nomba virtual account per customer, created and
+  managed under Cyrus's own platform account.
+- **🔁 Inbound reconciliation** — every webhook is verified against Nomba's own requery endpoint
+  (source of truth) before a transaction is confirmed and a wallet credited.
+- **💰 Wallet & payouts** — double-entry ledger per merchant; pay beneficiaries out via bank transfer.
+- **🔐 Dual authentication** — JWT (httpOnly cookie) for the merchant dashboard, API keys for
+  server-to-server integrations.
+- **🧭 Misdirected-payment recovery** — orphaned/misattributed payments are visible and can be
+  manually reattributed to the right customer.
+- **🛠️ Developer-first** — `CyrusApiResponse` envelope, typed errors, and a live Scalar API reference.
 
 ---
 
 ## 🛠️ Technology Stack
 
-- **Framework:** Spring Boot 4.1.0
-- **Language:** Java 25
-- **Security:** Spring Security (OAuth2 Resource Server)
-- **Database:** PostgreSQL with Flyway Migrations
-- **Email:** Resend Integration
-- **API Docs:** SpringDoc OpenAPI 3.0.2
-- **Infrastructure:** Docker & Docker Compose
+- **Framework:** Spring Boot 4.1.0 · **Language:** Java 25
+- **Security:** Spring Security (OAuth2 Resource Server, RSA-signed JWT) + API-key auth
+- **Database:** PostgreSQL + Spring Data JPA/Hibernate (`ddl-auto: update` — Flyway is a dependency but
+  disabled while the schema is still churning; see `AGENTS.md`)
+- **Background jobs:** JobRunr (outbound merchant webhook delivery retries only — reconciliation runs
+  via `@Async`/`@Scheduled` on virtual threads, not JobRunr)
+- **Email:** Resend · **API docs:** springdoc OpenAPI + Scalar
+- **Infrastructure:** Docker Compose (local Postgres), deployed on GCP Cloud Run
 
 ---
 
@@ -45,108 +49,63 @@ Cyrus is a powerful merchant dashboard platform that enables businesses to seaml
 
 ### Prerequisites
 
-- **Java 25** or higher
-- **Maven 3.6+**
-- **Docker & Docker Compose** (Optional, for containerized setup)
+- **Java 25**, **Maven 3.6+**, **Docker** (for local Postgres)
 
-### Installation & Local Setup
+### Local setup
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd cyrus
-   ```
-
-2. **Configure Environment:**
-   Create an `application-local.properties` or set environment variables (see [Configuration](#-configuration)).
-
-3. **Build the project:**
-   ```bash
-   ./mvnw clean package
-   ```
-
-4. **Run the application:**
-   ```bash
-   ./mvnw spring-boot:run
-   ```
-   The API will be available at `http://localhost:8080`.
-
-### 🐳 Docker Deployment
-
-**Using Docker Compose (Recommended):**
 ```bash
-docker-compose up -d
+git clone <repository-url>
+cd cyrus
+docker compose up -d          # starts local Postgres on :5438
+./mvnw spring-boot:run        # API on :8080
 ```
 
-**Manual Build:**
-```bash
-docker build -t cyrus-api .
-docker run -p 8080:8080 cyrus-api
-```
+Required environment variables are listed in `AGENTS.md` under **Required configuration** (encryption
+key, RSA keypair, DB credentials, Resend key, Nomba credentials). The API fails fast at startup if any
+are missing or malformed.
+
+Once running:
+- API: `http://localhost:8080`
+- API reference (Scalar): `http://localhost:8080/docs`
 
 ---
 
 ## 📖 API Documentation
 
-### Interactive Swagger UI
-Explore the full API surface, schemas, and test endpoints directly:
-- **Local:** [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
-- **Production:** [https://api.trycyrus.app/swagger-ui/index.html](https://api.trycyrus.app/swagger-ui/index.html)
+The full API surface — every endpoint, request/response schema, and error shape — is generated live
+from the running application via Scalar, not hand-maintained here:
 
-### Core Endpoints Preview
+- **Local:** `http://localhost:8080/docs`
+- **Production:** `https://api.trycyrus.app/docs`
 
-#### 1. Authentication
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| `POST` | `/v1/auth/register` | Register a new merchant | None |
-| `POST` | `/v1/auth/login` | Merchant login (returns JWT) | None |
+In `dev`, every controller is visible there (dashboard, provider webhook receiver, developer-facing
+API). In `prod`, only the public developer-facing surface is exposed — see `springdoc.packages-to-scan`
+in `application-prod.yml`.
 
-#### 2. Virtual Accounts (API Key required)
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/v1/customers` | Create customer & provision VA |
-| `GET` | `/v1/customers/{ref}` | Retrieve customer details |
-
-#### 3. Merchant Operations (JWT required)
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/v1/merchants/me/subaccounts/balances` | Get Nomba balances |
-| `PATCH` | `/v1/merchants/me/subaccounts` | Update sub-account IDs |
-
-#### 4. Webhooks (Nomba Integration)
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| `POST` | `/v1/webhooks/nomba` | Receive payment notifications | Nomba Sig |
+For a narrative walkthrough (auth, provisioning a customer, webhooks, reconciliation), see the
+developer docs at [https://trycyrus.app](https://trycyrus.app).
 
 ---
 
 ## 🔐 Security & Authentication
 
-### JWT Authentication
-Used primarily for the Merchant Dashboard.
-- **Header:** `Authorization: Bearer <JWT_TOKEN>`
-- **Obtained via:** `/v1/auth/login` or `/v1/auth/register`
+### JWT (merchant dashboard)
+Delivered as an **httpOnly cookie** on `/v1/auth/login` / `/v1/auth/register` — never exposed to
+frontend JS or returned in a JSON body. `Authorization: Bearer <token>` also works for direct API
+testing (Postman/curl).
 
-### API Key Authentication
-Used for server-to-server integrations.
+### API key (server-to-server)
 - **Header:** `Authorization: Bearer <API_KEY>`
-- **Format:** `cyrus_test_...` or `cyrus_live_...`
-- **Environment:** The system automatically detects the environment (Test/Live) based on the key prefix.
+- **Format:** `cyrus_...` — one key per merchant, scoped to `/v1/customers/**` today; see `AGENTS.md`
+  for how new API-key-protected routes get added.
 
 ---
 
 ## ⚙️ Configuration
 
-The application can be configured via environment variables:
-
-| Variable | Description | Default |
-|---|---|---|
-| `SPRING_DATASOURCE_URL` | PostgreSQL Connection URL | `jdbc:postgresql://localhost:5432/cyrus` |
-| `SPRING_DATASOURCE_USERNAME` | DB Username | `postgres` |
-| `SPRING_DATASOURCE_PASSWORD` | DB Password | `postgres` |
-| `RESEND_API_KEY` | Resend.com API Key for emails | - |
-| `NOMBA_CLIENT_ID` | Nomba Integration Client ID | - |
-| `NOMBA_CLIENT_SECRET` | Nomba Integration Secret | - |
+See `AGENTS.md` → **Required configuration (env vars)** for the authoritative, up-to-date list
+(`APP_ENCRYPTION_KEY`, `RSA_PUBLIC_KEY`/`RSA_PRIVATE_KEY`, `RESEND_API_KEY`, `DB_URL`/`DB_USERNAME`/
+`DB_PASSWORD`, `NOMBA_*`, and friends) — kept there rather than duplicated here so it can't drift.
 
 ---
 
@@ -156,12 +115,12 @@ The application can be configured via environment variables:
 cyrus/
 ├── src/
 │   ├── main/
-│   │   ├── java/           # Spring Boot source code
+│   │   ├── java/           # Spring Boot source code (see AGENTS.md for the architecture map)
 │   │   └── resources/      # App config, migrations, templates
-│   └── test/               # Unit and Integration tests
-├── web/                    # Static web assets
+│   └── test/               # Unit and integration tests
+├── web/                    # Next.js 16 frontend (dashboard + public developer docs) — own AGENTS.md
 ├── Dockerfile              # Container definition
-├── compose.yaml            # Multi-container orchestration
+├── compose.yaml            # Local Postgres
 ├── pom.xml                 # Maven dependencies & build config
 └── README.md               # You are here
 ```

@@ -81,8 +81,7 @@ public class NombaPaymentEvent extends BaseEntity {
     /** Human-readable detail for the current status (e.g. which account number was unknown). */
     private String statusDetails;
 
-    @Lob
-    @Basic(fetch = FetchType.LAZY)
+    @Column(columnDefinition = "TEXT")
     private String rawPayload;
 
     @Column(length = 500)

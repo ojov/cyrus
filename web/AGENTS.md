@@ -13,10 +13,13 @@ prototype. Separate from the Java backend at the repo root.
   binaries), so skipping their scripts is harmless. **Do not remove that setting.**
 
 ## Structure (route groups)
-- `app/(docs)/` — **public developer docs** (no auth). `/` = Getting Started; `/environments`;
-  `/reference/{authentication,virtual-accounts,payments,transactions,webhooks,errors}`; `/api-keys`;
+- `app/(docs)/` — **public developer docs** (no auth). `/` = Getting Started;
+  `/reference/{authentication,virtual-accounts,payments,payouts,transactions,webhooks,errors}`; `/api-keys`;
   `/webhook-testing`; `/changelog`; `/sdks`. Nav order lives in `lib/docs-nav.ts` (drives sidebar +
-  crumb + prev/next pager). Callable reference pages use `<TryIt>`.
+  crumb + prev/next pager). Callable reference pages use `<Example>` — a static request/response panel,
+  not an interactive console (there's no real "try it" call-through; don't reintroduce fake interactivity).
+  A permanent link to the live Scalar API reference (`${NEXT_PUBLIC_API_URL}/docs`) lives in the sidebar
+  as the actual source of truth for exact shapes.
 - `app/(dashboard)/` — **login-gated ops** (`AuthGuard` → `/login`). Overview · Customers ·
   Customer detail (statement) · Transactions · Reconciliation · API keys · Settings.
 - `app/(auth)/` — `/login`, `/register` (hit the real backend, save a session cookie + localStorage).

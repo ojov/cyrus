@@ -5,10 +5,12 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties(prefix = "app.reconciliation")
 public record ReconciliationProperties(
-        // How long after a webhook arrives (and between each subsequent retry) before we requery
-        // Nomba to confirm it — gives a genuine transfer time to settle before we check.
+        // How often the sweep (ReconciliationService.sweepPendingReconciliations) runs, and the
+        // minimum age a still-unmatched transaction must have before the sweep retries it — first
+        // attempt happens immediately on ingestion (reconcileAsync), this only governs the fallback
+        // retries for transactions Nomba hadn't confirmed yet.
         @DefaultValue("300") long delaySeconds,
-        // How many times we requery a session Nomba hasn't confirmed yet before giving up and
-        // flagging the transaction MANUAL_REVIEW instead of retrying forever.
+        // How many requery attempts (immediate + sweep retries) before we give up and flag the
+        // transaction MANUAL_REVIEW instead of retrying forever.
         @DefaultValue("5") int maxAttempts
 ) {}
