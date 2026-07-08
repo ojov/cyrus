@@ -10,14 +10,32 @@ const TABS = [
   { id: "all", label: "All", status: undefined },
 ] as const;
 
+// Replaying an already-resolved event (PROCESSED/REATTRIBUTED) doesn't create a duplicate
+// transaction — the backend's idempotency check catches that — but it does silently overwrite the
+// event's status to PROCESSED_DUPLICATE, discarding the original success marker. Only offer Replay
+// where re-running ingestion is actually the useful action.
+const REPLAYABLE_STATUSES = new Set(["RECEIVED", "IGNORED", "FAILED"]);
+
 export default function ReconciliationPage() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("attention");
   const [events, setEvents] = useState<PaymentEventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  // A Set (not a single id) so one row's in-flight request doesn't accidentally re-enable another
+  // row's buttons — a single shared "busy" value would let a second click on a different row wipe
+  // out the first row's disabled state before its request finishes.
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [reattributingId, setReattributingId] = useState<string | null>(null);
   const [reattributeRef, setReattributeRef] = useState("");
+
+  function setBusy(id: string, busy: boolean) {
+    setBusyIds((prev) => {
+      const next = new Set(prev);
+      if (busy) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,7 +56,7 @@ export default function ReconciliationPage() {
   }, [load]);
 
   async function replay(id: string) {
-    setBusyId(id);
+    setBusy(id, true);
     setError(null);
     try {
       await paymentEventApi.replay(id);
@@ -46,7 +64,7 @@ export default function ReconciliationPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to replay event");
     } finally {
-      setBusyId(null);
+      setBusy(id, false);
     }
   }
 
@@ -61,7 +79,7 @@ export default function ReconciliationPage() {
       setError("Enter the customer reference this payment belongs to.");
       return;
     }
-    setBusyId(id);
+    setBusy(id, true);
     setError(null);
     try {
       await paymentEventApi.reattribute(id, reattributeRef.trim());
@@ -70,7 +88,7 @@ export default function ReconciliationPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to reattribute event");
     } finally {
-      setBusyId(null);
+      setBusy(id, false);
     }
   }
 
@@ -147,7 +165,7 @@ export default function ReconciliationPage() {
                       {e.customerReference && <div className="mt-0.5 text-xs text-muted-foreground">{e.customerReference}</div>}
                     </td>
                     <td className="px-4 py-3 text-right font-medium tabular-nums">
-                      {e.amount ? naira(e.amount) : "—"}
+                      {e.amount != null ? naira(e.amount) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
@@ -155,20 +173,22 @@ export default function ReconciliationPage() {
                           <button
                             type="button"
                             onClick={() => startReattribute(e.id)}
-                            disabled={busyId === e.id}
+                            disabled={busyIds.has(e.id)}
                             className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
                           >
                             Reattribute
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => replay(e.id)}
-                          disabled={busyId === e.id}
-                          className="rounded-md border border-border px-2.5 py-1 text-xs font-medium transition hover:bg-accent disabled:opacity-60"
-                        >
-                          {busyId === e.id ? "…" : "Replay"}
-                        </button>
+                        {REPLAYABLE_STATUSES.has(e.status) && (
+                          <button
+                            type="button"
+                            onClick={() => replay(e.id)}
+                            disabled={busyIds.has(e.id)}
+                            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium transition hover:bg-accent disabled:opacity-60"
+                          >
+                            {busyIds.has(e.id) ? "…" : "Replay"}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -189,10 +209,10 @@ export default function ReconciliationPage() {
                           <button
                             type="button"
                             onClick={() => confirmReattribute(e.id)}
-                            disabled={busyId === e.id}
+                            disabled={busyIds.has(e.id)}
                             className="rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
                           >
-                            {busyId === e.id ? "Attributing…" : "Confirm"}
+                            {busyIds.has(e.id) ? "Attributing…" : "Confirm"}
                           </button>
                           <button
                             type="button"

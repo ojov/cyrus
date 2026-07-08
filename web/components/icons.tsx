@@ -73,3 +73,9 @@ export const IconBank = ({ className }: IconProps) => (
 export const IconSend = ({ className }: IconProps) => (
   <Svg className={className}><path d="M22 2 11 13M22 2 15 22l-4-9-9-4 20-7Z" /></Svg>
 );
+export const IconEye = ({ className }: IconProps) => (
+  <Svg className={className}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></Svg>
+);
+export const IconEyeOff = ({ className }: IconProps) => (
+  <Svg className={className}><path d="M3 3l18 18M10.6 5.2A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a15.8 15.8 0 0 1-3.2 4M6.3 6.3C3.4 8.2 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 4.2-.9M9.9 9.9a3 3 0 0 0 4.2 4.2" /></Svg>
+);

@@ -31,4 +31,9 @@ public interface NombaPaymentEventRepository extends JpaRepository<NombaPaymentE
     Page<NombaPaymentEvent> findByMerchant(@Param("merchantId") UUID merchantId,
                                            @Param("status") NombaPaymentEventStatus status,
                                            Pageable pageable);
+
+    // Overview reconciliation-health count: events that never became a transaction at all — the
+    // orphan/misdirected-payment case, distinct from a transaction that DID get created but has a
+    // DISCREPANCY/MANUAL_REVIEW matchStatus.
+    long countByMerchantIdAndStatus(UUID merchantId, NombaPaymentEventStatus status);
 }

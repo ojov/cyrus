@@ -73,8 +73,27 @@ export const authApi = {
 // ---- Dashboard (JWT-authed) ----
 // Cyrus runs on a single Nomba account — no TEST/LIVE split. One API key, one wallet,
 // one webhook config per merchant.
+export interface ReconciliationSummary {
+  matched: number;
+  discrepancy: number;
+  manualReview: number;
+  pending: number;
+  orphaned: number;
+}
+
+export interface DailyInflow {
+  date: string;
+  amountKobo: number;
+}
+
 export interface DashboardStats {
-  data: { customers: number; virtualAccounts: number; walletBalance: number };
+  data: {
+    customers: number;
+    virtualAccounts: number;
+    walletBalance: number;
+    reconciliation: ReconciliationSummary;
+    inflowLast7Days: DailyInflow[];
+  };
 }
 
 export interface ApiKeyItem {

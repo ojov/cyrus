@@ -34,9 +34,13 @@ prototype. Separate from the Java backend at the repo root.
 - **Dependency-free UI:** inline SVG icons in `components/icons.tsx` (no lucide); `cn`, `naira`,
   `statusClass` in `lib/utils.ts` (no clsx/tailwind-merge). No shadcn, react-query, or sonner.
 - **Money is kobo** (`BigInteger` on the backend); render with `naira()` at the display edge only.
-- **Data:** `lib/api.ts` = real backend (auth + `/merchants/me/stats`, api-keys, go-live).
-  `lib/mock.ts` = **mock** Customers/Transactions/Reconciliation (those endpoints do not exist yet —
-  clearly `TODO(backend)`).
+- **Data:** `lib/api.ts` is real backend for essentially everything now — auth, stats, api-keys,
+  wallet, beneficiaries (incl. the bank picker), payouts, webhook config + delivery history,
+  customers/statement, and transactions (merchant-wide + per-customer). `lib/mock.ts` is down to
+  just the Customers *list* table (no backend list-customers endpoint exists — `TODO(backend)`,
+  see its own top comment); every other page that used to be mocked (Transactions,
+  Reconciliation/exceptions, the Overview health bar/inflow chart, the sidebar exception badge) is
+  wired to real data.
 - **React 19 lint:** no synchronous `setState` inside an effect body — defer with
   `Promise.resolve(...).then(setX)` (see `dashboard/page.tsx`, `dashboard/api-keys/page.tsx`).
 - Theme is applied + toggled by `components/theme-toggle.tsx` (class-driven icon, no theme state).
