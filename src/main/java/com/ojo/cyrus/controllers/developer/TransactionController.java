@@ -23,7 +23,10 @@ import java.time.Instant;
 @RestController
 @RequestMapping("/v1/transactions")
 @RequiredArgsConstructor
-@Tag(name = "Transactions", description = "Your transaction history — inbound customer payments and outbound payouts, across all customers.")
+@Tag(name = "Transactions", description = """
+        Your transaction history — inbound customer payments and outbound payouts, across all customers.
+        For CUSTOMER_PAYMENT transactions, feeKobo is Nomba's processing fee (1% min ₦10, max ₦150).
+        For PAYOUT transactions, feeKobo is Cyrus's flat ₦30 fee.""")
 public class TransactionController {
 
     private final TransactionService transactionService;

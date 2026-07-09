@@ -64,7 +64,8 @@ public class AuthService {
                 authenticate(new UsernamePasswordAuthenticationToken(request.email(), request.password()));
         String jwt = tokenService.generateToken(authentication);
         Merchant merchant = merchantService.findByBusinessEmail(request.email());
-        LoginResponse response = new LoginResponse(merchant.getId(), merchant.getBusinessName(), merchant.getBusinessEmail());
+        LoginResponse response = new LoginResponse(merchant.getId(), merchant.getBusinessName(),
+                merchant.getBusinessEmail(), merchant.getRole() == com.ojo.cyrus.enums.MerchantRole.SUPER_ADMIN);
         return new AuthTokenResult<>(jwt, response);
     }
 

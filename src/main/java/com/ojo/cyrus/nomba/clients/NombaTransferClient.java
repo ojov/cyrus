@@ -1,6 +1,7 @@
 package com.ojo.cyrus.nomba.clients;
 
 import com.ojo.cyrus.config.properties.NombaProperties;
+import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.nomba.NombaApiUri;
 import com.ojo.cyrus.nomba.NombaResponseSupport;
 import com.ojo.cyrus.nomba.dto.NombaApiResponse;
@@ -52,7 +53,54 @@ public class NombaTransferClient {
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});
 
-        return NombaResponseSupport.requireData(response, "bank transfer " + request.merchantTxRef());
+        // Nomba's transfer endpoint documents a non-"00" code ("201"/PROCESSING, description
+        // "PROCESSING") as the NORMAL response for a transfer that was accepted but is still
+        // settling — data is `{"status": "PENDING_BILLING"}`, with the caller told to rely on the
+        // payout_success/payout_failed webhook for the definitive outcome. The strict "00"-only
+        // NombaResponseSupport.requireData (correct for lookup/list, which should only ever succeed
+        // with "00") would discard that valid data here and throw — which made PayoutService.initiate
+        // treat an ACCEPTED transfer as a provider rejection: refunding the wallet and marking the
+        // payout FAILED while the money had genuinely left the account (caught live: a real transfer
+        // the recipient received was refunded and marked FAILED, then the later payout_success
+        // webhook silently no-opped against the already-terminal FAILED payout). Only throw when
+        // there's truly no data to act on; PayoutService.finalizeAccepted already reads the `status`
+        // field to decide SUCCESS vs PROCESSING, so PENDING_BILLING correctly becomes PROCESSING
+        // (awaiting the webhook) instead of a false FAILED.
+        if (response != null && response.data() != null) {
+            return response.data();
+        }
+        String detail = response != null ? response.description() : "null response from Nomba";
+        throw new NombaIntegrationException("Nomba bank transfer " + request.merchantTxRef() + " failed: " + detail);
+    }
+
+    /**
+     * Requeries a transfer (payout) by its Nomba provider transaction reference. Unlike
+     * {@link #transfer}, this is a read-only GET and follows the standard "00"-code convention
+     * (NombaResponseSupport.requireData is safe here).
+     *
+     * @param providerReference Nomba's transfer ID, e.g. "API-TRANSFER-XXX"
+     * @return transfer data from Nomba (status, amount, fee, etc.)
+     * @throws IllegalStateException if no sub-account is configured (the requery endpoint
+     *         is only known in its sub-account-scoped variant)
+     */
+    public NombaBankTransferData requeryTransfer(String providerReference) {
+        log.info("Requerying Nomba transfer providerReference={}", providerReference);
+
+        String sub = props.subAccountId();
+        if (sub == null || sub.isBlank()) {
+            throw new IllegalStateException(
+                    "Transfer requery requires a sub-account (no non-sub-account endpoint is known)");
+        }
+
+        NombaApiResponse<NombaBankTransferData> response = nombaRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path(NombaApiUri.TRANSFER_REQUERY_UNDER_SUBACCOUNT.path())
+                        .queryParam("transactionRef", providerReference)
+                        .build(sub))
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+
+        return NombaResponseSupport.requireData(response, "transfer requery " + providerReference);
     }
 
     /** Resolves the account holder name for a destination account before a payout. */

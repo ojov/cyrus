@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.Base64;
+import java.util.List;
 
 @ConfigurationProperties(prefix = "app")
 @Validated
@@ -19,10 +20,18 @@ public record AppProperties(
         @NotBlank(message = "app.encryption-key must be configured (APP_ENCRYPTION_KEY)")
         String encryptionKey,
 
+        /**
+         * Emails seeded as SUPER_ADMIN at startup (bootstrap admins). Comma-separated in
+         * {@code APP_SUPER_ADMIN_EMAILS}; empty/absent means no bootstrap promotion. Additive only —
+         * see {@code SuperAdminBootstrap}.
+         */
+        List<String> superAdminEmails,
+
         JwtConfig jwt
 
 ) {
     public AppProperties {
+        superAdminEmails = superAdminEmails == null ? List.of() : superAdminEmails;
         // Fail fast at startup on a malformed encryption key, rather than 500-ing on the first
         // register that encrypts a Nomba secret. (@NotBlank above handles the missing case.)
         if (encryptionKey != null && !encryptionKey.isBlank()) {

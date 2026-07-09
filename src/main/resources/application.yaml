@@ -69,6 +69,9 @@ app:
   # frontend, not the backend. Prod: set APP_FRONTEND_URL=https://trycyrus.app.
   frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
   encryption-key: ${APP_ENCRYPTION_KEY}
+  # Comma-separated emails promoted to SUPER_ADMIN at startup (bootstrap platform admins). Empty by
+  # default — set APP_SUPER_ADMIN_EMAILS to grant the first admin(s).
+  super-admin-emails: ${APP_SUPER_ADMIN_EMAILS}
   jwt:
     issuer: cyrus
     expiry-hours: 8
@@ -85,15 +88,24 @@ app:
     # How many requery attempts (immediate + sweep retries) before we give up and flag MANUAL_REVIEW.
     max-attempts: ${APP_RECONCILIATION_MAX_ATTEMPTS:5}
   fees:
-    # Cyrus's revenue on inbound payments: Nomba's own confirmed fee (from reconciliation) marked
-    # up by this multiplier. 1.30 = Nomba fee ₦10 -> ₦13 charged to the merchant (₦3 margin).
-    markup-multiplier: ${APP_FEE_MARKUP_MULTIPLIER:1.30}
+    # Inbound payments: merchant pays inflow-percent of the gross (min inflow-min-kobo,
+    # max inflow-max-kobo). Nomba's own fee (1% min ₦10 max ₦150) is tracked separately
+    # from the webhook; Cyrus's margin = merchant fee − Nomba fee.
+    inflow-percent: ${APP_INFLOW_FEE_PERCENT:1.5}
+    inflow-min-kobo: ${APP_INFLOW_FEE_MIN_KOBO:1500}
+    inflow-max-kobo: ${APP_INFLOW_FEE_MAX_KOBO:22500}
+    # Payouts: flat fee per transfer (₦30 — ₦20 covers Nomba's fixed charge, ₦10 is Cyrus's margin).
+    payout-flat-fee-kobo: ${APP_PAYOUT_FEE_KOBO:3000}
   webhook:
     # Outbound merchant webhook delivery: how many attempts before a delivery is marked FAILED,
     # and the exponential backoff bounds between retries (min(initial * 2^(n-1), max)).
     max-attempts: ${APP_WEBHOOK_MAX_ATTEMPTS:5}
     initial-backoff-seconds: ${APP_WEBHOOK_INITIAL_BACKOFF_SECONDS:60}
     max-backoff-seconds: ${APP_WEBHOOK_MAX_BACKOFF_SECONDS:3600}
+  payout-requery:
+    # How often the payout requery sweep runs (processing payouts with a provider reference are
+    # polled against Nomba's transfer requery endpoint to catch missed webhooks).
+    delay-seconds: ${APP_PAYOUT_REQUERY_DELAY_SECONDS:120}
   cors:
     # Comma-separated origins (Spring binds a comma-separated value to the list). No trailing
     # slashes — each must match the browser Origin header exactly. Override via CORS_ALLOWED_ORIGINS

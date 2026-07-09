@@ -1,6 +1,7 @@
 package com.ojo.cyrus.models.responses;
 
 import com.ojo.cyrus.enums.PayoutStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigInteger;
 import java.time.Instant;
@@ -12,6 +13,10 @@ public record PayoutResponse(
         String reference,
         PayoutStatus status,
         BigInteger amount,
+        @Schema(description = """
+                Cyrus's flat fee for this payout in kobo. Always ₦30 (3000 kobo) — a fixed charge
+                that covers Nomba's ₦20 transfer fee plus a ₦10 Cyrus margin.
+                The total debit from your wallet = amount + fee.""")
         BigInteger fee,
         UUID beneficiaryId,
         String providerReference,

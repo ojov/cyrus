@@ -18,6 +18,7 @@ import {
   IconWallet,
   IconBank,
   IconSend,
+  IconShield,
 } from "@/components/icons";
 
 type NavItem = {
@@ -49,7 +50,11 @@ export function DashboardSidebar() {
   // Reconciliation badge tracks the same real "needs attention" count (orphaned + manual review)
   // the Overview and Reconciliation pages themselves compute, so the sidebar can't drift from it.
   const needsAttention = stats ? stats.reconciliation.orphaned + stats.reconciliation.manualReview : 0;
-  const nav: NavItem[] = BASE_NAV.map((item) =>
+  // Platform link only for super-admins. Cosmetic — the /v1/platform/** endpoints 403 regardless.
+  const baseNav: Omit<NavItem, "badge">[] = session?.superAdmin
+    ? [...BASE_NAV, { href: "/ops/platform", label: "Platform", Icon: IconShield }]
+    : BASE_NAV;
+  const nav: NavItem[] = baseNav.map((item) =>
     item.href === "/ops/reconciliation" && needsAttention > 0
       ? { ...item, badge: String(needsAttention) }
       : item,

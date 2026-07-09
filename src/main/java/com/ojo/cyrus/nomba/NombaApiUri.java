@@ -38,7 +38,14 @@ public enum NombaApiUri {
      * Until then, SUSPENDED→ACTIVE (reactivate) is also untestable; it may be the same endpoint
      * acting as a toggle, or a separate endpoint we haven't discovered.
      */
-    SUSPEND_VIRTUAL_ACCOUNT("/v1/accounts/suspend/{accountId}");
+    SUSPEND_VIRTUAL_ACCOUNT("/v1/accounts/suspend/{accountId}"),
+    /**
+     * Requery a single transfer (payout) by its provider transaction reference, scoped to a
+     * sub-account: {@code GET /v1/transactions/accounts/{subAccountId}/single?transactionRef=...}.
+     * Only the sub-account variant has been verified against Nomba's API docs; there is no known
+     * non-sub-account equivalent endpoint — if none is configured, the client throws.
+     */
+    TRANSFER_REQUERY_UNDER_SUBACCOUNT("/v1/transactions/accounts/{subAccountId}/single");
 
     private final String path;
 

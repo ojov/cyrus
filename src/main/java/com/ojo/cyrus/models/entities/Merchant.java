@@ -1,5 +1,6 @@
 package com.ojo.cyrus.models.entities;
 
+import com.ojo.cyrus.enums.MerchantRole;
 import com.ojo.cyrus.enums.MerchantStatus;
 import com.ojo.cyrus.models.BaseEntity;
 import com.ojo.cyrus.models.WebhookConfig;
@@ -43,6 +44,12 @@ public class Merchant extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private MerchantStatus status = MerchantStatus.PENDING_VERIFICATION;
+
+    /** Authorization role. SUPER_ADMIN unlocks the platform-oversight endpoints; seeded from config. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private MerchantRole role = MerchantRole.MERCHANT;
 
     /** Cyrus-level quota on how many virtual accounts this merchant may provision. */
     @Column(nullable = false)

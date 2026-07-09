@@ -52,6 +52,25 @@ spec:
               value: '300'
             - name: APP_RECONCILIATION_MAX_ATTEMPTS
               value: '5'
+            # Payout requery sweep interval (seconds) — how often PROCESSING payouts with a
+            # provider reference are polled against Nomba's transfer requery endpoint.
+            - name: APP_PAYOUT_REQUERY_DELAY_SECONDS
+              value: '120'
+            # Inflow fee: Cyrus charges 1.5% of the gross amount (min ₦15, max ₦225) on inbound payments.
+            - name: APP_INFLOW_FEE_PERCENT
+              value: '1.5'
+            - name: APP_INFLOW_FEE_MIN_KOBO
+              value: '1500'
+            - name: APP_INFLOW_FEE_MAX_KOBO
+              value: '22500'
+            # Payout fee: flat ₦30 per transfer (₦20 covers Nomba's fixed charge, ₦10 is Cyrus's margin).
+            - name: APP_PAYOUT_FEE_KOBO
+              value: '3000'
+            # Comma-separated emails promoted to SUPER_ADMIN role at startup (bootstrap platform admins).
+            # Additive only — existing super-admins are never demoted.
+            - name: APP_SUPER_ADMIN_EMAILS
+              valueFrom:
+                secretKeyRef: { name: APP_SUPER_ADMIN_EMAILS, key: latest }
             # Outbound merchant webhooks: delivery attempts and exponential backoff bounds (seconds)
             - name: APP_WEBHOOK_MAX_ATTEMPTS
               value: '5'
