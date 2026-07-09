@@ -2,6 +2,7 @@ package com.ojo.cyrus.nomba;
 
 import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
+import com.ojo.cyrus.models.dto.NormalizedPayoutEvent;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -59,6 +60,30 @@ public class NombaWebhookAdapter {
             throw e;
         } catch (Exception e) {
             throw new NombaIntegrationException("Failed to parse Nomba webhook payload: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Maps a raw Nomba {@code payout_*} webhook into a {@link NormalizedPayoutEvent}. These finalize
+     * an existing {@code Payout} (matched by {@code transaction.merchantTxRef}), not a payment, so
+     * they take a separate parse path from {@link #toCyrusEvent} — no VA/customer attribution.
+     */
+    public NormalizedPayoutEvent toPayoutEvent(String rawPayload) {
+        try {
+            JsonNode root = objectMapper.readTree(rawPayload);
+            JsonNode tx = root.path("data").path("transaction");
+            return new NormalizedPayoutEvent(
+                    text(root, "event_type"),
+                    text(root, "requestId"),
+                    text(tx, "merchantTxRef"),
+                    text(tx, "transactionId"),
+                    text(tx, "sessionId"),
+                    toKobo(tx.path("fee")),
+                    toKobo(tx.path("transactionAmount")));
+        } catch (NombaIntegrationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new NombaIntegrationException("Failed to parse Nomba payout webhook payload: " + e.getMessage());
         }
     }
 

@@ -2,6 +2,7 @@ package com.ojo.cyrus.controllers.dashboard;
 
 import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.ResponseCode;
+import com.ojo.cyrus.models.responses.CustomerListItemResponse;
 import com.ojo.cyrus.models.responses.CustomerResponse;
 import com.ojo.cyrus.models.responses.CustomerStatementResponse;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,6 +36,22 @@ public class DashboardCustomerController {
 
     private final CustomerService customerService;
     private final MerchantService merchantService;
+
+    @Operation(
+            summary = "List customers",
+            description = "Paginated, newest-first list of every customer, each with their virtual account and " +
+                    "lifetime received volume (SUCCESSFUL customer payments).",
+            security = @SecurityRequirement(name = "BearerAuth")
+    )
+    @GetMapping
+    public CyrusApiResponse<Page<CustomerListItemResponse>> list(
+            @AuthenticationPrincipal Jwt jwt,
+            @PageableDefault(size = 20) Pageable pageable) {
+
+        UUID merchantId = merchantService.findByBusinessEmail(jwt.getSubject()).getId();
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customers retrieved",
+                customerService.list(merchantId, pageable));
+    }
 
     @Operation(summary = "Get a customer", security = @SecurityRequirement(name = "BearerAuth"))
     @GetMapping("/{reference}")

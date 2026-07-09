@@ -24,16 +24,17 @@ export default function PayoutsReferencePage() {
     >
       <h2>API Reference · Payouts</h2>
       <p className="lede">
-        Withdraw your Cyrus wallet balance to a bank account. Payouts settle via Nomba and are tracked the same way
-        inbound payments are — with a stable reference and a status you can poll or receive as a webhook.
+        Withdraw your Cyrus wallet balance to a bank account. Payouts settle via our connected banking provider and
+        are tracked the same way inbound payments are — with a stable reference and a status you can poll or receive
+        as a webhook.
       </p>
       <h3>Register a beneficiary first</h3>
       <p>
         A beneficiary is the destination bank account. Its <code>bankCode</code> should come from{" "}
         <code>GET /v1/merchants/me/beneficiaries/banks</code> rather than being hand-typed — that&apos;s the exact list
-        Nomba recognizes at transfer time, so a mistyped code can never make it into a saved beneficiary. Cyrus also
-        verifies the account name against Nomba when you add one, so you always see the real account holder before
-        sending money.
+        the provider recognizes at transfer time, so a mistyped code can never make it into a saved beneficiary. Cyrus
+        also verifies the account name with the provider when you add one, so you always see the real account holder
+        before sending money.
       </p>
       <Code>{`POST /v1/merchants/me/beneficiaries
 {
@@ -45,14 +46,14 @@ export default function PayoutsReferencePage() {
       <h3>Initiate a payout</h3>
       <p>
         Amounts are integer kobo. Cyrus debits your wallet up front — a payout can never overdraw your balance — and
-        refunds it automatically if Nomba rejects the transfer.
+        refunds it automatically if the provider rejects the transfer.
       </p>
       <h3>Statuses</h3>
       <ul>
-        <li><b>PENDING</b> — reserved and submitted to Nomba.</li>
-        <li><b>PROCESSING</b> — accepted by Nomba, settling.</li>
+        <li><b>PENDING</b> — reserved and submitted to the provider.</li>
+        <li><b>PROCESSING</b> — accepted by the provider, settling.</li>
         <li><b>SUCCESS</b> — settled to the beneficiary.</li>
-        <li><b>FAILED</b> — rejected by Nomba; your wallet was refunded.</li>
+        <li><b>FAILED</b> — rejected by the provider; your wallet was refunded.</li>
       </ul>
       <div className="callout">
         A failed payout is refunded to your wallet automatically — you never need to manually reconcile a rejected transfer.

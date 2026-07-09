@@ -2,6 +2,8 @@ package com.ojo.cyrus.controllers.dashboard;
 
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.requests.CreateBeneficiaryRequest;
+import com.ojo.cyrus.models.requests.VerifyBeneficiaryRequest;
+import com.ojo.cyrus.models.responses.AccountVerificationResponse;
 import com.ojo.cyrus.models.responses.BankResponse;
 import com.ojo.cyrus.models.responses.BeneficiaryResponse;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
@@ -28,8 +30,20 @@ public class BeneficiaryController {
     private final BeneficiaryService beneficiaryService;
     private final MerchantService merchantService;
 
+    @Operation(summary = "Verify a destination account",
+            description = "Resolves the account holder name for an account number + bank, so the merchant can " +
+                    "confirm it before adding the beneficiary. Returns 422 if the account can't be verified.",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @PostMapping("/verify")
+    public CyrusApiResponse<AccountVerificationResponse> verify(
+            @Valid @RequestBody VerifyBeneficiaryRequest request) {
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Account verified",
+                beneficiaryService.verifyAccount(request.accountNumber(), request.bankCode()));
+    }
+
     @Operation(summary = "Register a beneficiary",
-            description = "Adds a bank account for payouts in the given environment. The account name is verified against Nomba.",
+            description = "Adds a bank account for payouts. The account is verified against the provider as a hard " +
+                    "gate — an unverifiable account is rejected (422), never stored. The label is the verified name.",
             security = @SecurityRequirement(name = "BearerAuth"))
     @PostMapping
     public CyrusApiResponse<BeneficiaryResponse> create(

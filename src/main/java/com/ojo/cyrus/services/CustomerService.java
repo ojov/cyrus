@@ -16,11 +16,12 @@ import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
 import com.ojo.cyrus.models.requests.UpdateCustomerRequest;
+import com.ojo.cyrus.models.responses.CustomerListItemResponse;
 import com.ojo.cyrus.models.responses.CustomerResponse;
 import com.ojo.cyrus.models.responses.CustomerStatementResponse;
 import com.ojo.cyrus.models.responses.StatementRowResponse;
 import com.ojo.cyrus.models.responses.StatementSummaryResponse;
-import com.ojo.cyrus.nomba.NombaVirtualAccountClient;
+import com.ojo.cyrus.nomba.clients.NombaVirtualAccountClient;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
 import com.ojo.cyrus.repositories.MerchantCustomerRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
@@ -39,8 +40,12 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigInteger;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Customer identity + virtual-account lifecycle. Provisioning and the Nomba-side rename/expire calls
@@ -87,6 +92,26 @@ public class CustomerService {
         MerchantCustomer customer = requireCustomer(merchantId, reference);
         VirtualAccount va = requireVirtualAccount(customer.getId());
         return Mapper.toCustomerResponse(customer, va);
+    }
+
+    /**
+     * Paginated, newest-first list of every customer for this merchant, each with their virtual
+     * account and lifetime received volume. Lifetime totals are fetched in one grouped query for
+     * the whole page rather than per-row, to avoid an N+1 against the transaction table.
+     */
+    @Transactional(readOnly = true)
+    public Page<CustomerListItemResponse> list(UUID merchantId, Pageable pageable) {
+        Pageable sorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<MerchantCustomer> customers = merchantCustomerRepository.findByMerchantId(merchantId, sorted);
+
+        List<UUID> customerIds = customers.getContent().stream().map(MerchantCustomer::getId).toList();
+        Map<UUID, BigInteger> lifetimeByCustomerId = customerIds.isEmpty() ? Map.of()
+                : transactionRepository.sumAmountByCustomerIdsAndStatus(merchantId, customerIds, TransactionStatus.SUCCESSFUL)
+                        .stream().collect(Collectors.toMap(row -> (UUID) row[0], row -> (BigInteger) row[1]));
+
+        return customers.map(customer -> Mapper.toCustomerListItemResponse(customer,
+                lifetimeByCustomerId.getOrDefault(customer.getId(), BigInteger.ZERO)));
     }
 
     /**

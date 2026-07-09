@@ -79,3 +79,9 @@ export const IconEye = ({ className }: IconProps) => (
 export const IconEyeOff = ({ className }: IconProps) => (
   <Svg className={className}><path d="M3 3l18 18M10.6 5.2A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a15.8 15.8 0 0 1-3.2 4M6.3 6.3C3.4 8.2 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 4.2-.9M9.9 9.9a3 3 0 0 0 4.2 4.2" /></Svg>
 );
+export const IconCopy = ({ className }: IconProps) => (
+  <Svg className={className}><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></Svg>
+);
+export const IconCheck = ({ className }: IconProps) => (
+  <Svg className={className}><path d="M20 6 9 17l-5-5" /></Svg>
+);

@@ -11,8 +11,8 @@ export default function ApiKeysDocsPage() {
       </p>
       <ul>
         <li>
-          <b>One key.</b> There is no TEST/LIVE split — Cyrus runs on its own Nomba account, so a single key authenticates
-          every request.
+          <b>One key.</b> There is no TEST/LIVE split — Cyrus runs its own payment-provider account, so a single key
+          authenticates every request.
         </li>
         <li>
           <b>Generate it yourself.</b> Signup does not give you a reusable visible key. Open Dashboard → API keys,

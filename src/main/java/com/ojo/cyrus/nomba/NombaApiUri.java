@@ -12,8 +12,16 @@ public enum NombaApiUri {
     VIRTUAL_ACCOUNT_BY_REF("/v1/accounts/virtual/{accountRef}"),
     TRANSACTION_REQUERY("/v1/transactions/requery/{sessionId}"),
     BANK_TRANSFER("/v2/transfers/bank"),
+    // Sub-account variant of the payout transfer — Cyrus transacts under a sub-account, so a payout
+    // must target it the same way VA creation does (see VIRTUAL_ACCOUNT_UNDER_SUBACCOUNT). Confirmed
+    // against https://developer.nomba.com/docs/products/transfers/transfer-to-banks.
+    BANK_TRANSFER_UNDER_SUBACCOUNT("/v2/transfers/bank/{subAccountId}"),
     BANK_LOOKUP("/v1/transfers/bank/lookup"),
-    BANK_LIST("/v1/transfers/bank"),
+    // Plural "banks" — confirmed against https://developer.nomba.com/docs/products/transfers/fetch-bank-codes-and-names.
+    // Was wrongly singular ("/v1/transfers/bank", colliding with the payout path's base) — BeneficiaryService.listBanks()
+    // wraps every call in a try/catch that fails soft to an empty list, so this 404'd silently: the bank picker on
+    // the beneficiaries page never populated, with no visible error anywhere.
+    BANK_LIST("/v1/transfers/banks"),
     PARENT_BALANCE("/v1/accounts/parent/balance"),
     SUBACCOUNT_BALANCE("/v1/accounts/{subAccountId}/balance"),
     /**

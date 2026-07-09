@@ -1,7 +1,9 @@
-package com.ojo.cyrus.nomba;
+package com.ojo.cyrus.nomba.clients;
 
 import com.ojo.cyrus.config.properties.NombaProperties;
 import com.ojo.cyrus.exception.NombaIntegrationException;
+import com.ojo.cyrus.nomba.NombaApiUri;
+import com.ojo.cyrus.nomba.NombaResponseSupport;
 import com.ojo.cyrus.nomba.dto.NombaApiResponse;
 import com.ojo.cyrus.nomba.dto.NombaCreateVirtualAccountRequest;
 import com.ojo.cyrus.nomba.dto.NombaExpireVirtualAccountResponse;

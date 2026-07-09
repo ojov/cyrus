@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { authApi, webhookApi, type WebhookConfigItem, type WebhookDeliveryItem } from "@/lib/api";
 import { getSession } from "@/lib/auth";
 import { statusClass } from "@/lib/utils";
+import { CopyButton } from "@/components/ui/copy-button";
 
 const field =
   "w-full rounded-lg border border-border bg-muted px-3 py-2 font-mono text-[13px] outline-none focus:border-primary";
@@ -140,9 +141,12 @@ export default function SettingsPage() {
                   <b className="text-xs">Signing secret</b>
                   <span className="db db-warn">shown once</span>
                 </div>
-                <code className="block overflow-x-auto whitespace-nowrap rounded-md border border-border bg-background px-3 py-2 font-mono text-xs">
-                  {revealedSecret}
-                </code>
+                <div className="flex items-center gap-2">
+                  <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border border-border bg-background px-3 py-2 font-mono text-xs">
+                    {revealedSecret}
+                  </code>
+                  <CopyButton text={revealedSecret} />
+                </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Store this now — Cyrus cannot show it again. Verify inbound deliveries with HMAC-SHA256 over the raw body.
                 </p>

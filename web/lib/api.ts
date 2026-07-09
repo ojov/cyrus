@@ -144,11 +144,23 @@ export interface BankItem {
   name: string;
 }
 
+export interface AccountVerification {
+  accountNumber: string;
+  accountName: string;
+  bankCode: string;
+}
+
 export const beneficiaryApi = {
   list: () => api.get<{ data: BeneficiaryItem[] }>("/v1/merchants/me/beneficiaries"),
-  create: (payload: { nickname: string; accountNumber: string; bankCode: string; bankName: string }) =>
+  // Verify the account against the provider before adding, so the merchant confirms the resolved
+  // account name. Throws (422) if it can't be verified.
+  verify: (accountNumber: string, bankCode: string) =>
+    api.post<{ data: AccountVerification }>("/v1/merchants/me/beneficiaries/verify", { accountNumber, bankCode }),
+  // No nickname — the label is the verified account name. Verification is re-checked server-side.
+  create: (payload: { accountNumber: string; bankCode: string; bankName: string }) =>
     api.post<{ data: BeneficiaryItem }>("/v1/merchants/me/beneficiaries", payload),
   // The bank code must come from here, not be hand-typed — it's what a payout transfer is keyed by.
+  // Server-side cached, so this is cheap to call.
   listBanks: () => api.get<{ data: BankItem[] }>("/v1/merchants/me/beneficiaries/banks"),
 };
 
@@ -324,7 +336,40 @@ export interface StatementFilters {
   size?: number;
 }
 
+export interface CustomerListItem {
+  id: string;
+  reference: string;
+  firstName: string;
+  lastName: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  status: string;
+  kycTier: string;
+  virtualAccount: {
+    id: string;
+    accountNumber: string;
+    accountName: string | null;
+    bankName: string | null;
+    currency: string;
+    status: string;
+  } | null;
+  lifetimeKobo: number;
+  createdAt: string;
+}
+
+export interface CustomerListPage {
+  content: CustomerListItem[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
 export const customerApi = {
+  list: (page = 0, size = 20) =>
+    api.get<{ data: CustomerListPage }>(`/v1/merchants/me/customers?page=${page}&size=${size}`),
   get: (reference: string) =>
     api.get<{ data: CustomerDetail }>(`/v1/merchants/me/customers/${encodeURIComponent(reference)}`),
   getStatement: (reference: string, filters: StatementFilters = {}) => {

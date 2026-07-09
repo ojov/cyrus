@@ -14,6 +14,7 @@ import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
+import com.ojo.cyrus.models.responses.CustomerListItemResponse;
 import com.ojo.cyrus.models.responses.CustomerResponse;
 import com.ojo.cyrus.models.responses.PaymentEventListItem;
 import com.ojo.cyrus.models.responses.PaymentEventResponse;
@@ -22,6 +23,7 @@ import com.ojo.cyrus.nomba.dto.NombaCreateVirtualAccountRequest;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
 import lombok.experimental.UtilityClass;
 
+import java.math.BigInteger;
 import java.util.UUID;
 
 @UtilityClass
@@ -79,6 +81,30 @@ public class Mapper {
                         va.getCurrency().name(),
                         va.getStatus().name()
                 ),
+                customer.getCreatedAt()
+        );
+    }
+
+    public static CustomerListItemResponse toCustomerListItemResponse(MerchantCustomer customer, BigInteger lifetimeKobo) {
+        VirtualAccount va = customer.getVirtualAccount();
+        return new CustomerListItemResponse(
+                customer.getId(),
+                customer.getExternalCustomerId(),
+                customer.getFirstName(),
+                customer.getLastName(),
+                customer.getEmail(),
+                customer.getPhoneNumber(),
+                customer.getStatus(),
+                customer.getKycTier(),
+                va != null ? new CustomerResponse.VirtualAccountSummary(
+                        va.getId(),
+                        va.getAccountNumber(),
+                        va.getAccountName(),
+                        va.getBankName(),
+                        va.getCurrency().name(),
+                        va.getStatus().name()
+                ) : null,
+                lifetimeKobo,
                 customer.getCreatedAt()
         );
     }

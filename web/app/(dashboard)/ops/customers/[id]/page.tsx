@@ -154,10 +154,10 @@ export default function CustomerDetailPage() {
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5">
-            <span className="text-xs text-muted-foreground">Lifetime received</span>
+            <span className="text-xs text-muted-foreground">Received via this account</span>
             <div className="mt-1 text-2xl font-bold tabular-nums">{naira(summary?.lifetimeKobo ?? 0)}</div>
             <div className="text-xs text-muted-foreground">
-              {summary?.transactionCount ?? 0} transaction{summary?.transactionCount === 1 ? "" : "s"}
+              {summary?.transactionCount ?? 0} transaction{summary?.transactionCount === 1 ? "" : "s"} · credited to your wallet
             </div>
             <div className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
               Last payment {summary?.lastTransactionAt ? new Date(summary.lastTransactionAt).toLocaleString() : "—"}
