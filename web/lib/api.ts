@@ -1,5 +1,14 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -15,7 +24,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // an empty envelope so callers destructuring `.data` don't throw on `null`.
   const text = await res.text();
   if (!text) {
-    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    if (!res.ok) throw new ApiError(res.status, `Request failed: ${res.status}`);
     return { data: null } as T;
   }
 
@@ -26,13 +35,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     // Non-JSON body. On a real error status, fall back to a status-based message below;
     // on a reported success we can't trust the payload, so surface that distinctly instead
     // of silently returning null cast as T (which masked real failures as empty success).
-    if (res.ok) throw new Error("Received an invalid response from the server.");
+    if (res.ok) throw new ApiError(0, "Received an invalid response from the server.");
     body = null;
   }
 
   if (!res.ok) {
     const message = (body as { message?: string } | null)?.message ?? `Request failed: ${res.status}`;
-    throw new Error(message);
+    throw new ApiError(res.status, message);
   }
   return body as T;
 }

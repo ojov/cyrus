@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { platformApi, type PlatformOverview } from "@/lib/api";
+import { ApiError, platformApi, type PlatformOverview } from "@/lib/api";
 import { naira } from "@/lib/utils";
 
 export default function PlatformPage() {
@@ -17,9 +17,8 @@ export default function PlatformPage() {
       const res = await platformApi.overview();
       setData(res.data);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to load platform overview";
-      if (msg.includes("403") || msg.toLowerCase().includes("super-admin")) setForbidden(true);
-      else setError(msg);
+      if (e instanceof ApiError && e.status === 403) setForbidden(true);
+      else setError(e instanceof Error ? e.message : "Failed to load platform overview");
     } finally {
       setLoading(false);
     }
@@ -55,8 +54,8 @@ export default function PlatformPage() {
         </div>
       )}
 
-      {loading || !data ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+      {!error && (loading || !data) ? (
+        <p className="text-sm text-muted-foreground">Loading&hellip;</p>
       ) : (
         <>
           {/* Custody hero */}
