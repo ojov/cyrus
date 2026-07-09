@@ -54,8 +54,8 @@ export default function PlatformPage() {
         </div>
       )}
 
-      {!error && (loading || !data) ? (
-        <p className="text-sm text-muted-foreground">Loading&hellip;</p>
+      {!data || loading ? (
+        !error && <p className="text-sm text-muted-foreground">Loading&hellip;</p>
       ) : (
         <>
           {/* Custody hero */}
