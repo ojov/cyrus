@@ -6,7 +6,7 @@ export default function WebhooksReferencePage() {
       <h2>API Reference · Webhooks</h2>
       <p className="lede">
         Register one endpoint and receive every payment and payout outcome as a clean, signed event. You integrate
-        once and never touch the Nomba payload format.
+        once and never touch the underlying provider&apos;s payload format.
       </p>
       <h3>Events</h3>
       <table className="doctable">
@@ -17,11 +17,11 @@ export default function WebhooksReferencePage() {
           </tr>
         </thead>
         <tbody>
-          <tr><td className="font-mono">payment.succeeded</td><td>Reconciliation confirms an inbound transfer against Nomba.</td></tr>
+          <tr><td className="font-mono">payment.succeeded</td><td>Reconciliation confirms an inbound transfer with the provider.</td></tr>
           <tr><td className="font-mono">payment.reversed</td><td>A previously confirmed payment was clawed back.</td></tr>
           <tr><td className="font-mono">payment.flagged</td><td>Reconciliation couldn&apos;t confirm the payment after retrying — needs manual review.</td></tr>
           <tr><td className="font-mono">payout.completed</td><td>A payout you initiated settled successfully.</td></tr>
-          <tr><td className="font-mono">payout.failed</td><td>A payout was rejected by Nomba; your wallet was refunded.</td></tr>
+          <tr><td className="font-mono">payout.failed</td><td>A payout was rejected by the provider; your wallet was refunded.</td></tr>
         </tbody>
       </table>
       <h3>Configure</h3>

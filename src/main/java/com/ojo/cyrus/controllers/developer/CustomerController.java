@@ -7,6 +7,7 @@ import com.ojo.cyrus.models.requests.CreateCustomerRequest;
 import com.ojo.cyrus.models.requests.UpdateCustomerRequest;
 import com.ojo.cyrus.models.requests.UpdateCustomerStatusRequest;
 import com.ojo.cyrus.models.requests.UpdateKycTierRequest;
+import com.ojo.cyrus.models.responses.CustomerListItemResponse;
 import com.ojo.cyrus.models.responses.CustomerResponse;
 import com.ojo.cyrus.models.responses.CustomerStatementResponse;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
@@ -16,6 +17,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -42,6 +44,21 @@ public class CustomerController {
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customer created",
                 customerService.create(merchant.getId(), request));
+    }
+
+    @Operation(
+            summary = "List customers",
+            description = "Paginated, newest-first list of every customer you've provisioned, each with their " +
+                    "virtual account and lifetime received volume (SUCCESSFUL customer payments).",
+            security = @SecurityRequirement(name = "ApiKeyAuth")
+    )
+    @GetMapping
+    public CyrusApiResponse<Page<CustomerListItemResponse>> list(
+            @AuthenticationPrincipal Merchant merchant,
+            @PageableDefault(size = 20) Pageable pageable) {
+
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customers retrieved",
+                customerService.list(merchant.getId(), pageable));
     }
 
     @Operation(

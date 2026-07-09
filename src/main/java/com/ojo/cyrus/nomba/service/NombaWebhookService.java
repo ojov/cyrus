@@ -1,12 +1,15 @@
 package com.ojo.cyrus.nomba.service;
 
 import com.ojo.cyrus.enums.NombaPaymentEventStatus;
+import com.ojo.cyrus.enums.NombaPaymentEventType;
 import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.exception.WebhookSignatureException;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
+import com.ojo.cyrus.models.dto.NormalizedPayoutEvent;
 import com.ojo.cyrus.models.entities.NombaPaymentEvent;
 import com.ojo.cyrus.nomba.NombaWebhookAdapter;
 import com.ojo.cyrus.services.PaymentEventService;
+import com.ojo.cyrus.services.PayoutService;
 import com.ojo.cyrus.services.TransactionIngestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +31,7 @@ public class NombaWebhookService {
     private final NombaWebhookAdapter adapter;
     private final TransactionIngestionService ingestionService;
     private final PaymentEventService paymentEventService;
+    private final PayoutService payoutService;
     private final ObjectMapper objectMapper;
 
     public void handle(String signature, String timestamp, String rawPayload) {
@@ -46,7 +50,15 @@ public class NombaWebhookService {
         // durably persisted in nomba_payment_events.raw_payload for later reference).
         log.info("Nomba webhook payload requestId={} rawPayload={}", requestId, rawPayload);
 
-        // 2. Normalize the raw provider payload into a Cyrus event.
+        // 2a. Payout outcome (payout_success/failed/refund) finalizes an existing Payout — a separate
+        //     concern from payment ingestion. Branch here and return; the payment path below is
+        //     untouched. (Payment ingestion flow must not change — see AGENTS.md.)
+        if (NombaPaymentEventType.fromWire(eventType).isPayout()) {
+            handlePayout(requestId, eventType, rawPayload);
+            return;
+        }
+
+        // 2b. Normalize the raw provider payload into a Cyrus payment event.
         NormalizedPaymentEvent event;
         try {
             event = adapter.toCyrusEvent(rawPayload);
@@ -61,6 +73,27 @@ public class NombaWebhookService {
         // 3. Record + attribute (idempotent, transactional). Ingestion itself schedules the
         //    delayed reconciliation requery (afterCommit) for any transaction it mints.
         ingestionService.ingest(event, rawPayload);
+    }
+
+    /**
+     * Finalizes a payout from its Nomba webhook: persist a durable audit row (idempotent by
+     * requestId), parse, then hand to {@link PayoutService#applyWebhook} (which locks + status-guards
+     * the payout, so a duplicate/late delivery is a safe no-op). A malformed payload can't be fixed
+     * by retrying the identical body, so it's logged and swallowed (no retry storm); a transient
+     * failure inside {@code applyWebhook} propagates so Nomba retries.
+     */
+    private void handlePayout(String requestId, String eventType, String rawPayload) {
+        paymentEventService.recordPayoutEvent(requestId, eventType, rawPayload);
+
+        NormalizedPayoutEvent event;
+        try {
+            event = adapter.toPayoutEvent(rawPayload);
+        } catch (NombaIntegrationException e) {
+            log.error("Unparseable payout webhook requestId={} eventType={}: {}",
+                    requestId, eventType, e.getMessage(), e);
+            return;
+        }
+        payoutService.applyWebhook(event);
     }
 
     private void recordUnparseable(String rawPayload, Exception cause) {

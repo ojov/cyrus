@@ -9,7 +9,7 @@ import com.ojo.cyrus.enums.ReconciliationOutcome;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.models.dto.RequeryApplication;
 import com.ojo.cyrus.models.entities.Transaction;
-import com.ojo.cyrus.nomba.NombaTransactionClient;
+import com.ojo.cyrus.nomba.clients.NombaTransactionClient;
 import com.ojo.cyrus.nomba.dto.NombaTransactionData;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.repositories.TransactionRepository;

@@ -1,13 +1,15 @@
 package com.ojo.cyrus.services;
 
+import com.ojo.cyrus.exception.AccountVerificationException;
 import com.ojo.cyrus.exception.AlreadyExistsException;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.models.entities.Beneficiary;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.CreateBeneficiaryRequest;
+import com.ojo.cyrus.models.responses.AccountVerificationResponse;
 import com.ojo.cyrus.models.responses.BankResponse;
 import com.ojo.cyrus.models.responses.BeneficiaryResponse;
-import com.ojo.cyrus.nomba.NombaTransferClient;
+import com.ojo.cyrus.nomba.clients.NombaTransferClient;
 import com.ojo.cyrus.nomba.dto.NombaBankLookupData;
 import com.ojo.cyrus.nomba.dto.NombaBankLookupRequest;
 import com.ojo.cyrus.repositories.BeneficiaryRepository;
@@ -34,8 +36,19 @@ public class BeneficiaryService {
     private final NombaTransferClient nombaTransferClient;
 
     /**
+     * Verifies a destination account against the provider and returns the resolved holder name, for
+     * the merchant to confirm before adding. Throws {@link AccountVerificationException} (422) if the
+     * account can't be resolved for the chosen bank.
+     */
+    public AccountVerificationResponse verifyAccount(String accountNumber, String bankCode) {
+        return new AccountVerificationResponse(accountNumber, resolveVerifiedName(accountNumber, bankCode), bankCode);
+    }
+
+    /**
      * Not wrapped in a method-level transaction: the Nomba lookup runs with no DB connection held
      * ({@code merchantService.findById} and the final {@code save} each open their own short tx).
+     * Verification is an authoritative gate — a beneficiary is never stored unless the provider
+     * confirms the account, so payouts can trust the saved details without re-validating.
      */
     public BeneficiaryResponse create(UUID merchantId, CreateBeneficiaryRequest request) {
         Merchant merchant = merchantService.findById(merchantId);
@@ -44,11 +57,12 @@ public class BeneficiaryService {
             throw new AlreadyExistsException("This beneficiary is already registered");
         }
 
-        String accountName = resolveAccountName(request);
+        String accountName = resolveVerifiedName(request.accountNumber(), request.bankCode());
 
         Beneficiary saved = beneficiaryRepository.save(Beneficiary.builder()
                 .merchant(merchant)
-                .nickname(request.nickname())
+                // No separate nickname — the label is the verified account name the merchant saw and confirmed.
+                .nickname(accountName)
                 .accountName(accountName)
                 .accountNumber(request.accountNumber())
                 .bankCode(request.bankCode())
@@ -87,19 +101,26 @@ public class BeneficiaryService {
                 .orElseThrow(() -> new EntityNotFoundException("Beneficiary not found"));
     }
 
-    /** Verifies the destination account name via Nomba; falls back to the nickname on lookup failure. */
-    private String resolveAccountName(CreateBeneficiaryRequest request) {
+    /**
+     * Provider-verifies the account and returns the resolved holder name, or throws
+     * {@link AccountVerificationException} (422) if it can't be confirmed. This is a hard gate — no
+     * soft fallback — so a stored beneficiary always carries a real, provider-confirmed account name.
+     */
+    private String resolveVerifiedName(String accountNumber, String bankCode) {
+        NombaBankLookupData lookup;
         try {
-            NombaBankLookupData lookup = nombaTransferClient.lookupAccount(
-                    new NombaBankLookupRequest(request.accountNumber(), request.bankCode()));
-            if (lookup != null && lookup.accountName() != null && !lookup.accountName().isBlank()) {
-                return lookup.accountName();
-            }
+            lookup = nombaTransferClient.lookupAccount(new NombaBankLookupRequest(accountNumber, bankCode));
         } catch (RuntimeException e) {
-            log.warn("Bank lookup failed for {}/{} — storing beneficiary without verified name: {}",
-                    request.accountNumber(), request.bankCode(), e.getMessage());
+            // Chain the provider failure as the cause — GlobalExceptionHandler logs the throwable
+            // (with its cause), so no separate log-before-throw is needed here.
+            throw new AccountVerificationException(
+                    "Couldn't verify this account. Check the account number and selected bank.", e);
         }
-        return request.nickname();
+        if (lookup == null || lookup.accountName() == null || lookup.accountName().isBlank()) {
+            throw new AccountVerificationException(
+                    "Couldn't verify this account. Check the account number and selected bank.");
+        }
+        return lookup.accountName();
     }
 
     static BeneficiaryResponse toResponse(Beneficiary b) {

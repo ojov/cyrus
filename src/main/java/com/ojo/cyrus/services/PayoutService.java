@@ -9,11 +9,12 @@ import com.ojo.cyrus.enums.TransactionType;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.models.entities.Beneficiary;
 import com.ojo.cyrus.models.entities.Merchant;
+import com.ojo.cyrus.models.dto.NormalizedPayoutEvent;
 import com.ojo.cyrus.models.entities.Payout;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.requests.CreatePayoutRequest;
 import com.ojo.cyrus.models.responses.PayoutResponse;
-import com.ojo.cyrus.nomba.NombaTransferClient;
+import com.ojo.cyrus.nomba.clients.NombaTransferClient;
 import com.ojo.cyrus.nomba.dto.NombaBankTransferData;
 import com.ojo.cyrus.nomba.dto.NombaBankTransferRequest;
 import com.ojo.cyrus.repositories.BeneficiaryRepository;
@@ -70,10 +71,10 @@ public class PayoutService {
                     reserved.reference(),
                     reserved.senderName(),
                     request.narration()), reserved.reference());
-            return finalizeAccepted(reserved.payoutId(), reserved.transactionId(), result);
+            return finalizeAccepted(reserved.reference(), reserved.transactionId(), result);
         } catch (RuntimeException e) {
             log.warn("Payout {} failed at provider — refunding wallet: {}", reserved.reference(), e.getMessage());
-            return finalizeFailed(reserved.payoutId(), reserved.transactionId(), e.getMessage());
+            return finalizeFailed(reserved.reference(), reserved.transactionId(), e.getMessage());
         }
     }
 
@@ -86,6 +87,66 @@ public class PayoutService {
     public PayoutResponse getForMerchant(UUID merchantId, UUID payoutId) {
         return toResponse(payoutRepository.findByIdAndMerchantId(payoutId, merchantId)
                 .orElseThrow(() -> new EntityNotFoundException("Payout not found")));
+    }
+
+    /**
+     * Finalizes a payout from its authoritative Nomba webhook (payout_success / payout_failed /
+     * payout_refund), matched to the {@link Payout} by {@code merchantTxRef} (== {@code reference}).
+     *
+     * <p>Idempotent: a duplicate or late webhook that finds the payout already terminal
+     * (SUCCESS/FAILED) is a no-op. The payout row is pessimistically locked so this async path can't
+     * race the synchronous initiate finalize into a double status flip or double refund. The wallet
+     * was already debited up front at {@link #reserve}, so a success does NOT debit again — it only
+     * confirms; a failure/refund returns the reserved funds exactly once via a {@code REVERSAL}. No
+     * outbound merchant webhook is emitted — payouts are a dashboard-only feature.
+     */
+    public void applyWebhook(NormalizedPayoutEvent event) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Payout payout = payoutRepository.findByReferenceForUpdate(event.merchantTxRef()).orElse(null);
+            if (payout == null) {
+                log.warn("Payout webhook {} for unknown merchantTxRef={} — ignoring",
+                        event.eventType(), event.merchantTxRef());
+                return;
+            }
+            if (payout.getStatus() == PayoutStatus.SUCCESS || payout.getStatus() == PayoutStatus.FAILED) {
+                log.info("Payout {} already {} — ignoring duplicate {} webhook",
+                        payout.getReference(), payout.getStatus(), event.eventType());
+                return;
+            }
+
+            Transaction tx = payout.getTransaction();
+            if (event.isSuccess()) {
+                payout.setStatus(PayoutStatus.SUCCESS);
+                if (event.providerTransactionId() != null) {
+                    payout.setProviderReference(event.providerTransactionId());
+                }
+                if (event.feeKobo() != null) {
+                    payout.setFee(event.feeKobo());
+                }
+                if (tx != null) {
+                    tx.setStatus(TransactionStatus.SUCCESSFUL);
+                }
+                log.info("Payout {} confirmed SUCCESS by webhook", payout.getReference());
+            } else if (event.isFailureOrRefund()) {
+                // Return the reserved funds (debited up front at reserve()) exactly once. The status
+                // guard above ensures this can't double-refund a payout already refunded synchronously.
+                if (tx != null) {
+                    ledgerService.credit(payout.getMerchant(), payout.getAmount(), tx,
+                            LedgerEntryType.REVERSAL, "Refund of failed payout " + payout.getReference());
+                    tx.setStatus(TransactionStatus.FAILED);
+                } else {
+                    log.error("Payout {} has no paired transaction — cannot post refund ledger entry",
+                            payout.getReference());
+                }
+                payout.setStatus(PayoutStatus.FAILED);
+                payout.setFailureReason("payout_refund".equalsIgnoreCase(event.eventType())
+                        ? "Refunded by provider" : "Failed at provider");
+                log.info("Payout {} {} by webhook — wallet refunded", payout.getReference(), event.eventType());
+            } else {
+                log.warn("Payout webhook for {} has unexpected event_type={} — ignoring",
+                        payout.getReference(), event.eventType());
+            }
+        });
     }
 
     private Reserved reserve(UUID merchantId, CreatePayoutRequest request) {
@@ -125,9 +186,18 @@ public class PayoutService {
         });
     }
 
-    private PayoutResponse finalizeAccepted(UUID payoutId, UUID transactionId, NombaBankTransferData result) {
+    private PayoutResponse finalizeAccepted(String reference, UUID transactionId, NombaBankTransferData result) {
         return new TransactionTemplate(transactionManager).execute(status -> {
-            Payout payout = payoutRepository.findById(payoutId).orElseThrow();
+            // Lock the payout row (same lock applyWebhook takes) so the synchronous outcome and the
+            // async payout webhook can't both mutate it. If the webhook already finalized this payout
+            // to a terminal state, never overwrite it (would revert a confirmed SUCCESS to PROCESSING).
+            Payout payout = payoutRepository.findByReferenceForUpdate(reference).orElseThrow();
+            if (payout.getStatus() == PayoutStatus.SUCCESS || payout.getStatus() == PayoutStatus.FAILED) {
+                log.info("Payout {} already {} (finalized by webhook) — keeping synchronous response out",
+                        reference, payout.getStatus());
+                return toResponse(payout);
+            }
+
             boolean succeeded = result != null && "SUCCESS".equalsIgnoreCase(result.status());
             payout.setStatus(succeeded ? PayoutStatus.SUCCESS : PayoutStatus.PROCESSING);
             payout.setProviderReference(result != null ? result.id() : null);
@@ -140,9 +210,19 @@ public class PayoutService {
         });
     }
 
-    private PayoutResponse finalizeFailed(UUID payoutId, UUID transactionId, String reason) {
+    private PayoutResponse finalizeFailed(String reference, UUID transactionId, String reason) {
         return new TransactionTemplate(transactionManager).execute(status -> {
-            Payout payout = payoutRepository.findById(payoutId).orElseThrow();
+            // Lock the payout row and re-check: if the webhook already finalized it (e.g. the transfer
+            // actually succeeded and our client only saw a read timeout), do NOT refund — the money
+            // left. This guard is what makes the applyWebhook lock effective and prevents a double
+            // refund when both this path and a payout_failed/refund webhook fire.
+            Payout payout = payoutRepository.findByReferenceForUpdate(reference).orElseThrow();
+            if (payout.getStatus() == PayoutStatus.SUCCESS || payout.getStatus() == PayoutStatus.FAILED) {
+                log.info("Payout {} already {} (finalized by webhook) — skipping synchronous refund",
+                        reference, payout.getStatus());
+                return toResponse(payout);
+            }
+
             Transaction tx = transactionRepository.findById(transactionId).orElseThrow();
 
             // Refund the reserved amount — the provider rejected the transfer, so the money never left.

@@ -65,6 +65,22 @@ public class PaymentEventService {
         return paymentEventRepository.save(entity);
     }
 
+    /**
+     * Durable audit record of a payout webhook (payout_success/failed/refund). Idempotent by
+     * requestId — a duplicate delivery reuses the existing row rather than inserting again. The money
+     * effect lives on the {@code Payout} (finalized by {@code PayoutService.applyWebhook}); this row
+     * is purely for the same "every inbound webhook is persisted raw" trail the payment path keeps.
+     */
+    @Transactional
+    public NombaPaymentEvent recordPayoutEvent(String requestId, String rawEventType, String rawPayload) {
+        return findByRequestId(requestId).orElseGet(() -> paymentEventRepository.save(NombaPaymentEvent.builder()
+                .requestId(requestId)
+                .eventType(NombaPaymentEventType.fromWire(rawEventType))
+                .status(NombaPaymentEventStatus.PROCESSED)
+                .rawPayload(rawPayload)
+                .build()));
+    }
+
     public Optional<NombaPaymentEvent> findByRequestId(String requestId) {
         return paymentEventRepository.findByRequestId(requestId);
     }

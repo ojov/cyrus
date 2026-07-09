@@ -1,5 +1,7 @@
-package com.ojo.cyrus.nomba;
+package com.ojo.cyrus.nomba.clients;
 
+import com.ojo.cyrus.nomba.NombaApiUri;
+import com.ojo.cyrus.nomba.NombaResponseSupport;
 import com.ojo.cyrus.nomba.dto.NombaApiResponse;
 import com.ojo.cyrus.nomba.dto.NombaBalanceData;
 import lombok.RequiredArgsConstructor;

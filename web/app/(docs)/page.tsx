@@ -6,19 +6,25 @@ export default function GettingStartedPage() {
   return (
     <div className="doc-prose">
       <p className="text-[11px] font-bold uppercase tracking-widest text-primary">Dedicated virtual account infrastructure</p>
-      <h2 style={{ fontSize: "2rem", lineHeight: 1.08, marginTop: "0.6rem" }}>Give every customer their own account number</h2>
+      <h2 style={{ fontSize: "2rem", lineHeight: 1.08, marginTop: "0.6rem" }}>Give every payer a dedicated account number</h2>
       <p className="lede">
-        Cyrus sits above Nomba and turns one API call into a persistent, named virtual account — then reconciles every
-        inbound transfer back to that customer. You never parse a raw provider payload.
+        Cyrus turns one API call into a persistent, named virtual account — then reconciles every inbound transfer
+        back to the identity you attribute it to. You never touch a raw provider payload.
       </p>
+
+      <div className="callout">
+        A &quot;customer&quot; is just whoever you attribute a virtual account to — a person, a beneficiary, an institution.
+        Cyrus doesn&apos;t assume the relationship: a savings app attributes to the saver, a school-fees app might
+        attribute to the school. Provisioning and reconciliation work identically either way.
+      </div>
 
       <ol className="steps">
         <li>
           <b>Create your Cyrus account</b>
           <span>
-            Sign up with your business name, email, and a password — that&apos;s it. Cyrus runs on its own Nomba account,
-            so you never need Nomba credentials of your own. After signup, open Dashboard → API keys, generate your key,
-            and copy it immediately. Full keys are shown only once.
+            Sign up with your business name, email, and a password — that&apos;s it. Cyrus runs its own payment-provider
+            account under the hood, so you never need provider credentials of your own. After signup, open Dashboard →
+            API keys, generate your key, and copy it immediately. Full keys are shown only once.
           </span>
         </li>
         <li>
@@ -29,7 +35,8 @@ export default function GettingStartedPage() {
           <b>Receive payments</b>
           <span>
             Money sent to that account number is attributed to the customer and delivered to your webhook as a normalized{" "}
-            <code>payment.succeeded</code> event, net of Nomba&apos;s fee and Cyrus&apos;s platform fee, credited to your wallet.
+            <code>payment.succeeded</code> event, net of the provider&apos;s fee and Cyrus&apos;s platform fee, credited to
+            your wallet.
           </span>
         </li>
         <li>

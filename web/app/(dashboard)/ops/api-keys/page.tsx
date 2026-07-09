@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { dashboardApi, type ApiKeyItem } from "@/lib/api";
 import { statusClass } from "@/lib/utils";
+import { CopyButton } from "@/components/ui/copy-button";
 
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
@@ -90,13 +91,7 @@ export default function ApiKeysPage() {
             <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border border-border bg-background px-3 py-2 font-mono text-sm">
               {newKey}
             </code>
-            <button
-              type="button"
-              onClick={() => navigator.clipboard.writeText(newKey)}
-              className="shrink-0 rounded-md border border-border px-3 py-2 text-sm transition hover:bg-accent"
-            >
-              Copy
-            </button>
+            <CopyButton text={newKey} />
             <button
               type="button"
               onClick={() => setNewKey(null)}

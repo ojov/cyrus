@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigInteger;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,7 +47,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     // the attempt cap below), under the attempt cap, and not retried too recently.
     @Query("""
             SELECT t FROM Transaction t
-            WHERE t.status = com.ojo.cyrus.enums.TransactionStatus.PENDING
+            WHERE t.type = com.ojo.cyrus.enums.TransactionType.CUSTOMER_PAYMENT
+            AND t.status = com.ojo.cyrus.enums.TransactionStatus.PENDING
             AND t.matchStatus <> com.ojo.cyrus.enums.MatchStatus.MANUAL_REVIEW
             AND t.reconciliationAttempts < :maxAttempts
             AND (t.lastReconciledAt IS NULL OR t.lastReconciledAt < :cutoff)
@@ -67,6 +69,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             """)
     BigInteger sumAmountByCustomerAndStatus(@Param("customerId") UUID customerId,
                                             @Param("status") TransactionStatus status);
+
+    // Batch lifetime totals for a page of customers at once — one grouped query regardless of page
+    // size, instead of one sumAmountByCustomerAndStatus call per row (which is fine for a single
+    // customer's statement but would be an N+1 on a list page).
+    @Query("""
+            SELECT t.customer.id, COALESCE(SUM(t.amount), 0) FROM Transaction t
+            WHERE t.merchant.id = :merchantId AND t.customer.id IN :customerIds AND t.status = :status
+            GROUP BY t.customer.id
+            """)
+    List<Object[]> sumAmountByCustomerIdsAndStatus(@Param("merchantId") UUID merchantId,
+                                                    @Param("customerIds") Collection<UUID> customerIds,
+                                                    @Param("status") TransactionStatus status);
 
     // Statement summary aggregates — always over the customer's full history, independent of
     // whatever from/to/matchStatus filter is applied to the paginated row list above.

@@ -109,6 +109,12 @@ public class GlobalExceptionHandler {
         return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
     }
 
+    @ExceptionHandler(AccountVerificationException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public CyrusApiResponse<ErrorDetails> handleAccountVerification(AccountVerificationException ex) {
+        return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public CyrusApiResponse<ErrorDetails> handleValidation(MethodArgumentNotValidException ex) {

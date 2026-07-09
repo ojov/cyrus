@@ -12,6 +12,11 @@ public enum NombaPaymentEventType {
     PAYMENT_SUCCESS("payment_success"),
     PAYMENT_FAILED("payment_failed"),
     PAYMENT_REVERSED("payment_reversed"),
+    // Outbound-transfer (payout) outcomes — the authoritative result of a merchant payout, matched
+    // back to a Payout by transaction.merchantTxRef. Refund = previously-sent funds returned.
+    PAYOUT_SUCCESS("payout_success"),
+    PAYOUT_FAILED("payout_failed"),
+    PAYOUT_REFUND("payout_refund"),
     UNKNOWN("");
 
     private final String wireName;
@@ -22,6 +27,11 @@ public enum NombaPaymentEventType {
 
     public String wireName() {
         return wireName;
+    }
+
+    /** True for the payout-outcome events, which finalize a {@code Payout} rather than a payment. */
+    public boolean isPayout() {
+        return this == PAYOUT_SUCCESS || this == PAYOUT_FAILED || this == PAYOUT_REFUND;
     }
 
     /** Maps Nomba's raw event_type string onto a normalized type, defaulting to {@link #UNKNOWN}. */
