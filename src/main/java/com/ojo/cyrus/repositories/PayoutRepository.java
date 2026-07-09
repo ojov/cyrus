@@ -1,5 +1,6 @@
 package com.ojo.cyrus.repositories;
 
+import com.ojo.cyrus.enums.PayoutStatus;
 import com.ojo.cyrus.models.entities.Payout;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,4 +33,10 @@ public interface PayoutRepository extends JpaRepository<Payout, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Payout p WHERE p.reference = :reference")
     Optional<Payout> findByReferenceForUpdate(@Param("reference") String reference);
+
+    // Platform oversight: payouts that were accepted by Nomba but whose completing webhook never
+    // arrived — stuck (wallet already debited). Surfaced for admin triage.
+    long countByStatus(PayoutStatus status);
+
+    List<Payout> findByStatusOrderByCreatedAtDesc(PayoutStatus status);
 }

@@ -11,6 +11,7 @@ export interface MerchantSession {
   merchantId: string;
   businessName: string;
   businessEmail: string;
+  superAdmin?: boolean;
 }
 
 const STORAGE_KEY = "cyrus_merchant";

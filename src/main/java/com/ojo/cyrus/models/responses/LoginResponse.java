@@ -16,5 +16,8 @@ public record LoginResponse(
         String businessName,
 
         @Schema(example = "admin@cyrusmobile.com", description = "Business email address")
-        String businessEmail
+        String businessEmail,
+
+        @Schema(description = "True if this account is a Cyrus platform super-admin (unlocks /v1/platform/**)")
+        boolean superAdmin
 ) {}

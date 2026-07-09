@@ -2,6 +2,7 @@ package com.ojo.cyrus.repositories;
 
 import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.TransactionStatus;
+import com.ojo.cyrus.enums.TransactionType;
 import com.ojo.cyrus.models.entities.Transaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -114,4 +115,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             ORDER BY day
             """, nativeQuery = true)
     List<Object[]> sumDailyInflowSince(@Param("merchantId") UUID merchantId, @Param("since") Instant since);
+
+    // ---- Platform-wide aggregates (super-admin oversight) ----
+
+    long countByMatchStatus(MatchStatus matchStatus);
+
+    long countByStatus(TransactionStatus status);
+
+    long countByType(TransactionType type);
+
+    @Query("""
+            SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
+            WHERE t.type = :type AND t.status = :status
+            """)
+    BigInteger sumAmountByTypeAndStatus(@Param("type") TransactionType type,
+                                        @Param("status") TransactionStatus status);
 }

@@ -36,4 +36,9 @@ public interface NombaPaymentEventRepository extends JpaRepository<NombaPaymentE
     // orphan/misdirected-payment case, distinct from a transaction that DID get created but has a
     // DISCREPANCY/MANUAL_REVIEW matchStatus.
     long countByMerchantIdAndStatus(UUID merchantId, NombaPaymentEventStatus status);
+
+    // Platform oversight: fully-unattributable orphans (no owning merchant resolved at all) — these
+    // are invisible through every merchant-scoped surface, so the super-admin view is the only place
+    // they show up.
+    long countByMerchantIsNull();
 }

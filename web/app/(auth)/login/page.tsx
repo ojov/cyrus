@@ -40,6 +40,7 @@ function LoginForm() {
         merchantId: res.data.merchantId,
         businessName: res.data.businessName,
         businessEmail: res.data.businessEmail,
+        superAdmin: res.data.superAdmin,
       });
       router.push(callbackUrl ?? "/ops");
     } catch (err) {

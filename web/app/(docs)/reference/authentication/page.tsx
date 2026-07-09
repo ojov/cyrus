@@ -1,21 +1,8 @@
-import { TwoCol } from "@/components/docs/two-col";
-import { Example } from "@/components/docs/example";
 import { Code } from "@/components/ui/code-block";
 
 export default function AuthenticationReferencePage() {
   return (
-    <TwoCol
-      aside={
-        <Example
-          method="GET"
-          path="/v1/customers/user_123"
-          response={`{
-  "reference": "user_123",
-  "status": "ACTIVE"
-}`}
-        />
-      }
-    >
+    <div className="doc-prose">
       <h2>API Reference · Authentication</h2>
       <p className="lede">
         Every request to the Cyrus API is authenticated with a single API key. Generate it in Dashboard → API keys and
@@ -30,6 +17,6 @@ export default function AuthenticationReferencePage() {
         <li>Create, copy immediately, and revoke keys in the dashboard. Full keys are revealed once; a revoked key is rejected with <code>401</code>.</li>
         <li>The ops dashboard login (email and password) is separate and governs only the dashboard.</li>
       </ul>
-    </TwoCol>
+    </div>
   );
 }

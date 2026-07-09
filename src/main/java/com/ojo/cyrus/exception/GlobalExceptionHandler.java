@@ -115,6 +115,12 @@ public class GlobalExceptionHandler {
         return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public CyrusApiResponse<ErrorDetails> handleForbidden(ForbiddenException ex) {
+        return clientError(ResponseCode.UNAUTHORIZED, ex.getMessage(), ex);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public CyrusApiResponse<ErrorDetails> handleValidation(MethodArgumentNotValidException ex) {

@@ -52,7 +52,7 @@ export interface ApiKeyInfo {
 
 // The JWT is never in these bodies — the backend sets it as an httpOnly cookie on the response.
 export interface LoginResponse {
-  data: { merchantId: string; businessName: string; businessEmail: string };
+  data: { merchantId: string; businessName: string; businessEmail: string; superAdmin: boolean };
 }
 
 export interface RegisterResponse {
@@ -437,6 +437,40 @@ export const transactionApi = {
   },
   get: (reference: string) =>
     api.get<{ data: TransactionItem }>(`/v1/merchants/me/transactions/${encodeURIComponent(reference)}`),
+};
+
+// ---- Platform (super-admin only) ----
+export interface PlatformOverview {
+  custody: {
+    walletLiabilitiesKobo: number;
+    nombaBalanceKobo: number | null;
+    coverageKobo: number | null;
+    nombaBalanceAvailable: boolean;
+  };
+  totals: {
+    merchants: number;
+    customers: number;
+    virtualAccounts: number;
+    transactions: number;
+    totalConfirmedInflowKobo: number;
+    totalPayoutsKobo: number;
+  };
+  reconciliation: { matched: number; discrepancy: number; manualReview: number; pending: number };
+  orphansAndStuck: {
+    unattributedOrphans: number;
+    stuckPayouts: number;
+    stuckPayoutDetails: { id: string; reference: string; merchantName: string | null; amountKobo: number; createdAt: string }[];
+  };
+  ledgerIntegrity: {
+    walletsChecked: number;
+    mismatchCount: number;
+    allReconciled: boolean;
+    mismatches: { walletId: string; merchantName: string | null; balanceKobo: number; ledgerSumKobo: number }[];
+  };
+}
+
+export const platformApi = {
+  overview: () => api.get<{ data: PlatformOverview }>("/v1/platform/overview"),
 };
 
 export const API_BASE_URL = API_URL;
