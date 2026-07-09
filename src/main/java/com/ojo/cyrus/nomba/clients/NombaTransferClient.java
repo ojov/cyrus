@@ -1,6 +1,7 @@
 package com.ojo.cyrus.nomba.clients;
 
 import com.ojo.cyrus.config.properties.NombaProperties;
+import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.nomba.NombaApiUri;
 import com.ojo.cyrus.nomba.NombaResponseSupport;
 import com.ojo.cyrus.nomba.dto.NombaApiResponse;
@@ -52,7 +53,24 @@ public class NombaTransferClient {
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});
 
-        return NombaResponseSupport.requireData(response, "bank transfer " + request.merchantTxRef());
+        // Nomba's transfer endpoint documents a non-"00" code ("201"/PROCESSING, description
+        // "PROCESSING") as the NORMAL response for a transfer that was accepted but is still
+        // settling — data is `{"status": "PENDING_BILLING"}`, with the caller told to rely on the
+        // payout_success/payout_failed webhook for the definitive outcome. The strict "00"-only
+        // NombaResponseSupport.requireData (correct for lookup/list, which should only ever succeed
+        // with "00") would discard that valid data here and throw — which made PayoutService.initiate
+        // treat an ACCEPTED transfer as a provider rejection: refunding the wallet and marking the
+        // payout FAILED while the money had genuinely left the account (caught live: a real transfer
+        // the recipient received was refunded and marked FAILED, then the later payout_success
+        // webhook silently no-opped against the already-terminal FAILED payout). Only throw when
+        // there's truly no data to act on; PayoutService.finalizeAccepted already reads the `status`
+        // field to decide SUCCESS vs PROCESSING, so PENDING_BILLING correctly becomes PROCESSING
+        // (awaiting the webhook) instead of a false FAILED.
+        if (response != null && response.data() != null) {
+            return response.data();
+        }
+        String detail = response != null ? response.description() : "null response from Nomba";
+        throw new NombaIntegrationException("Nomba bank transfer " + request.merchantTxRef() + " failed: " + detail);
     }
 
     /** Resolves the account holder name for a destination account before a payout. */

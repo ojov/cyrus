@@ -71,7 +71,7 @@ app:
   encryption-key: ${APP_ENCRYPTION_KEY}
   # Comma-separated emails promoted to SUPER_ADMIN at startup (bootstrap platform admins). Empty by
   # default — set APP_SUPER_ADMIN_EMAILS to grant the first admin(s).
-  super-admin-emails: ${APP_SUPER_ADMIN_EMAILS:}
+  super-admin-emails: ${APP_SUPER_ADMIN_EMAILS}
   jwt:
     issuer: cyrus
     expiry-hours: 8
