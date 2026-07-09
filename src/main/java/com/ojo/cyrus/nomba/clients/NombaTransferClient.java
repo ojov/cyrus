@@ -73,6 +73,36 @@ public class NombaTransferClient {
         throw new NombaIntegrationException("Nomba bank transfer " + request.merchantTxRef() + " failed: " + detail);
     }
 
+    /**
+     * Requeries a transfer (payout) by its Nomba provider transaction reference. Unlike
+     * {@link #transfer}, this is a read-only GET and follows the standard "00"-code convention
+     * (NombaResponseSupport.requireData is safe here).
+     *
+     * @param providerReference Nomba's transfer ID, e.g. "API-TRANSFER-XXX"
+     * @return transfer data from Nomba (status, amount, fee, etc.)
+     * @throws IllegalStateException if no sub-account is configured (the requery endpoint
+     *         is only known in its sub-account-scoped variant)
+     */
+    public NombaBankTransferData requeryTransfer(String providerReference) {
+        log.info("Requerying Nomba transfer providerReference={}", providerReference);
+
+        String sub = props.subAccountId();
+        if (sub == null || sub.isBlank()) {
+            throw new IllegalStateException(
+                    "Transfer requery requires a sub-account (no non-sub-account endpoint is known)");
+        }
+
+        NombaApiResponse<NombaBankTransferData> response = nombaRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path(NombaApiUri.TRANSFER_REQUERY_UNDER_SUBACCOUNT.path())
+                        .queryParam("transactionRef", providerReference)
+                        .build(sub))
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+
+        return NombaResponseSupport.requireData(response, "transfer requery " + providerReference);
+    }
+
     /** Resolves the account holder name for a destination account before a payout. */
     public NombaBankLookupData lookupAccount(NombaBankLookupRequest request) {
         NombaApiResponse<NombaBankLookupData> response = nombaRestClient.post()

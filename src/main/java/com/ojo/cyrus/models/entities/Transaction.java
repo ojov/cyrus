@@ -70,7 +70,9 @@ public class Transaction extends BaseEntity {
     private String sessionId;
 
     @Column(nullable = false)
-    private BigInteger amount; // integer kobo (minor units), gross — what the payer sent
+    private BigInteger amount; // integer kobo (minor units). For CUSTOMER_PAYMENT: gross amount
+    // the payer sent. For PAYOUT: the transfer amount to the beneficiary — NOT the total wallet
+    // debit (see Payout.fee for Cyrus's ₦30 flat fee, which is debited on top of this amount).
 
     /** Nomba's own confirmed fee (kobo) — set authoritatively at reconciliation via {@code fixedCharge}. */
     private BigInteger fee;

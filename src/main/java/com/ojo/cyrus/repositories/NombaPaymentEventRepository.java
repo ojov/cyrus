@@ -41,4 +41,14 @@ public interface NombaPaymentEventRepository extends JpaRepository<NombaPaymentE
     // are invisible through every merchant-scoped surface, so the super-admin view is the only place
     // they show up.
     long countByMerchantIsNull();
+
+    // Paginated listing of fully-unattributable orphans — the super-admin orphan management surface.
+    // Optional status filter follows the same nullable-param pattern as findByMerchant.
+    @Query("""
+            SELECT e FROM NombaPaymentEvent e
+            WHERE e.merchant IS NULL
+              AND (:status IS NULL OR e.status = :status)
+            ORDER BY e.createdAt DESC
+            """)
+    Page<NombaPaymentEvent> findOrphans(@Param("status") NombaPaymentEventStatus status, Pageable pageable);
 }

@@ -23,15 +23,22 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/v1/merchants/me/payouts")
 @RequiredArgsConstructor
-@Tag(name = "Payouts", description = "Withdraw your settled wallet balance to a registered bank beneficiary.")
+@Tag(name = "Payouts", description = """
+        Withdraw your settled wallet balance to a registered bank beneficiary.
+        Each payout incurs a flat ₦30 fee — ₦20 covers Nomba's fixed transfer charge,
+        ₦10 is Cyrus's margin. The fee is deducted from your wallet alongside the
+        transfer amount; total debit = amount + ₦30.""")
 public class PayoutController {
 
     private final PayoutService payoutService;
     private final MerchantService merchantService;
 
     @Operation(summary = "Initiate a payout",
-            description = "Debits your wallet and transfers to a beneficiary via Nomba. The amount is in kobo. " +
-                    "Fails fast with 409 if your balance is insufficient; a provider failure refunds the wallet automatically.",
+            description = """
+                    Debits your wallet and transfers to a beneficiary via Nomba. The total wallet debit
+                    = amount + ₦30 flat fee — the fee covers Nomba's ₦20 fixed transfer charge plus a
+                    ₦10 Cyrus margin. Fails fast with 409 if your balance is insufficient; a provider
+                    failure refunds the wallet (including the fee) automatically.""",
             security = @SecurityRequirement(name = "BearerAuth"))
     @PostMapping
     public CyrusApiResponse<PayoutResponse> initiate(

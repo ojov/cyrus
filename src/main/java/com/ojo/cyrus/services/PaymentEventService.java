@@ -112,6 +112,21 @@ public class PaymentEventService {
                 .map(Mapper::toPaymentEventListItem);
     }
 
+    /**
+     * Plain ID lookup without ownership check — for super-admin orphan management.
+     * Every merchant-scoped caller must use {@link #findByIdForMerchant} instead.
+     */
+    public NombaPaymentEvent getById(UUID id) {
+        return paymentEventRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Payment event not found"));
+    }
+
+    /** Super-admin listing of fully-unattributable orphans (merchant = null). */
+    public Page<PaymentEventListItem> listOrphans(NombaPaymentEventStatus status, Pageable pageable) {
+        return paymentEventRepository.findOrphans(status, pageable)
+                .map(Mapper::toPaymentEventListItem);
+    }
+
     @Transactional
     public void updateStatus(UUID id, NombaPaymentEventStatus status, String details) {
         updateStatus(id, status, null, details);

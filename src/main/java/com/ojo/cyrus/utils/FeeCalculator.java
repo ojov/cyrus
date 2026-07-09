@@ -1,27 +1,35 @@
 package com.ojo.cyrus.utils;
 
+import com.ojo.cyrus.config.properties.FeeProperties;
 import lombok.experimental.UtilityClass;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 
-/** Computes Cyrus's cost-plus platform fee from Nomba's confirmed fee. All amounts are kobo. */
+/** Fee computation for inflows and payouts. All amounts are kobo. */
 @UtilityClass
 public class FeeCalculator {
 
     /**
-     * The total fee Cyrus charges the merchant: Nomba's fee marked up by {@code markupMultiplier}.
-     * Never less than {@code providerFeeKobo} even if the multiplier is misconfigured below 1.
+     * The merchant-facing fee for an inbound payment: {@code inflowPercent} of the gross amount,
+     * clamped to {@code [inflowMinKobo, inflowMaxKobo]}. Returns zero for a null/zero amount.
      */
-    public static BigInteger totalPlatformFee(BigInteger providerFeeKobo, BigDecimal markupMultiplier) {
-        if (providerFeeKobo == null || providerFeeKobo.signum() <= 0) {
+    public static BigInteger computeInflowMerchantFee(BigInteger amountKobo, FeeProperties props) {
+        if (amountKobo == null || amountKobo.signum() <= 0) {
             return BigInteger.ZERO;
         }
-        BigInteger marked = new BigDecimal(providerFeeKobo)
-                .multiply(markupMultiplier)
+        BigDecimal rate = props.inflowPercent().divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_EVEN);
+        BigInteger raw = new BigDecimal(amountKobo)
+                .multiply(rate)
                 .setScale(0, RoundingMode.HALF_EVEN)
                 .toBigInteger();
-        return marked.max(providerFeeKobo);
+        return clamp(raw, props.inflowMinKobo(), props.inflowMaxKobo());
+    }
+
+    private static BigInteger clamp(BigInteger value, BigInteger min, BigInteger max) {
+        if (value.compareTo(min) < 0) return min;
+        if (value.compareTo(max) > 0) return max;
+        return value;
     }
 }

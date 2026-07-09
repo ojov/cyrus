@@ -34,6 +34,13 @@ public interface PayoutRepository extends JpaRepository<Payout, UUID> {
     @Query("SELECT p FROM Payout p WHERE p.reference = :reference")
     Optional<Payout> findByReferenceForUpdate(@Param("reference") String reference);
 
+    /**
+     * Payouts in PROCESSING with a known provider reference — the synchronous transfer response
+     * included a provider ID, but the completing webhook (payout_success / payout_failed) hasn't
+     * arrived yet. These are candidates for the requery sweep: we can ask Nomba directly.
+     */
+    List<Payout> findByStatusAndProviderReferenceIsNotNull(PayoutStatus status);
+
     // Platform oversight: payouts that were accepted by Nomba but whose completing webhook never
     // arrived — stuck (wallet already debited). Surfaced for admin triage.
     long countByStatus(PayoutStatus status);

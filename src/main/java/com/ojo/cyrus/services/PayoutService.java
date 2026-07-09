@@ -1,5 +1,6 @@
 package com.ojo.cyrus.services;
 
+import com.ojo.cyrus.config.properties.FeeProperties;
 import com.ojo.cyrus.enums.CurrencyCode;
 import com.ojo.cyrus.enums.LedgerEntryType;
 import com.ojo.cyrus.enums.MatchStatus;
@@ -25,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +35,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -54,6 +57,7 @@ public class PayoutService {
     private final LedgerService ledgerService;
     private final NombaTransferClient nombaTransferClient;
     private final PlatformTransactionManager transactionManager;
+    private final FeeProperties feeProperties;
 
     /** Materialized snapshot carried from the reserve phase (managed entities) across the Nomba call. */
     private record Reserved(UUID payoutId, UUID transactionId, String reference, String senderName,
@@ -120,18 +124,21 @@ public class PayoutService {
                 if (event.providerTransactionId() != null) {
                     payout.setProviderReference(event.providerTransactionId());
                 }
-                if (event.feeKobo() != null) {
-                    payout.setFee(event.feeKobo());
-                }
+                // Payout.fee is set at reserve() to Cyrus's flat fee (the total charged to the
+                // merchant). We do NOT overwrite it with Nomba's fee from the webhook — the
+                // Nomba fee (₦20 fixed) is deducted by Nomba from the transfer itself; it's
+                // visible in the requery response's fixedCharge field if needed for audit.
                 if (tx != null) {
                     tx.setStatus(TransactionStatus.SUCCESSFUL);
                 }
                 log.info("Payout {} confirmed SUCCESS by webhook", payout.getReference());
             } else if (event.isFailureOrRefund()) {
-                // Return the reserved funds (debited up front at reserve()) exactly once. The status
-                // guard above ensures this can't double-refund a payout already refunded synchronously.
+                // Return the reserved funds + fee (both debited up front at reserve()) exactly once.
+                // The status guard above ensures this can't double-refund a payout already refunded
+                // synchronously.
                 if (tx != null) {
-                    ledgerService.credit(payout.getMerchant(), payout.getAmount(), tx,
+                    BigInteger totalRefund = payout.getAmount().add(payout.getFee());
+                    ledgerService.credit(payout.getMerchant(), totalRefund, tx,
                             LedgerEntryType.REVERSAL, "Refund of failed payout " + payout.getReference());
                     tx.setStatus(TransactionStatus.FAILED);
                 } else {
@@ -147,6 +154,99 @@ public class PayoutService {
                         payout.getReference(), event.eventType());
             }
         });
+    }
+
+    /**
+     * Periodic sweep that requeries Nomba for payouts stuck in PROCESSING with a known
+     * {@code providerReference}. The synchronous initiate response may return {@code PENDING_BILLING}
+     * for an accepted transfer — that sets the payout to PROCESSING and waits for the completing
+     * webhook. If that webhook is lost, the sweep recovers the payout (promote SUCCESS or refund
+     * FAILED). Payouts with no {@code providerReference} (no Nomba transfer ID from the sync
+     * response) cannot be requeried and rely solely on the webhook.
+     */
+    @Scheduled(fixedDelayString = "#{${app.payout-requery.delay-seconds} * 1000}")
+    public void sweepProcessingPayouts() {
+        List<Payout> processing = payoutRepository.findByStatusAndProviderReferenceIsNotNull(PayoutStatus.PROCESSING);
+        if (processing.isEmpty()) {
+            return;
+        }
+        log.info("Payout requery sweep: {} payout(s) processing with provider reference", processing.size());
+        for (Payout payout : processing) {
+            try {
+                requeryPayout(payout);
+            } catch (Exception e) {
+                log.error("Payout requery failed for payout {} — will retry next sweep",
+                        payout.getReference(), e);
+            }
+        }
+    }
+
+    /**
+     * Requery a single PROCESSING payout against Nomba and apply the outcome. The payout row is
+     * pessimistically locked so this can't race {@link #applyWebhook}.
+     */
+    private void requeryPayout(Payout payout) {
+        // requeryTransfer calls NombaResponseSupport.requireData which throws on null/missing data,
+        // so a normal return guarantees a non-null result with a status string.
+        NombaBankTransferData result = nombaTransferClient.requeryTransfer(payout.getProviderReference());
+        String status = result.status();
+        if (status == null) {
+            log.warn("Payout {} requery returned null status — leaving for next sweep", payout.getReference());
+            return;
+        }
+
+        if ("SUCCESS".equalsIgnoreCase(status)) {
+            new TransactionTemplate(transactionManager).executeWithoutResult(txStatus -> {
+                Payout locked = payoutRepository.findByReferenceForUpdate(payout.getReference()).orElse(null);
+                if (locked == null || locked.getStatus() != PayoutStatus.PROCESSING) {
+                    return;
+                }
+
+                locked.setStatus(PayoutStatus.SUCCESS);
+                // Payout.fee was set at reserve() to Cyrus's flat fee — do NOT overwrite it with
+                // Nomba's fee from the requery (Nomba reports the ₦20 fixed charge as result.fee()).
+                // The Nomba fee is informative only; the merchant is charged Cyrus's flat rate.
+                if (result.id() != null) {
+                    locked.setProviderReference(result.id());
+                }
+
+                Transaction tx = locked.getTransaction();
+                if (tx != null) {
+                    tx.setStatus(TransactionStatus.SUCCESSFUL);
+                }
+                log.info("Payout {} confirmed SUCCESS by requery sweep", locked.getReference());
+            });
+
+        } else if (!"PENDING_BILLING".equalsIgnoreCase(status)) {
+            // Any status other than SUCCESS or PENDING_BILLING (e.g. REFUND, FAILED, REVERSED)
+            // is a terminal failure — refund the wallet. This is intentionally broad: a missed
+            // refund is worse than a false one, and PENDING_BILLING is the only non-terminal
+            // non-success status Nomba returns for a transfer that's still settling.
+            new TransactionTemplate(transactionManager).executeWithoutResult(txStatus -> {
+                Payout locked = payoutRepository.findByReferenceForUpdate(payout.getReference()).orElse(null);
+                if (locked == null || locked.getStatus() != PayoutStatus.PROCESSING) {
+                    return;
+                }
+
+                Transaction tx = locked.getTransaction();
+                if (tx != null) {
+                    BigInteger totalRefund = locked.getAmount().add(locked.getFee());
+                    ledgerService.credit(locked.getMerchant(), totalRefund, tx,
+                            LedgerEntryType.REVERSAL, "Refund of failed payout " + locked.getReference());
+                    tx.setStatus(TransactionStatus.FAILED);
+                } else {
+                    log.error("Payout {} has no paired transaction — cannot post refund ledger entry",
+                            locked.getReference());
+                }
+
+                locked.setStatus(PayoutStatus.FAILED);
+                locked.setFailureReason("Per Nomba requery");
+                log.info("Payout {} {} by requery sweep — wallet refunded", locked.getReference(), status);
+            });
+
+        } else {
+            log.debug("Payout {} still {} per requery — leaving for next sweep", payout.getReference(), status);
+        }
     }
 
     private Reserved reserve(UUID merchantId, CreatePayoutRequest request) {
@@ -168,8 +268,12 @@ public class PayoutService {
                     .receivedAt(Instant.now())
                     .build());
 
-            // Debit the wallet up front (throws InsufficientFundsException if the balance is too low).
-            ledgerService.debit(merchant, request.amount(), tx, LedgerEntryType.PAYOUT, "Payout " + reference);
+            // Debit the transfer amount + flat fee up front (throws InsufficientFundsException if the
+            // balance is too low). The fee is Cyrus's fixed charge (₦30); Nomba's ₦20 is deducted
+            // from the transfer itself and is never visible in the merchant's wallet.
+            BigInteger payoutFee = feeProperties.payoutFlatFeeKobo();
+            ledgerService.debit(merchant, request.amount().add(payoutFee), tx,
+                    LedgerEntryType.PAYOUT, "Payout " + reference);
 
             Payout payout = payoutRepository.save(Payout.builder()
                     .merchant(merchant)
@@ -177,6 +281,7 @@ public class PayoutService {
                     .transaction(tx)
                     .reference(reference)
                     .amount(request.amount())
+                    .fee(payoutFee)
                     .narration(request.narration())
                     .status(PayoutStatus.PENDING)
                     .build());
@@ -225,8 +330,10 @@ public class PayoutService {
 
             Transaction tx = transactionRepository.findById(transactionId).orElseThrow();
 
-            // Refund the reserved amount — the provider rejected the transfer, so the money never left.
-            ledgerService.credit(payout.getMerchant(), payout.getAmount(), tx,
+            // Refund the reserved amount + fee — the provider rejected the transfer, so the money
+            // never left. Payout.fee was set at reserve() to Cyrus's flat fee.
+            BigInteger totalRefund = payout.getAmount().add(payout.getFee());
+            ledgerService.credit(payout.getMerchant(), totalRefund, tx,
                     LedgerEntryType.REVERSAL, "Refund of failed payout " + payout.getReference());
 
             payout.setStatus(PayoutStatus.FAILED);

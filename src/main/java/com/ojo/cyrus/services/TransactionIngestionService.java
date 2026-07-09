@@ -10,12 +10,14 @@ import com.ojo.cyrus.enums.VirtualAccountStatus;
 import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.exception.InvalidPaymentEventStateException;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
+import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.MerchantCustomer;
 import com.ojo.cyrus.models.entities.NombaPaymentEvent;
 import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.nomba.NombaWebhookAdapter;
 import com.ojo.cyrus.repositories.MerchantCustomerRepository;
+import com.ojo.cyrus.repositories.MerchantRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +55,7 @@ public class TransactionIngestionService {
     private final TransactionRepository transactionRepository;
     private final VirtualAccountRepository virtualAccountRepository;
     private final MerchantCustomerRepository merchantCustomerRepository;
+    private final MerchantRepository merchantRepository;
     private final PaymentEventService paymentEventService;
     private final NombaWebhookAdapter nombaAdapter;
     private final ReconciliationService reconciliationService;
@@ -275,6 +278,59 @@ public class TransactionIngestionService {
 
         log.info("Reattributed payment event {} to customer {} (merchant {}) as tx {}",
                 paymentEventId, customerReference, merchantId, tx.getId());
+        return tx;
+    }
+
+    /**
+     * Super-admin version of {@link #reattribute} for orphans with no owning merchant.
+     * Instead of scoping by the JWT merchant, the super-admin specifies the target merchant
+     * in the request body. The orphan event is validated (must be IGNORED, merchant must be
+     * null), then the same mint+reconcile flow runs.
+     */
+    @Transactional
+    public Transaction reattributeOrphan(UUID targetMerchantId, UUID paymentEventId, String customerReference) {
+        NombaPaymentEvent paymentEvent = paymentEventService.getById(paymentEventId);
+        if (paymentEvent.getMerchant() != null) {
+            throw new InvalidPaymentEventStateException(
+                    "This event is not an orphan — it already belongs to a merchant");
+        }
+        if (paymentEvent.getStatus() != NombaPaymentEventStatus.IGNORED) {
+            throw new InvalidPaymentEventStateException(
+                    "Only an IGNORED event can be reattributed — this event is " + paymentEvent.getStatus());
+        }
+
+        Merchant merchant = merchantRepository.findById(targetMerchantId)
+                .orElseThrow(() -> new EntityNotFoundException("Merchant not found: " + targetMerchantId));
+
+        MerchantCustomer customer = merchantCustomerRepository
+                .findByMerchantIdAndExternalCustomerId(targetMerchantId, customerReference)
+                .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + customerReference));
+        if (customer.getStatus() != MerchantCustomerStatus.ACTIVE) {
+            throw new InvalidPaymentEventStateException(
+                    "Cannot reattribute to customer " + customerReference + " — status is " + customer.getStatus());
+        }
+        VirtualAccount va = virtualAccountRepository.findByMerchantCustomerId(customer.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Virtual account not found for customer"));
+
+        NormalizedPaymentEvent event = nombaAdapter.toCyrusEvent(paymentEvent.getRawPayload());
+
+        if (transactionRepository.existsByProviderTransactionId(event.getProviderTransactionId())) {
+            throw new InvalidPaymentEventStateException("A transaction already exists for this payment");
+        }
+
+        paymentEvent.setMerchant(merchant);
+        paymentEvent.setVirtualAccount(va);
+        paymentEvent.setCustomerReference(customer.getExternalCustomerId());
+
+        Transaction tx = transactionRepository.save(
+                buildTransaction(event, paymentEvent.getRawPayload(), customer, va, event.getPayer(), paymentEvent));
+        paymentEventService.updateStatus(paymentEvent.getId(), NombaPaymentEventStatus.REATTRIBUTED,
+                "Manually reattributed by super-admin to customer " + customerReference);
+
+        scheduleReconciliation(tx);
+
+        log.info("Super-admin reattributed orphan event {} to merchant {} / customer {} as tx {}",
+                paymentEventId, targetMerchantId, customerReference, tx.getId());
         return tx;
     }
 }

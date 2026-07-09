@@ -176,17 +176,17 @@ public class ReconciliationService {
             // notify the merchant. MATCHED and DISCREPANCY both settle the money (a DISCREPANCY is a
             // reconciliation concern carried on matchStatus); both are atomic with the status change.
             //
-            // The gross amount is credited, then Nomba's own fee (PROVIDER_FEE) and Cyrus's markup
-            // on top of it (PLATFORM_FEE — see FeeProperties) are debited back out, so the wallet's
-            // net change is amount - totalFee. This is the actual revenue model: Cyrus marks up
-            // Nomba's confirmed fee by `app.fees.markup-multiplier` and keeps the difference.
+            // The gross amount is credited, then Nomba's own fee (PROVIDER_FEE) and Cyrus's margin
+            // on top of it (PLATFORM_FEE) are debited back out, so the wallet's net change is
+            // gross - merchantFee. The merchant fee is computed independently as a percentage of
+            // the gross (with min/max caps — see FeeProperties) rather than a markup on Nomba's fee.
             if (promoted) {
                 ledgerService.credit(tx.getMerchant(), tx.getAmount(), tx,
                         LedgerEntryType.MERCHANT_WALLET_CREDIT, "Payment " + tx.getReference());
 
                 if (confirmedFee != null && confirmedFee.signum() > 0) {
-                    BigInteger totalFee = FeeCalculator.totalPlatformFee(confirmedFee, feeProperties.markupMultiplier());
-                    BigInteger cyrusMargin = totalFee.subtract(confirmedFee);
+                    BigInteger merchantFee = FeeCalculator.computeInflowMerchantFee(tx.getAmount(), feeProperties);
+                    BigInteger cyrusMargin = merchantFee.subtract(confirmedFee).max(BigInteger.ZERO);
                     tx.setPlatformFeeKobo(cyrusMargin);
 
                     ledgerService.debit(tx.getMerchant(), confirmedFee, tx,

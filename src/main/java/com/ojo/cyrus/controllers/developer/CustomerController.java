@@ -77,7 +77,8 @@ public class CustomerController {
 
     @Operation(
             summary = "Get a customer's statement",
-            description = "Retrieves the customer's identity, a reporting summary (lifetime received volume, " +
+            description = "Retrieves the customer's identity, a reporting summary (lifetime received volume — " +
+                    "the net amount credited to your wallet after Nomba's and Cyrus's fees are deducted, " +
                     "transaction/pending counts, manual-review/discrepancy counts, last transaction date — " +
                     "always over the customer's full history), and a paginated, newest-first transaction history. " +
                     "The list can be narrowed with `from`/`to` (ISO-8601 instants) and/or `matchStatus` — e.g. " +
