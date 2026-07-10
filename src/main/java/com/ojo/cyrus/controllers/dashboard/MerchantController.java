@@ -2,10 +2,12 @@ package com.ojo.cyrus.controllers.dashboard;
 
 import com.ojo.cyrus.enums.MerchantWebhookStatus;
 import com.ojo.cyrus.enums.ResponseCode;
+import com.ojo.cyrus.models.requests.UpdateMerchantProfileRequest;
 import com.ojo.cyrus.models.requests.WebhookRegistrationRequest;
 import com.ojo.cyrus.models.responses.ApiKeyListItem;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
+import com.ojo.cyrus.models.responses.MerchantProfileResponse;
 import com.ojo.cyrus.models.responses.MerchantStatsResponse;
 import com.ojo.cyrus.models.responses.WebhookConfigItem;
 import com.ojo.cyrus.models.responses.WebhookConfigResponse;
@@ -43,6 +45,29 @@ public class MerchantController {
     public CyrusApiResponse<MerchantStatsResponse> stats(@AuthenticationPrincipal Jwt jwt) {
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Stats retrieved",
                 merchantService.getStats(jwt.getSubject()));
+    }
+
+    @Operation(summary = "Get your profile",
+            description = "Returns the authenticated merchant's current profile (business name, email, type, phone, BVN). " +
+                    "Email is the login identifier and cannot be changed via this endpoint.",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @GetMapping("/me/profile")
+    public CyrusApiResponse<MerchantProfileResponse> getProfile(@AuthenticationPrincipal Jwt jwt) {
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Profile retrieved",
+                merchantService.getProfile(jwt.getSubject()));
+    }
+
+    @Operation(summary = "Update your profile",
+            description = "Partial update of the authenticated merchant's profile. Only non-null fields in the request body are changed. " +
+                    "Business email and password cannot be changed here — email is the login identifier (changing it requires " +
+                    "a verification flow) and password has its own reset endpoint.",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @PatchMapping("/me/profile")
+    public CyrusApiResponse<MerchantProfileResponse> updateProfile(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody UpdateMerchantProfileRequest request) {
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Profile updated",
+                merchantService.updateProfile(jwt.getSubject(), request));
     }
 
     @Operation(summary = "List API keys",
