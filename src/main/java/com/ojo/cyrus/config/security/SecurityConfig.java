@@ -68,7 +68,7 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     SecurityFilterChain apiKeyChain(HttpSecurity http) throws Exception {
-        return http.securityMatcher("/v1/customers/**", "/v1/transactions/**")
+        return http.securityMatcher("/v1/customers/**", "/v1/transactions/**", "/v1/payment-events/**")
                 .cors(withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->

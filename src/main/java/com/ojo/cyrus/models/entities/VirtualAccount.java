@@ -20,7 +20,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class VirtualAccount extends BaseEntity {
-
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "merchant_customer_id", nullable = false, unique = true)
     private MerchantCustomer merchantCustomer;

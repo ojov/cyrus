@@ -24,6 +24,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     // composite with provider).
     boolean existsByProviderTransactionId(String providerTransactionId);
 
+    // Secondary dedup: same Nomba session id (aligns the same underlying transfer). Guards against
+    // duplicate webhooks that carry different providerTransactionIds but the same sessionId.
+    boolean existsBySessionId(String sessionId);
+
     Optional<Transaction> findByProviderTransactionId(String providerTransactionId);
 
     Optional<Transaction> findByReference(String reference);
