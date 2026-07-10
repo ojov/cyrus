@@ -14,6 +14,8 @@ single API key, a wallet, and a webhook config.
 **API Reference:** [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) — live Scalar UI,
 test every endpoint directly with your API key via the "Authorize" button
 
+**Demo:** [Watch on YouTube](https://youtu.be/65M7bqUCou8)
+
 ---
 
 ## 🧪 Reviewer Quick Start
