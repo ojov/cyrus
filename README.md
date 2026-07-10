@@ -99,6 +99,13 @@ developer docs at [https://trycyrus.app](https://trycyrus.app).
 
 ---
 
+## 📄 Architecture & Security
+
+See [`ARCHITECTURE_AND_SECURITY.md`](./ARCHITECTURE_AND_SECURITY.md) — a high-level overview of the Cyrus architecture,
+covering authentication, webhook security, and data handling.
+
+---
+
 ## 🔐 Security & Authentication
 
 ### JWT (merchant dashboard)

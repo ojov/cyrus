@@ -24,6 +24,7 @@ export default function PaymentsReferencePage() {
       </p>
       <Code>{`{
   "event": "payment.succeeded",
+  "createdAt": "2026-07-10T08:13:29.663Z",
   "data": {
     "transactionId": "9b323304-…",
     "amountKobo": 15000,
@@ -31,6 +32,8 @@ export default function PaymentsReferencePage() {
     "currency": "NGN",
     "status": "SUCCESSFUL",
     "matchStatus": "MATCHED",
+    "sessionId": "1000042607…",
+    "providerTransactionId": "API-VACT_TRA-…",
     "customerReference": "user_123",
     "virtualAccountNumber": "0123456789",
     "paidAt": "2026-07-07T20:39:02Z"

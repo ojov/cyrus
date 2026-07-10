@@ -1,33 +1,48 @@
 import { TwoCol } from "@/components/docs/two-col";
-import { Example } from "@/components/docs/example";
 import { Code } from "@/components/ui/code-block";
 
 export default function PayoutsReferencePage() {
   return (
     <TwoCol
       aside={
-        <Example
-          method="POST"
-          path="/v1/merchants/me/payouts"
-          body={`{
+        <div className="self-start overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:top-6">
+          <div className="flex items-center gap-2 border-b border-border bg-muted px-3.5 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Dashboard only
+          </div>
+          <div className="p-3.5 text-sm text-muted-foreground">
+            Payouts are initiated from the <strong>Dashboard</strong> — there is no API-key-authenticated
+            payout endpoint. Beneficiaries and payouts are managed under <code className="font-mono text-xs">/ops/payouts</code>.
+          </div>
+          <Code>{`POST /v1/merchants/me/payouts
+Authorization: Bearer <JWT>
+
+{
   "beneficiaryId": "3f9c…",
   "amount": 500000,
   "narration": "Weekly settlement"
-}`}
-          response={`{
+}
+
+→ {
   "reference": "pyt_a1b2c3…",
   "status": "PENDING",
   "amount": 500000
-}`}
-        />
+}`}</Code>
+        </div>
       }
     >
-      <h2>API Reference · Payouts</h2>
+      <h2>Payouts</h2>
       <p className="lede">
-        Withdraw your Cyrus wallet balance to a bank account. Payouts settle via our connected banking provider and
-        are tracked the same way inbound payments are — with a stable reference and a status you can poll or receive
-        as a webhook.
+        Withdraw your Cyrus wallet balance to a bank account. Payouts are managed exclusively through the
+        dashboard — your operations team sends money, not your application code. They settle via our connected
+        banking provider and are tracked the same way inbound payments are: with a stable reference and a
+        status you can monitor or receive as a webhook.
       </p>
+      <div className="callout">
+        Payouts are a <strong>dashboard-only</strong> operation (JWT-authenticated). Your server-to-server
+        API key cannot initiate payouts. This is intentional — the destination account number and bank code
+        are exactly what a real bank transfer is keyed by, and we want that controlled through the ops
+        dashboard, not a raw API call.
+      </div>
       <h3>Register a beneficiary first</h3>
       <p>
         A beneficiary is the destination bank account. Its <code>bankCode</code> should come from{" "}
@@ -45,8 +60,9 @@ export default function PayoutsReferencePage() {
 }`}</Code>
       <h3>Initiate a payout</h3>
       <p>
-        Amounts are integer kobo. Cyrus debits your wallet up front — a payout can never overdraw your balance — and
-        refunds it automatically if the provider rejects the transfer.
+        From the Payouts page in the dashboard, select a beneficiary, enter the amount (integer kobo),
+        and optionally add a narration. Cyrus debits your wallet up front — a payout can never overdraw
+        your balance — and refunds it automatically if the provider rejects the transfer.
       </p>
       <h3>Statuses</h3>
       <ul>
