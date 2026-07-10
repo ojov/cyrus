@@ -10,8 +10,10 @@ import com.ojo.cyrus.exception.EntityNotFoundException;
 import com.ojo.cyrus.models.WebhookConfig;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
+import com.ojo.cyrus.models.requests.UpdateMerchantProfileRequest;
 import com.ojo.cyrus.models.responses.ApiKeyListItem;
 import com.ojo.cyrus.models.responses.GeneratedApiKeysResponse;
+import com.ojo.cyrus.models.responses.MerchantProfileResponse;
 import com.ojo.cyrus.models.responses.MerchantStatsResponse;
 import com.ojo.cyrus.models.responses.WebhookConfigItem;
 import com.ojo.cyrus.models.responses.WebhookConfigResponse;
@@ -130,6 +132,35 @@ public class MerchantService {
             case Long l -> BigInteger.valueOf(l);
             default -> new BigDecimal(value.toString()).toBigInteger();
         };
+    }
+
+    @Transactional(readOnly = true)
+    public MerchantProfileResponse getProfile(String email) {
+        Merchant m = findByBusinessEmail(email);
+        return toProfileResponse(m);
+    }
+
+    public MerchantProfileResponse updateProfile(String email, UpdateMerchantProfileRequest request) {
+        Merchant m = findByBusinessEmail(email);
+
+        if (request.businessName() != null) m.setBusinessName(request.businessName());
+        if (request.businessType() != null) m.setBusinessType(request.businessType());
+        if (request.phone() != null) m.setPhone(request.phone());
+        if (request.bankVerificationNumber() != null) m.setBankVerificationNumber(request.bankVerificationNumber());
+
+        merchantRepository.save(m);
+        log.info("Merchant {} updated profile", m.getId());
+        return toProfileResponse(m);
+    }
+
+    private MerchantProfileResponse toProfileResponse(Merchant m) {
+        return new MerchantProfileResponse(
+                m.getId(),
+                m.getBusinessName(),
+                m.getBusinessEmail(),
+                m.getBusinessType(),
+                m.getPhone(),
+                m.getBankVerificationNumber());
     }
 
     @Transactional(readOnly = true)

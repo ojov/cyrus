@@ -14,6 +14,8 @@ single API key, a wallet, and a webhook config.
 **API Reference:** [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) — live Scalar UI,
 test every endpoint directly with your API key via the "Authorize" button
 
+**Demo:** [Watch on YouTube](https://youtu.be/65M7bqUCou8)
+
 ---
 
 ## 🧪 Reviewer Quick Start
@@ -24,7 +26,7 @@ Jump straight in without creating an account:
 |---|---|
 | **Login email** | `oticconsults@gmail.com` |
 | **Login password** | `A4@cyrusprod` |
-| **API key** | `cyrus_9fxz-ZEGPxaRQZmsFpN91O7qJTDW5Vq0p1u6buZkiqI` |
+| **API key** | `cyrus_sa4uxH7x9i3akfhnzvWtagjSodBRIM0FsqO5Q25jHtk` |
 | **API Reference** | [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) |
 
 Test the API key directly in the Scalar UI at [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) 
