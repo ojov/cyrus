@@ -106,10 +106,8 @@ public class CustomerController {
             security = @SecurityRequirement(name = "ApiKeyAuth")
     )
     @PatchMapping("/{reference}")
-    public CyrusApiResponse<CustomerResponse> update(
-            @AuthenticationPrincipal Merchant merchant,
-            @PathVariable String reference,
-            @Valid @RequestBody UpdateCustomerRequest request) {
+    public CyrusApiResponse<CustomerResponse> update(@AuthenticationPrincipal Merchant merchant,
+            @PathVariable String reference, @Valid @RequestBody UpdateCustomerRequest request) {
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customer updated",
                 customerService.rename(merchant.getId(), reference, request));
@@ -122,10 +120,8 @@ public class CustomerController {
             security = @SecurityRequirement(name = "ApiKeyAuth")
     )
     @PostMapping("/{reference}/kyc-tier")
-    public CyrusApiResponse<CustomerResponse> updateKycTier(
-            @AuthenticationPrincipal Merchant merchant,
-            @PathVariable String reference,
-            @Valid @RequestBody UpdateKycTierRequest request) {
+    public CyrusApiResponse<CustomerResponse> updateKycTier(@AuthenticationPrincipal Merchant merchant,
+            @PathVariable String reference, @Valid @RequestBody UpdateKycTierRequest request) {
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "KYC tier updated",
                 customerService.updateKycTier(merchant.getId(), reference, request.tier()));
@@ -140,10 +136,8 @@ public class CustomerController {
             security = @SecurityRequirement(name = "ApiKeyAuth")
     )
     @PatchMapping("/{reference}/status")
-    public CyrusApiResponse<CustomerResponse> updateStatus(
-            @AuthenticationPrincipal Merchant merchant,
-            @PathVariable String reference,
-            @Valid @RequestBody UpdateCustomerStatusRequest request) {
+    public CyrusApiResponse<CustomerResponse> updateStatus(@AuthenticationPrincipal Merchant merchant,
+            @PathVariable String reference, @Valid @RequestBody UpdateCustomerStatusRequest request) {
 
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customer status updated",
                 customerService.updateStatus(merchant.getId(), reference, request.status()));
