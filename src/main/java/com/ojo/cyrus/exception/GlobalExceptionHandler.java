@@ -7,13 +7,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 /**
@@ -110,7 +113,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(AccountVerificationException.class)
-    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_CONTENT)
     public CyrusApiResponse<ErrorDetails> handleAccountVerification(AccountVerificationException ex) {
         return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
     }
@@ -121,6 +124,25 @@ public class GlobalExceptionHandler {
         return clientError(ResponseCode.UNAUTHORIZED, ex.getMessage(), ex);
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public CyrusApiResponse<ErrorDetails> handleDataIntegrity(DataIntegrityViolationException ex) {
+        return serverError(ResponseCode.INVALID_REQUEST,
+                "Data integrity violation: " + ex.getMostSpecificCause().getMessage(), ex);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public CyrusApiResponse<ErrorDetails> handleIllegalState(IllegalStateException ex) {
+        return serverError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public CyrusApiResponse<ErrorDetails> handleNoSuchElement(NoSuchElementException ex) {
+        return clientError(ResponseCode.RESOURCE_NOT_FOUND, ex.getMessage(), ex);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public CyrusApiResponse<ErrorDetails> handleValidation(MethodArgumentNotValidException ex) {
@@ -128,7 +150,8 @@ public class GlobalExceptionHandler {
                 .map(fe -> new ErrorDetails.FieldError(fe.getField(), fe.getDefaultMessage()))
                 .toList();
         String message = "One or more fields are invalid";
-        log.warn("{} -> {}: {}", ex.getClass().getSimpleName(), ResponseCode.INVALID_INPUT.name(), fieldErrors, ex);
+        log.warn("{} -> {}: {} | fields={}", ex.getClass().getSimpleName(), ResponseCode.INVALID_INPUT.name(),
+                message, fieldErrors, ex);
         return CyrusApiResponse.failure(ResponseCode.INVALID_INPUT, message,
                 ErrorDetails.ofFieldErrors(fieldErrors));
     }
@@ -159,6 +182,12 @@ public class GlobalExceptionHandler {
     public CyrusApiResponse<ErrorDetails> handleEmailSending(EmailSendingException ex) {
         return serverError(ResponseCode.EMAIL_DELIVERY_ERROR,
                 "We couldn't send the email at this time. Please try again shortly.", ex);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public CyrusApiResponse<ErrorDetails> handleNoResource(NoResourceFoundException ex) {
+        return CyrusApiResponse.failure(ResponseCode.RESOURCE_NOT_FOUND, "Resource not found");
     }
 
     @ExceptionHandler(Exception.class)

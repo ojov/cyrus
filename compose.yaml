@@ -9,10 +9,8 @@ services:
       POSTGRES_PASSWORD: cyrus_password
     ports:
       - "5438:5432"
-
     volumes:
       - cyrus_postgres_data:/var/lib/postgresql/data
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cyrus -d cyrus"]
       interval: 10s
