@@ -100,6 +100,12 @@ public class GlobalExceptionHandler {
         return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
     }
 
+    @ExceptionHandler(InvalidApiKeyStateException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public CyrusApiResponse<ErrorDetails> handleInvalidApiKeyState(InvalidApiKeyStateException ex) {
+        return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
+    }
+
     @ExceptionHandler(InvalidCustomerStateException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public CyrusApiResponse<ErrorDetails> handleInvalidCustomerState(InvalidCustomerStateException ex) {

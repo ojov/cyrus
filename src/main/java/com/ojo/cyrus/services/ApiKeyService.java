@@ -2,6 +2,7 @@ package com.ojo.cyrus.services;
 
 import com.ojo.cyrus.enums.ApiKeyStatus;
 import com.ojo.cyrus.exception.EntityNotFoundException;
+import com.ojo.cyrus.exception.InvalidApiKeyStateException;
 import com.ojo.cyrus.models.entities.ApiKey;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.responses.ApiKeyListItem;
@@ -45,6 +46,16 @@ public class ApiKeyService {
         ApiKey key = apiKeyRepository.findByIdAndMerchantId(keyId, merchantId)
                 .orElseThrow(() -> new EntityNotFoundException("API key not found"));
         key.revoke(); // status -> REVOKED, revokedAt set; flushed by dirty checking
+    }
+
+    @Transactional
+    public void deleteKey(UUID merchantId, UUID keyId) {
+        ApiKey key = apiKeyRepository.findByIdAndMerchantId(keyId, merchantId)
+                .orElseThrow(() -> new EntityNotFoundException("API key not found"));
+        if (key.getStatus() != ApiKeyStatus.REVOKED) {
+            throw new InvalidApiKeyStateException("Only revoked API keys can be deleted");
+        }
+        apiKeyRepository.delete(key);
     }
 
     public GeneratedApiKeysResponse createApiKey(Merchant merchant) {

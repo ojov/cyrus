@@ -125,7 +125,8 @@ export const dashboardApi = {
   stats: () => api.get<DashboardStats>("/v1/merchants/me/stats"),
   listApiKeys: () => api.get<ApiKeyListResponse>("/v1/merchants/me/api-keys"),
   createApiKey: () => api.post<CreatedApiKeyResponse>("/v1/merchants/me/api-keys", {}),
-  revokeApiKey: (id: string) => api.delete<{ data: null }>(`/v1/merchants/me/api-keys/${id}`),
+  revokeApiKey: (id: string) => api.post<{ data: null }>(`/v1/merchants/me/api-keys/${id}/revoke`, {}),
+  deleteApiKey: (id: string) => api.delete<{ data: null }>(`/v1/merchants/me/api-keys/${id}`),
 };
 
 // ---- Wallet ----

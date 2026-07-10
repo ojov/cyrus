@@ -65,12 +65,23 @@ public class MerchantController {
 
     @Operation(summary = "Revoke an API key",
             security = @SecurityRequirement(name = "BearerAuth"))
-    @DeleteMapping("/me/api-keys/{id}")
+    @PostMapping("/me/api-keys/{id}/revoke")
     public CyrusApiResponse<Void> revokeApiKey(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID id) {
         merchantService.revokeApiKey(jwt.getSubject(), id);
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "API key revoked", null);
+    }
+
+    @Operation(summary = "Delete a revoked API key",
+            description = "Permanently removes a revoked API key. Only keys with REVOKED status can be deleted.",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @DeleteMapping("/me/api-keys/{id}")
+    public CyrusApiResponse<Void> deleteApiKey(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id) {
+        merchantService.deleteApiKey(jwt.getSubject(), id);
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "API key deleted", null);
     }
 
     @Operation(summary = "Register or update the webhook URL",
