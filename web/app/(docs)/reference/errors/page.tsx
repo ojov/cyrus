@@ -22,10 +22,18 @@ export default function ErrorsReferencePage() {
         </thead>
         <tbody>
           <tr><td>400</td><td className="font-mono">INVALID_INPUT</td><td><code>fieldErrors</code></td></tr>
-          <tr><td>401</td><td className="font-mono">UNAUTHORIZED / INVALID_TOKEN</td><td>—</td></tr>
+          <tr><td>400</td><td className="font-mono">INVALID_REQUEST</td><td>—</td></tr>
+          <tr><td>400</td><td className="font-mono">INVALID_TOKEN</td><td>—</td></tr>
+          <tr><td>401</td><td className="font-mono">UNAUTHORIZED</td><td>—</td></tr>
+          <tr><td>401</td><td className="font-mono">INVALID_TOKEN</td><td>—</td></tr>
+          <tr><td>403</td><td className="font-mono">ACCOUNT_NOT_VERIFIED</td><td>—</td></tr>
+          <tr><td>403</td><td className="font-mono">UNAUTHORIZED</td><td>—</td></tr>
           <tr><td>404</td><td className="font-mono">RESOURCE_NOT_FOUND</td><td>—</td></tr>
           <tr><td>409</td><td className="font-mono">DUPLICATE_MERCHANT</td><td>—</td></tr>
+          <tr><td>409</td><td className="font-mono">INVALID_REQUEST</td><td>—</td></tr>
+          <tr><td>422</td><td className="font-mono">INVALID_REQUEST</td><td>—</td></tr>
           <tr><td>502</td><td className="font-mono">NOMBA_INTEGRATION_ERROR</td><td><code>traceId</code></td></tr>
+          <tr><td>502</td><td className="font-mono">EMAIL_DELIVERY_ERROR</td><td><code>traceId</code></td></tr>
           <tr><td>500</td><td className="font-mono">INTERNAL_ERROR</td><td><code>traceId</code></td></tr>
         </tbody>
       </table>

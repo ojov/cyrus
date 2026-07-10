@@ -29,11 +29,17 @@ public record CustomerResponse(
 
 ) {
     public record VirtualAccountSummary(
+            @Schema(description = "Cyrus-assigned virtual account ID")
             UUID id,
+            @Schema(description = "Nuban account number — payers send transfers here")
             String accountNumber,
+            @Schema(description = "Account holder name (matches the customer's name)")
             String accountName,
+            @Schema(description = "Bank name (e.g. Wema Bank)")
             String bankName,
+            @Schema(description = "Account currency (always NGN)")
             String currency,
+            @Schema(description = "Account status: ACTIVE, SUSPENDED, or CLOSED")
             String status
     ) {}
 }

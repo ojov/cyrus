@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { beneficiaryApi, payoutApi, type BeneficiaryItem, type PayoutItem } from "@/lib/api";
+import { useDashboardStats } from "@/components/dashboard/stats-context";
 import { naira, statusClass } from "@/lib/utils";
 
 const field =
   "w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none focus:border-primary";
 
 export default function PayoutsPage() {
+  const { refreshStats } = useDashboardStats();
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ export default function PayoutsPage() {
       await payoutApi.create({ beneficiaryId, amount: Math.round(amount * 100), narration: narration.trim() || undefined });
       setAmountNaira("");
       setNarration("");
-      await load();
+      await Promise.all([load(), refreshStats()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Payout failed");
     } finally {
