@@ -11,6 +11,7 @@ touching Nomba credentials directly. Cyrus holds one Nomba account; every mercha
 single API key, a wallet, and a webhook config.
 
 **Dashboard:** [https://trycyrus.app](https://trycyrus.app) — ops dashboard + developer documentation
+
 **API Reference:** [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) — live Scalar UI,
 test every endpoint directly with your API key via the "Authorize" button
 
