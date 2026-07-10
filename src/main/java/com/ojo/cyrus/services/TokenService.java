@@ -4,8 +4,11 @@ import com.ojo.cyrus.config.properties.AppProperties;
 import com.ojo.cyrus.enums.TokenType;
 import com.ojo.cyrus.exception.InvalidTokenException;
 import com.ojo.cyrus.models.entities.Merchant;
+import com.ojo.cyrus.models.entities.RefreshToken;
 import com.ojo.cyrus.models.entities.Token;
+import com.ojo.cyrus.repositories.RefreshTokenRepository;
 import com.ojo.cyrus.repositories.TokenRepository;
+import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -25,9 +28,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TokenService {
 
+    private static final Duration ACCESS_TOKEN_EXPIRY = Duration.ofMinutes(15);
+
     private final JwtEncoder encoder;
     private final TokenRepository tokenRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final AppProperties appProperties;
+
+    public record TokenPair(String accessToken, String refreshToken) {}
 
     public String generateToken(Authentication authentication) {
         return generateToken(authentication.getName(), authentication.getAuthorities().stream()
@@ -40,11 +48,66 @@ public class TokenService {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(appProperties.jwt().issuer())
                 .issuedAt(now)
-                .expiresAt(now.plus(appProperties.jwt().expiryHours(), ChronoUnit.HOURS))
+                .expiresAt(now.plus(ACCESS_TOKEN_EXPIRY))
                 .subject(subject)
                 .claim("scope", scope)
                 .build();
         return encoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
+    }
+
+    /**
+     * Generates a token pair: a short-lived access token and a long-lived refresh token.
+     * The refresh token is stored hashed in the database; the raw value is returned once.
+     */
+    public TokenPair generateTokenPair(Merchant merchant, String userAgent, String ipAddress) {
+        String accessToken = generateToken(merchant.getBusinessEmail(), "ROLE_MERCHANT");
+
+        String rawRefreshToken = CryptoUtil.randomToken(64);
+        String hashedRefresh = CryptoUtil.sha256(rawRefreshToken);
+
+        RefreshToken refreshToken = RefreshToken.builder()
+                .merchant(merchant)
+                .token(hashedRefresh)
+                .expiresAt(Instant.now().plus(appProperties.jwt().refreshExpiryDays(), ChronoUnit.DAYS))
+                .userAgent(userAgent)
+                .ipAddress(ipAddress)
+                .build();
+        refreshTokenRepository.save(refreshToken);
+
+        return new TokenPair(accessToken, rawRefreshToken);
+    }
+
+    /**
+     * Rotates a refresh token: revokes the old one and issues a new pair.
+     * Returns the new token pair (refresh token is set as a cookie by the controller).
+     */
+    public TokenPair refreshAccessToken(String refreshTokenValue, String userAgent, String ipAddress) {
+        String hashed = CryptoUtil.sha256(refreshTokenValue);
+        RefreshToken oldRefreshToken = refreshTokenRepository.findByTokenAndRevokedFalse(hashed)
+                .orElseThrow(() -> new InvalidTokenException("Invalid refresh token"));
+
+        if (oldRefreshToken.getExpiresAt().isBefore(Instant.now())) {
+            throw new InvalidTokenException("Refresh token expired");
+        }
+
+        oldRefreshToken.setRevoked(true);
+        refreshTokenRepository.save(oldRefreshToken);
+
+        return generateTokenPair(oldRefreshToken.getMerchant(), userAgent, ipAddress);
+    }
+
+    /** Revokes a refresh token (used during logout). */
+    public void revokeRefreshToken(String refreshTokenValue) {
+        String hashed = CryptoUtil.sha256(refreshTokenValue);
+        refreshTokenRepository.findByTokenAndRevokedFalse(hashed).ifPresent(token -> {
+            token.setRevoked(true);
+            refreshTokenRepository.save(token);
+        });
+    }
+
+    /** Deletes all revoked or expired refresh tokens (scheduled cleanup). */
+    public int cleanupExpiredRefreshTokens() {
+        return refreshTokenRepository.deleteRevokedOrExpired();
     }
 
     /** Mints a single-use token of the given type, valid for {@code validity}. */

@@ -9,41 +9,103 @@ export class ApiError extends Error {
   }
 }
 
+// Token refresh state
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
+
+const processQueue = (error: Error | null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error instanceof ApiError ? error : new ApiError(401, "Session expired"));
+    } else {
+      prom.resolve();
+    }
+  });
+  failedQueue = [];
+};
+
+async function attemptRefresh(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/v1/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
 
-  // The dashboard session is an httpOnly cookie — this app never reads or attaches the JWT
-  // itself. `credentials: "include"` is what makes the browser send/store that cookie on
-  // requests to the API's origin (a different origin from this app even in prod).
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: "include" });
+  const makeRequest = async (): Promise<T> => {
+    // The dashboard session is an httpOnly cookie — this app never reads or attaches the JWT
+    // itself. `credentials: "include"` is what makes the browser send/store that cookie on
+    // requests to the API's origin (a different origin from this app even in prod).
+    const res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: "include" });
 
-  // A genuinely empty body (e.g. 204 No Content) is not a parse failure — treat it as
-  // an empty envelope so callers destructuring `.data` don't throw on `null`.
-  const text = await res.text();
-  if (!text) {
-    if (!res.ok) throw new ApiError(res.status, `Request failed: ${res.status}`);
-    return { data: null } as T;
-  }
+    // Handle 401 by attempting a token refresh
+    if (res.status === 401 && !(options as RequestInit & { _retry?: boolean })._retry) {
+      if (isRefreshing) {
+        // Another request is already refreshing — queue this one
+        return new Promise<T>((resolve, reject) => {
+          failedQueue.push({
+            resolve: () => resolve(makeRequest()),
+            reject,
+          });
+        });
+      }
 
-  let body: unknown;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    // Non-JSON body. On a real error status, fall back to a status-based message below;
-    // on a reported success we can't trust the payload, so surface that distinctly instead
-    // of silently returning null cast as T (which masked real failures as empty success).
-    if (res.ok) throw new ApiError(0, "Received an invalid response from the server.");
-    body = null;
-  }
+      isRefreshing = true;
+      (options as RequestInit & { _retry?: boolean })._retry = true;
 
-  if (!res.ok) {
-    const message = (body as { message?: string } | null)?.message ?? `Request failed: ${res.status}`;
-    throw new ApiError(res.status, message);
-  }
-  return body as T;
+      const refreshed = await attemptRefresh();
+      processQueue(refreshed ? null : new Error("Refresh failed"));
+      isRefreshing = false;
+
+      if (refreshed) {
+        return makeRequest();
+      } else {
+        // Refresh failed — redirect to login
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+        throw new ApiError(401, "Session expired");
+      }
+    }
+
+    // A genuinely empty body (e.g. 204 No Content) is not a parse failure — treat it as
+    // an empty envelope so callers destructuring `.data` don't throw on `null`.
+    const text = await res.text();
+    if (!text) {
+      if (!res.ok) throw new ApiError(res.status, `Request failed: ${res.status}`);
+      return { data: null } as T;
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // Non-JSON body. On a real error status, fall back to a status-based message below;
+      // on a reported success we can't trust the payload, so surface that distinctly instead
+      // of silently returning null cast as T (which masked real failures as empty success).
+      if (res.ok) throw new ApiError(0, "Received an invalid response from the server.");
+      body = null;
+    }
+
+    if (!res.ok) {
+      const message = (body as { message?: string } | null)?.message ?? `Request failed: ${res.status}`;
+      throw new ApiError(res.status, message);
+    }
+    return body as T;
+  };
+
+  return makeRequest();
 }
 
 const api = {
@@ -71,6 +133,7 @@ export interface RegisterResponse {
 export const authApi = {
   login: (email: string, password: string) => api.post<LoginResponse>("/v1/auth/login", { email, password }),
   logout: () => api.post<{ data: null }>("/v1/auth/logout", {}),
+  refresh: () => api.post<{ data: null }>("/v1/auth/refresh", {}),
   forgotPassword: (email: string) => api.post<{ data: null }>("/v1/auth/forgot-password", { email }),
   resetPassword: (token: string, newPassword: string) => api.post<{ data: null }>("/v1/auth/reset-password", { token, newPassword }),
   resendVerification: (email: string) => api.post<{ data: null }>("/v1/auth/resend-verification", { email }),

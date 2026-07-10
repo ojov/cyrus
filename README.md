@@ -111,10 +111,11 @@ covering authentication, webhook security, and data handling.
 
 ## 🔐 Security & Authentication
 
-### JWT (merchant dashboard)
-Delivered as an **httpOnly cookie** on `/v1/auth/login` / `/v1/auth/register` — never exposed to
-frontend JS or returned in a JSON body. `Authorization: Bearer <token>` also works for direct API
-testing (Postman/curl).
+### JWT + Refresh Token (merchant dashboard)
+- **Access token** (`cyrus_token`): 15-minute JWT, httpOnly cookie
+- **Refresh token** (`cyrus_refresh`): 30-day token, SHA-256 hashed in DB, httpOnly cookie
+- Proactive refresh every 14 minutes via `/v1/auth/refresh`
+- `Authorization: Bearer <token>` also works for direct API testing (Postman/curl)
 
 ### API key (server-to-server)
 - **Header:** `Authorization: Bearer <API_KEY>`

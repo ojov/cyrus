@@ -52,5 +52,5 @@ public record AppProperties(
         }
     }
 
-    public record JwtConfig(String issuer, int expiryHours) {}
+    public record JwtConfig(String issuer, int refreshExpiryDays) {}
 }

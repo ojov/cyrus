@@ -73,7 +73,7 @@ app:
   super-admin-emails: ${APP_SUPER_ADMIN_EMAILS}
   jwt:
     issuer: cyrus
-    expiry-hours: 8
+    refresh-expiry-days: 30
   # The dashboard JWT is delivered as an httpOnly cookie, never in a JSON response body — the
   # frontend never touches the raw token. `secure: false` here is for local dev over plain
   # http://localhost only; application-prod.yml overrides this to true (HTTPS-only cookie).

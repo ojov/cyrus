@@ -76,7 +76,22 @@ Set these before running (see `application.yaml` for the full list and defaults)
 ## Authentication (two security filter chains — `config/security/SecurityConfig`)
 
 1. **API-key chain** (`@Order(1)`, matches `/v1/customers/**` and `/v1/transactions/**`): server-to-server. `ApiKeyFilter` reads `Authorization: Bearer <key>`, validates via `ApiKeyService` (SHA-256 hash lookup), and sets an `ApiKeyAuthentication` whose principal is the owning `Merchant` — no environment/TEST-LIVE distinction any more, one key per merchant, prefixed `cyrus_…`. Stateless.
-2. **Default chain** (everything else): JWT via OAuth2 Resource Server, RSA-signed. Merchant dashboard auth. Public paths: `/v1/auth/login`, `/v1/auth/register`, `/v1/auth/verify-email`, swagger/`/docs`/`/v3/api-docs/**`, `/actuator/health`. Passwords hashed with **BCrypt**.
+2. **Default chain** (everything else): JWT via OAuth2 Resource Server, RSA-signed. Merchant dashboard auth uses a **short-lived access token + refresh token** pair. Public paths: `/v1/auth/login`, `/v1/auth/register`, `/v1/auth/refresh`, `/v1/auth/verify-email`, swagger/`/docs`/`/v3/api-docs/**`, `/actuator/health`. Passwords hashed with **BCrypt**.
+
+### Dashboard Session (JWT + Refresh Token)
+
+The dashboard uses a two-cookie session model:
+
+- **Access token** (`cyrus_token`): RSA-signed JWT, **15-minute lifetime**, httpOnly cookie. Contains merchant email as subject, `ROLE_MERCHANT` scope. Sent on every request; validated by Spring Security's `JwtDecoder`.
+- **Refresh token** (`cyrus_refresh`): 30-day lifetime (configurable via `app.jwt.refresh-expiry-days`), httpOnly cookie scoped to `/`. SHA-256 hashed before DB storage; the raw value is never persisted. Used only for token rotation.
+
+**Refresh flow:**
+1. Frontend proactively calls `POST /v1/auth/refresh` every 14 minutes (via `useTokenRefresh` hook).
+2. Backend validates the refresh token, revokes it (rotation), and issues a new access + refresh pair.
+3. On 401, the frontend automatically attempts a refresh before redirecting to login.
+4. Cross-tab coordination uses `localStorage`-based locking to prevent concurrent rotations.
+
+**Logout** revokes the refresh token in the DB and clears both cookies.
 
 The API-key chain's `securityMatcher` currently lists `/v1/customers/**` and `/v1/transactions/**`, but **more API-key-protected endpoints are expected as we build.** To add one, extend the `securityMatcher(...)` path list in the `apiKeyChain` bean in `SecurityConfig` — a new path is *not* covered by the API-key filter until it's added there (it would otherwise fall through to the JWT default chain). Dashboard endpoints stay on the JWT default chain. **Gotcha, hit live:** two controllers in different packages must not share a simple class name — Spring's default bean-name generator collides on it regardless of package (see `DashboardCustomerController`, named to avoid colliding with `developer.CustomerController`).
 

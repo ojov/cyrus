@@ -12,5 +12,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 @ConfigurationProperties(prefix = "app.auth-cookie")
 public record AuthCookieProperties(
         @DefaultValue("cyrus_token") String name,
+        @DefaultValue("cyrus_refresh") String refreshName,
         @DefaultValue("false") boolean secure
 ) {}

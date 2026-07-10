@@ -73,20 +73,28 @@ read no auth — they're static content explaining the API.
 
 ## Authentication
 
-### 1. Merchant Dashboard Login (JWT)
+### 1. Merchant Dashboard Login (JWT + Refresh Token)
 
 Merchants register with email + password. On login:
 
 - **Password verification** via Spring Security's `DaoAuthenticationProvider` + **BCrypt** (`BCryptPasswordEncoder`)
-- On success, a **RSA-signed JWT** is generated (keypair from `RSA_PRIVATE_KEY`/`RSA_PUBLIC_KEY` env vars)
-- The JWT is delivered in an **httpOnly cookie** (not accessible to browser JavaScript) and also echoed
-  in the JSON response body for programmatic use
-- The cookie is sent on every subsequent request to the dashboard backend
-- A custom `CookieBearerTokenResolver` reads the JWT from the cookie and feeds it to Spring Security's
-  OAuth2 Resource Server (`NimbusJwtDecoder`)
+- On success, a **token pair** is generated:
+  - **Access token**: RSA-signed JWT (15-minute lifetime), contains merchant email + `ROLE_MERCHANT` scope
+  - **Refresh token**: 30-day lifetime, SHA-256 hashed before DB storage, used for rotation only
+- Both tokens are delivered as **httpOnly cookies** (`cyrus_token` + `cyrus_refresh`)
+- The refresh token is scoped to `/v1/auth` and only sent to the refresh endpoint
 
-**Why httpOnly?** Prevents XSS-based token theft. The token never touches `localStorage` or
-`document.cookie` from JavaScript.
+**Token rotation:**
+- Frontend proactively refreshes every 14 minutes via `POST /v1/auth/refresh`
+- Backend revokes the old refresh token and issues a new pair (rotation)
+- On 401, frontend automatically attempts refresh before redirecting to login
+- Cross-tab coordination via `localStorage`-based locking prevents concurrent rotations
+
+**Logout:** Revokes the refresh token in DB, clears both cookies.
+
+**Why httpOnly + refresh tokens?** Prevents XSS-based token theft (tokens never touch JavaScript).
+Short-lived access tokens limit exposure if compromised; refresh tokens enable long-lived sessions
+without storing sensitive data client-side.
 
 ### 2. Server-to-Server (API Key)
 
@@ -110,7 +118,9 @@ management (it's a dashboard operation, not a programmatic one).
 |---|---|
 | Password storage | BCrypt hash, never plaintext |
 | API key storage | SHA-256 hash, never plaintext |
-| Token transmission | httpOnly cookie (dashboard) or Bearer header (API) |
+| Access token | 15-min JWT, httpOnly cookie (`cyrus_token`) |
+| Refresh token | 30-day token, SHA-256 hashed in DB, httpOnly cookie (`cyrus_refresh`) |
+| Token transmission | httpOnly cookies (dashboard) or Bearer header (API) |
 | Encryption key | `APP_ENCRYPTION_KEY` — AES-256-GCM, Base64-decoded to 16/24/32 bytes, validated at startup |
 | JWT signing | RSA-256 (asymmetric) — public key for verification, private key for signing |
 
