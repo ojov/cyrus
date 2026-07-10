@@ -49,6 +49,11 @@ public class SecurityConfig {
     private final CookieBearerTokenResolver cookieBearerTokenResolver;
 
     private static final String[] PUBLIC_URLS = {
+            // Landing page
+            "/",
+            "/index.html",
+            "/favicon.svg",
+            // Auth
             "/v1/auth/login",
             "/v1/auth/register",
             "/v1/auth/refresh",
