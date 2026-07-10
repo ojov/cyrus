@@ -12,6 +12,7 @@ export default function ApiKeysPage() {
   const [newKey, setNewKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -60,6 +61,20 @@ export default function ApiKeysPage() {
       setError(e instanceof Error ? e.message : "Failed to revoke key");
     } finally {
       setRevokingId(null);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!window.confirm("Permanently delete this revoked key? This cannot be undone.")) return;
+    setError(null);
+    setDeletingId(id);
+    try {
+      await dashboardApi.deleteApiKey(id);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete key");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -152,6 +167,16 @@ export default function ApiKeysPage() {
                     className="shrink-0 rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/10 disabled:opacity-60"
                   >
                     {revokingId === k.id ? "Revoking…" : "Revoke"}
+                  </button>
+                )}
+                {k.status === "REVOKED" && (
+                  <button
+                    type="button"
+                    onClick={() => remove(k.id)}
+                    disabled={deletingId === k.id}
+                    className="shrink-0 rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/10 disabled:opacity-60"
+                  >
+                    {deletingId === k.id ? "Deleting…" : "Delete"}
                   </button>
                 )}
               </div>

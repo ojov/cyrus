@@ -1,5 +1,4 @@
 import { TwoCol } from "@/components/docs/two-col";
-import { Code } from "@/components/ui/code-block";
 
 export default function PayoutsReferencePage() {
   return (
@@ -13,20 +12,6 @@ export default function PayoutsReferencePage() {
             Payouts are initiated from the <strong>Dashboard</strong> — there is no API-key-authenticated
             payout endpoint. Beneficiaries and payouts are managed under <code className="font-mono text-xs">/ops/payouts</code>.
           </div>
-          <Code>{`POST /v1/merchants/me/payouts
-Authorization: Bearer <JWT>
-
-{
-  "beneficiaryId": "3f9c…",
-  "amount": 500000,
-  "narration": "Weekly settlement"
-}
-
-→ {
-  "reference": "pyt_a1b2c3…",
-  "status": "PENDING",
-  "amount": 500000
-}`}</Code>
         </div>
       }
     >
@@ -38,30 +23,22 @@ Authorization: Bearer <JWT>
         status you can monitor or receive as a webhook.
       </p>
       <div className="callout">
-        Payouts are a <strong>dashboard-only</strong> operation (JWT-authenticated). Your server-to-server
-        API key cannot initiate payouts. This is intentional — the destination account number and bank code
-        are exactly what a real bank transfer is keyed by, and we want that controlled through the ops
-        dashboard, not a raw API call.
+        Payouts are a <strong>dashboard-only</strong> operation. Your server-to-server API key cannot
+        initiate payouts. This is intentional — the destination account number and bank code are exactly
+        what a real bank transfer is keyed by, and we want that controlled through the ops dashboard,
+        not a raw API call.
       </div>
       <h3>Register a beneficiary first</h3>
       <p>
-        A beneficiary is the destination bank account. Its <code>bankCode</code> should come from{" "}
-        <code>GET /v1/merchants/me/beneficiaries/banks</code> rather than being hand-typed — that&apos;s the exact list
-        the provider recognizes at transfer time, so a mistyped code can never make it into a saved beneficiary. Cyrus
-        also verifies the account name with the provider when you add one, so you always see the real account holder
-        before sending money.
+        Before you can send a payout, add a beneficiary from the <strong>Beneficiaries</strong> page in
+        the dashboard. You pick a bank from a dropdown (the exact list our provider recognizes — no risk of
+        a mistyped bank code), enter the account number, and Cyrus verifies the account name with the
+        provider. The verified name is displayed so you always know whose account you are sending to.
       </p>
-      <Code>{`POST /v1/merchants/me/beneficiaries
-{
-  "nickname": "Main GTBank",
-  "accountNumber": "0123456789",
-  "bankCode": "058",
-  "bankName": "GTBank"
-}`}</Code>
       <h3>Initiate a payout</h3>
       <p>
-        From the Payouts page in the dashboard, select a beneficiary, enter the amount (integer kobo),
-        and optionally add a narration. Cyrus debits your wallet up front — a payout can never overdraw
+        From the <strong>Payouts</strong> page, pick a beneficiary, enter the amount in naira, and
+        optionally add a narration. Cyrus debits your wallet up front — a payout can never overdraw
         your balance — and refunds it automatically if the provider rejects the transfer.
       </p>
       <h3>Statuses</h3>

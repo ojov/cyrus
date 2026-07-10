@@ -146,6 +146,10 @@ public class MerchantService {
         apiKeyService.revokeKey(findByBusinessEmail(email).getId(), keyId);
     }
 
+    public void deleteApiKey(String email, UUID keyId) {
+        apiKeyService.deleteKey(findByBusinessEmail(email).getId(), keyId);
+    }
+
     /**
      * Registers or updates the outbound-webhook URL. On the first registration a signing secret is
      * generated and returned ONCE (never retrievable again); a later URL update keeps the existing
