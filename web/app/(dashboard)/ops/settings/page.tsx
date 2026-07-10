@@ -24,8 +24,10 @@ export default function SettingsPage() {
   const [resetError, setResetError] = useState<string | null>(null);
 
   const [deliveries, setDeliveries] = useState<WebhookDeliveryItem[]>([]);
+  const [deliveryPage, setDeliveryPage] = useState({ number: 0, totalPages: 0, totalElements: 0 });
   const [deliveriesLoading, setDeliveriesLoading] = useState(true);
   const [deliveryStatus, setDeliveryStatus] = useState("");
+  const [deliveryPageNum, setDeliveryPageNum] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -39,17 +41,22 @@ export default function SettingsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    setDeliveryPageNum(0);
+  }, [deliveryStatus]);
+
   const loadDeliveries = useCallback(async () => {
     setDeliveriesLoading(true);
     try {
-      const res = await webhookApi.deliveries(deliveryStatus || undefined);
+      const res = await webhookApi.deliveries(deliveryStatus || undefined, deliveryPageNum);
       setDeliveries(res.data.content);
+      setDeliveryPage({ number: res.data.number, totalPages: res.data.totalPages, totalElements: res.data.totalElements });
     } catch {
       // Same as above — an empty/failed delivery history isn't worth a page-level error banner.
     } finally {
       setDeliveriesLoading(false);
     }
-  }, [deliveryStatus]);
+  }, [deliveryStatus, deliveryPageNum]);
 
   useEffect(() => {
     Promise.resolve().then(load);
@@ -210,6 +217,31 @@ export default function SettingsPage() {
             </tbody>
           </table>
         </div>
+        {deliveryPage.totalPages > 1 && (
+          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              Page {deliveryPage.number + 1} of {deliveryPage.totalPages} · {deliveryPage.totalElements} total
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDeliveryPageNum((p) => Math.max(0, p - 1))}
+                disabled={deliveryPage.number === 0}
+                className="rounded-md border border-border bg-muted px-2.5 py-1 font-medium transition hover:bg-accent disabled:opacity-40"
+              >
+                ← Prev
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeliveryPageNum((p) => p + 1)}
+                disabled={deliveryPage.number >= deliveryPage.totalPages - 1}
+                className="rounded-md border border-border bg-muted px-2.5 py-1 font-medium transition hover:bg-accent disabled:opacity-40"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5">

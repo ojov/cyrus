@@ -274,9 +274,12 @@ export const webhookApi = {
   set: (url: string) => api.put<WebhookConfigResponse>("/v1/merchants/me/webhooks", { url }),
   rotateSecret: () => api.post<WebhookConfigResponse>("/v1/merchants/me/webhooks/rotate-secret", {}),
   remove: () => api.delete<{ data: null }>("/v1/merchants/me/webhooks"),
-  deliveries: (status?: string) => {
-    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
-    return api.get<{ data: WebhookDeliveryPage }>(`/v1/merchants/me/webhooks/deliveries${qs}`);
+  deliveries: (status?: string, page?: number) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (page != null) params.set("page", String(page));
+    const qs = params.toString();
+    return api.get<{ data: WebhookDeliveryPage }>(`/v1/merchants/me/webhooks/deliveries${qs ? "?" + qs : ""}`);
   },
 };
 

@@ -87,13 +87,16 @@ export default function PayoutsPage() {
               ))}
             </select>
             <div className="grid grid-cols-2 gap-3">
-              <input
-                className={field}
-                placeholder="Amount (₦)"
-                inputMode="decimal"
-                value={amountNaira}
-                onChange={(e) => setAmountNaira(e.target.value)}
-              />
+              <div>
+                <input
+                  className={field}
+                  placeholder="Amount (₦)"
+                  inputMode="decimal"
+                  value={amountNaira}
+                  onChange={(e) => setAmountNaira(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">₦30 flat fee per payout</p>
+              </div>
               <input className={field} placeholder="Narration (optional)" value={narration} onChange={(e) => setNarration(e.target.value)} />
             </div>
             <button

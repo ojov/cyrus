@@ -116,6 +116,21 @@ public class TransactionIngestionService {
             return Optional.empty();
         }
 
+        // 5b. SessionId-level idempotency — same Nomba session seen before under a different tx id.
+        //     Two webhooks for the same underlying transfer should only create one transaction;
+        //     catching it here (by sessionId) covers the edge case where Nomba issues a second
+        //     webhook with a new providerTransactionId but the same sessionId.
+        if (event.getSessionId() != null && !event.getSessionId().isBlank()
+                && transactionRepository.existsBySessionId(event.getSessionId())) {
+            paymentEventService.updateStatus(paymentEvent.getId(), NombaPaymentEventStatus.IGNORED,
+                    ReconciliationFailureReason.DUPLICATE,
+                    "Duplicate sessionId " + event.getSessionId()
+                            + " — a transaction already exists for this session");
+            log.warn("Duplicate sessionId {} for providerTransactionId {} — already ingested",
+                    event.getSessionId(), event.getProviderTransactionId());
+            return Optional.empty();
+        }
+
         // 6. Attribute to a virtual account. Unknown VA = orphan/misdirected payment: record, don't
         //    retry — visible (once the merchant is resolved) for manual reattribution.
         Optional<VirtualAccount> vaOpt =
