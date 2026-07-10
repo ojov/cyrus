@@ -49,6 +49,13 @@ export default function PaymentsReferencePage() {
         misdirected payment for your ops team to resolve.
       </p>
       <h3>Payment Events &amp; Exceptions</h3>
+      <div className="callout">
+        Full field-by-field reference for listing, inspecting, replaying, and reattributing payment events is in the{" "}
+        <a href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/docs`} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+          live API reference
+        </a>{" "}
+        under <b>Payment Events (Developer)</b>.
+      </div>
       <p>
         Every raw inbound payment event is persisted as a <strong>payment event</strong> — even if it can&apos;t be
         attributed to a customer. You can list and inspect these via the Payment Events API. Each event carries a
@@ -84,7 +91,7 @@ export default function PaymentsReferencePage() {
           <tr><td className="font-mono">PROVIDER_UNCONFIRMED</td><td>Provider never confirmed the session. Use <strong>replay</strong> if the payer confirms they sent money.</td></tr>
         </tbody>
       </table>
-      <h4>Replay</h4>
+      <h3>Replay</h3>
       <p>
         Re-runs the reconciliation pipeline for a previously received event. <strong>Only useful when a payment is
         still unresolved</strong> — status is RECEIVED or FAILED — and has been sitting without confirmation for
@@ -95,7 +102,7 @@ export default function PaymentsReferencePage() {
         terminal event is a no-op. Do not use replay as a general retry mechanism: if the provider never received the
         transfer in the first place, replaying won&apos;t create one.
       </p>
-      <h4>Reattribute</h4>
+      <h3>Reattribute</h3>
       <p>
         Manually assigns an orphaned payment to one of your customers. Only works on events with
         <code>failureReason</code> of UNKNOWN_VIRTUAL_ACCOUNT or INACTIVE_CUSTOMER. You must specify the
