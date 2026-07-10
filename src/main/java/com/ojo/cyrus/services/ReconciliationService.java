@@ -142,8 +142,8 @@ public class ReconciliationService {
                 tx.setStatus(TransactionStatus.SUCCESSFUL);
             }
 
-            List<String> diffs = new ArrayList<>();
             BigInteger providerAmount = NombaCurrencyUtil.nairaToKobo(providerTx.transactionAmount());
+            List<String> diffs = new ArrayList<>();
             if (!providerAmount.equals(tx.getAmount())) {
                 diffs.add("Webhook amount=" + tx.getAmount() + ", Nomba requery amount=" + providerAmount);
             }
@@ -176,16 +176,29 @@ public class ReconciliationService {
             // notify the merchant. MATCHED and DISCREPANCY both settle the money (a DISCREPANCY is a
             // reconciliation concern carried on matchStatus); both are atomic with the status change.
             //
+            // CRITICAL: On DISCREPANCY, we credit the Nomba-confirmed amount (providerAmount), not the
+            // webhook amount. The webhook is a notification; Nomba's requery is the source of truth.
+            // The transaction amount is updated to the confirmed amount so the ledger reflects reality.
+            //
             // The gross amount is credited, then Nomba's own fee (PROVIDER_FEE) and Cyrus's margin
             // on top of it (PLATFORM_FEE) are debited back out, so the wallet's net change is
             // gross - merchantFee. The merchant fee is computed independently as a percentage of
-            // the gross (with min/max caps — see FeeProperties) rather than a markup on Nomba's fee.
+            // the confirmed gross (with min/max caps — see FeeProperties) rather than a markup on Nomba's fee.
             if (promoted) {
-                ledgerService.credit(tx.getMerchant(), tx.getAmount(), tx,
+                // Use the Nomba-confirmed amount for crediting. On DISCREPANCY, update the transaction
+                // amount to reflect what Nomba actually confirmed — this is the source of truth.
+                BigInteger creditAmount = providerAmount;
+                if (!providerAmount.equals(tx.getAmount())) {
+                    log.warn("Transaction {} amount corrected: webhook={} → confirmed={}",
+                            tx.getId(), tx.getAmount(), providerAmount);
+                    tx.setAmount(providerAmount);
+                }
+
+                ledgerService.credit(tx.getMerchant(), creditAmount, tx,
                         LedgerEntryType.MERCHANT_WALLET_CREDIT, "Payment " + tx.getReference());
 
                 if (confirmedFee != null && confirmedFee.signum() > 0) {
-                    BigInteger merchantFee = FeeCalculator.computeInflowMerchantFee(tx.getAmount(), feeProperties);
+                    BigInteger merchantFee = FeeCalculator.computeInflowMerchantFee(creditAmount, feeProperties);
                     BigInteger cyrusMargin = merchantFee.subtract(confirmedFee).max(BigInteger.ZERO);
                     tx.setPlatformFeeKobo(cyrusMargin);
 

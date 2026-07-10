@@ -222,6 +222,17 @@ public class TransactionIngestionService {
         }
 
         Transaction tx = original.get();
+
+        // Guard against double-reversal: if the transaction is already REVERSED, this is a
+        // duplicate reversal webhook (different requestId). Skip to avoid duplicate wallet
+        // debit and duplicate merchant webhook notification.
+        if (tx.getStatus() == TransactionStatus.REVERSED) {
+            paymentEvent.setMerchant(tx.getMerchant());
+            paymentEventService.updateStatus(paymentEvent.getId(), NombaPaymentEventStatus.PROCESSED, null);
+            log.warn("Duplicate reversal for already-reversed transaction {} — skipping", tx.getId());
+            return;
+        }
+
         boolean wasCredited = tx.getStatus() == TransactionStatus.SUCCESSFUL;
         tx.setStatus(TransactionStatus.REVERSED);
 
