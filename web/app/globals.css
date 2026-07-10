@@ -127,8 +127,11 @@
   margin: 0 0 1.4rem;
 }
 .doc-prose h3 {
-  font-size: 0.95rem;
-  margin: 1.7rem 0 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 650;
+  margin: 2rem 0 0.6rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
   letter-spacing: -0.01em;
 }
 .doc-prose p {
@@ -147,7 +150,7 @@
   border-radius: 5px;
   padding: 1px 5px;
   font-size: 0.78rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), ui-monospace;
 }
 
 .code-block {
