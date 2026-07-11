@@ -3,10 +3,11 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getSession, logout } from "@/lib/auth";
+import { useSession } from "@/lib/auth";
 import { useDashboardStats } from "@/components/dashboard/stats-context";
+import ProfileDropdown from "@/components/dashboard/profile-dropdown";
 import {
   IconGrid,
   IconUsers,
@@ -14,7 +15,6 @@ import {
   IconChecklist,
   IconKey,
   IconSettings,
-  IconLogOut,
   IconSend,
   IconShield,
 } from "@/components/icons";
@@ -39,8 +39,7 @@ const BASE_NAV: Omit<NavItem, "badge">[] = [
 
 export function DashboardSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const session = getSession();
+  const session = useSession();
   const { stats } = useDashboardStats();
 
   // Reconciliation badge tracks the same real "needs attention" count (orphaned + manual review)
@@ -57,11 +56,6 @@ export function DashboardSidebar() {
       : item,
   );
 
-  async function handleLogout() {
-    await logout();
-    router.push("/");
-  }
-
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-sidebar md:flex">
       <div className="border-b border-border px-5 py-5">
@@ -69,7 +63,7 @@ export function DashboardSidebar() {
           <Logo className="size-8" />
           <span className="font-semibold">Cyrus</span>
         </Link>
-        <p suppressHydrationWarning className="mt-1 truncate text-xs text-muted-foreground">
+        <p className="mt-1 truncate text-xs text-muted-foreground">
           {session?.businessName ?? ""}
         </p>
       </div>
@@ -96,15 +90,8 @@ export function DashboardSidebar() {
         })}
       </nav>
 
-      <div className="border-t border-border px-3 py-4">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <IconLogOut className="size-4 shrink-0" />
-          Sign out
-        </button>
+      <div className="border-t border-border px-3 py-3">
+        <ProfileDropdown variant="sidebar" />
       </div>
     </aside>
   );

@@ -88,3 +88,9 @@ export const IconCheck = ({ className }: IconProps) => (
 export const IconShield = ({ className }: IconProps) => (
   <Svg className={className}><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" /></Svg>
 );
+export const IconUser = ({ className }: IconProps) => (
+  <Svg className={className}><circle cx="12" cy="8" r="4" /><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" /></Svg>
+);
+export const IconChevronDown = ({ className }: IconProps) => (
+  <Svg className={className}><path d="M6 9l6 6 6-6" /></Svg>
+);
