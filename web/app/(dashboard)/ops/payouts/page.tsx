@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { beneficiaryApi, payoutApi, type BankItem, type BeneficiaryItem, type PayoutItem } from "@/lib/api";
+import { beneficiaryApi, payoutApi, type BankItem, type BeneficiaryItem, type PayoutPage } from "@/lib/api";
 import { useDashboardStats } from "@/components/dashboard/stats-context";
 import { naira, statusClass } from "@/lib/utils";
 import { IconWallet } from "@/components/icons";
@@ -9,9 +9,12 @@ import { IconWallet } from "@/components/icons";
 const field =
   "w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none focus:border-primary";
 
+const PAGE_SIZE = 20;
+
 export default function PayoutsPage() {
   const { stats, refreshStats } = useDashboardStats();
-  const [payouts, setPayouts] = useState<PayoutItem[]>([]);
+  const [payoutPage, setPayoutPage] = useState<PayoutPage | null>(null);
+  const [page, setPage] = useState(0);
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,16 +37,17 @@ export default function PayoutsPage() {
   const [creatingBeneficiary, setCreatingBeneficiary] = useState(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const [payoutRes, beneficiaryRes] = await Promise.all([payoutApi.list(), beneficiaryApi.list()]);
-      setPayouts(payoutRes.data?.content ?? []);
+      const [payoutRes, beneficiaryRes] = await Promise.all([payoutApi.list(page, PAGE_SIZE), beneficiaryApi.list()]);
+      setPayoutPage(payoutRes.data);
       setBeneficiaries(beneficiaryRes.data ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load payouts");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     Promise.resolve().then(load);
@@ -173,14 +177,84 @@ export default function PayoutsPage() {
         </div>
       )}
 
-      {/* Balance */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <IconWallet className="size-4" />
-          Available balance
+      {/* Balance + Add beneficiary side by side */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-6">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <IconWallet className="size-4" />
+            Available balance
+          </div>
+          <div className="mt-2 text-4xl font-bold tabular-nums">
+            {stats ? naira(stats.walletBalance) : "—"}
+          </div>
         </div>
-        <div className="mt-2 text-4xl font-bold tabular-nums">
-          {stats ? naira(stats.walletBalance) : "—"}
+
+        <div className="rounded-xl border border-border bg-card p-4">
+          <b className="text-sm">Add a beneficiary</b>
+          <div className="mt-3 space-y-3">
+            <input
+              className={field}
+              placeholder="Account number"
+              inputMode="numeric"
+              value={accountNumber}
+              onChange={(e) => onAccountChange(e.target.value)}
+            />
+
+            <div className="relative">
+              <input
+                className={field}
+                placeholder={
+                  !accountReady
+                    ? "Enter the account number first"
+                    : loadingBanks
+                      ? "Loading banks…"
+                      : "Search for the bank…"
+                }
+                value={bankSearch}
+                disabled={!accountReady || loadingBanks || banks.length === 0}
+                onChange={(e) => {
+                  setBankSearch(e.target.value);
+                  setShowBankList(true);
+                  setSelectedBank(null);
+                  setVerifiedName(null);
+                }}
+                onFocus={() => banks.length > 0 && setShowBankList(true)}
+                onBlur={() => setTimeout(() => setShowBankList(false), 150)}
+              />
+              {showBankList && filteredBanks.length > 0 && (
+                <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-card shadow-lg">
+                  {filteredBanks.map((b) => (
+                    <li key={b.code}>
+                      <button
+                        type="button"
+                        onClick={() => selectBank(b)}
+                        className="block w-full px-3 py-2 text-left text-sm transition hover:bg-accent"
+                      >
+                        {b.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {verifying && <p className="text-xs text-muted-foreground">Verifying account…</p>}
+            {verifiedName && (
+              <div className="rounded-md border border-green-500/40 bg-green-500/5 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Account name</span>{" "}
+                <span className="font-semibold">{verifiedName}</span>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={addBeneficiary}
+            disabled={creatingBeneficiary || verifying || !verifiedName}
+            className="mt-3 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
+          >
+            {creatingBeneficiary ? "Adding…" : "+ Add beneficiary"}
+          </button>
         </div>
       </div>
 
@@ -189,7 +263,7 @@ export default function PayoutsPage() {
         <b className="text-sm">Send a payout</b>
         {beneficiaries.length === 0 && !loading ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            No beneficiaries yet — add one below first.
+            No beneficiaries yet — add one above first.
           </p>
         ) : (
           <div className="mt-3 space-y-3">
@@ -231,75 +305,6 @@ export default function PayoutsPage() {
         )}
       </div>
 
-      {/* Add a beneficiary */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <b className="text-sm">Add a beneficiary</b>
-        <div className="mt-3 space-y-3">
-          <input
-            className={field}
-            placeholder="Account number"
-            inputMode="numeric"
-            value={accountNumber}
-            onChange={(e) => onAccountChange(e.target.value)}
-          />
-
-          <div className="relative">
-            <input
-              className={field}
-              placeholder={
-                !accountReady
-                  ? "Enter the account number first"
-                  : loadingBanks
-                    ? "Loading banks…"
-                    : "Search for the bank…"
-              }
-              value={bankSearch}
-              disabled={!accountReady || loadingBanks || banks.length === 0}
-              onChange={(e) => {
-                setBankSearch(e.target.value);
-                setShowBankList(true);
-                setSelectedBank(null);
-                setVerifiedName(null);
-              }}
-              onFocus={() => banks.length > 0 && setShowBankList(true)}
-              onBlur={() => setTimeout(() => setShowBankList(false), 150)}
-            />
-            {showBankList && filteredBanks.length > 0 && (
-              <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-card shadow-lg">
-                {filteredBanks.map((b) => (
-                  <li key={b.code}>
-                    <button
-                      type="button"
-                      onClick={() => selectBank(b)}
-                      className="block w-full px-3 py-2 text-left text-sm transition hover:bg-accent"
-                    >
-                      {b.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {verifying && <p className="text-xs text-muted-foreground">Verifying account…</p>}
-          {verifiedName && (
-            <div className="rounded-md border border-green-500/40 bg-green-500/5 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Account name</span>{" "}
-              <span className="font-semibold">{verifiedName}</span>
-            </div>
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={addBeneficiary}
-          disabled={creatingBeneficiary || verifying || !verifiedName}
-          className="mt-3 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-105 disabled:opacity-60"
-        >
-          {creatingBeneficiary ? "Adding…" : "+ Add beneficiary"}
-        </button>
-      </div>
-
       {/* Beneficiaries list */}
       {beneficiaries.length > 0 && (
         <div className="rounded-xl border border-border bg-card">
@@ -323,11 +328,11 @@ export default function PayoutsPage() {
         <div className="border-b border-border px-4 py-3 text-sm font-semibold">Payout history</div>
         {loading ? (
           <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
-        ) : payouts.length === 0 ? (
+        ) : !payoutPage || payoutPage.content.length === 0 ? (
           <p className="px-4 py-6 text-sm text-muted-foreground">No payouts yet.</p>
         ) : (
           <div className="divide-y divide-border">
-            {payouts.map((p) => (
+            {payoutPage.content.map((p) => (
               <div key={p.id} className="flex items-center justify-between gap-4 px-4 py-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -343,6 +348,32 @@ export default function PayoutsPage() {
           </div>
         )}
       </div>
+
+      {payoutPage && payoutPage.totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            Page {payoutPage.number + 1} of {payoutPage.totalPages} · {payoutPage.totalElements} total
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={payoutPage.first}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="rounded-md border border-border px-2.5 py-1 font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={payoutPage.last}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-md border border-border px-2.5 py-1 font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

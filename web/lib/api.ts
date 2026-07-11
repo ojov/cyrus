@@ -250,8 +250,19 @@ export interface PayoutItem {
   createdAt: string;
 }
 
+export interface PayoutPage {
+  content: PayoutItem[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
 export const payoutApi = {
-  list: () => api.get<{ data: { content: PayoutItem[] } }>("/v1/merchants/me/payouts"),
+  list: (page = 0, size = 20) =>
+    api.get<{ data: PayoutPage }>(`/v1/merchants/me/payouts?page=${page}&size=${size}`),
   get: (id: string) => api.get<{ data: PayoutItem }>(`/v1/merchants/me/payouts/${id}`),
   create: (payload: { beneficiaryId: string; amount: number; narration?: string }) =>
     api.post<{ data: PayoutItem }>("/v1/merchants/me/payouts", payload),
