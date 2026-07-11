@@ -119,8 +119,7 @@ covering authentication, webhook security, and data handling.
 
 ### API key (server-to-server)
 - **Header:** `Authorization: Bearer <API_KEY>`
-- **Format:** `cyrus_...` — one key per merchant, scoped to `/v1/customers/**` today; see `AGENTS.md`
-  for how new API-key-protected routes get added.
+- **Format:** `cyrus_...` — one key per merchant, scoped to `/v1/customers/**`, `/v1/transactions/**`, and `/v1/payment-events/**`; see `AGENTS.md` for how new API-key-protected routes get added.
 
 ---
 
@@ -204,7 +203,7 @@ gcloud secrets add-iam-policy-binding SOME_NEW_KEY \
 
 ## 📞 Support & Contact
 
-- **Support Email:** [oticconsults@gmail.com](mailto:support@cyrusmobile.com)
+- **Support Email:** [support@cyrusmobile.com](mailto:support@cyrusmobile.com)
 - **Website:** [https://trycyrus.app](https://trycyrus.app)
 - **Status Page:** [https://status.trycyrus.app](https://status.trycyrus.app)
 
