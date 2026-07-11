@@ -32,7 +32,7 @@ build_output.txt
 
 ### Security ###
 *.pem
-
+scripts
 ### VS Code ###
 .vscode/
 .vercel

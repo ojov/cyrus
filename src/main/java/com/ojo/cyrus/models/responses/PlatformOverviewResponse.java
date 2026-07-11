@@ -2,7 +2,7 @@ package com.ojo.cyrus.models.responses;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,9 +28,9 @@ public record PlatformOverviewResponse(
      *                              balance couldn't be fetched
      */
     public record Custody(
-            BigInteger walletLiabilitiesKobo,
-            @Schema(nullable = true) BigInteger nombaBalanceKobo,
-            @Schema(nullable = true) BigInteger coverageKobo,
+            BigDecimal walletLiabilitiesKobo,
+            @Schema(nullable = true) BigDecimal nombaBalanceKobo,
+            @Schema(nullable = true) BigDecimal coverageKobo,
             boolean nombaBalanceAvailable
     ) {}
 
@@ -39,8 +39,8 @@ public record PlatformOverviewResponse(
             long customers,
             long virtualAccounts,
             long transactions,
-            BigInteger totalConfirmedInflowKobo,
-            BigInteger totalPayoutsKobo
+            BigDecimal totalConfirmedInflowKobo,
+            BigDecimal totalPayoutsKobo
     ) {}
 
     public record ReconciliationHealth(
@@ -57,7 +57,7 @@ public record PlatformOverviewResponse(
             long stuckPayouts,
             List<StuckPayout> stuckPayoutDetails
     ) {
-        public record StuckPayout(UUID id, String reference, String merchantName, BigInteger amountKobo, String createdAt) {}
+        public record StuckPayout(UUID id, String reference, String merchantName, BigDecimal amountKobo, String createdAt) {}
     }
 
     /**
@@ -70,6 +70,6 @@ public record PlatformOverviewResponse(
             boolean allReconciled,
             List<WalletMismatch> mismatches
     ) {
-        public record WalletMismatch(UUID walletId, String merchantName, BigInteger balanceKobo, BigInteger ledgerSumKobo) {}
+        public record WalletMismatch(UUID walletId, String merchantName, BigDecimal balanceKobo, BigDecimal ledgerSumKobo) {}
     }
 }

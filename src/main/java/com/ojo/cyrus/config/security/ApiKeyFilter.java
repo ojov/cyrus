@@ -34,6 +34,7 @@ public class ApiKeyFilter extends OncePerRequestFilter {
                         Collections.emptyList()
                 );
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                apiKeyService.markUsed(key.getId());
             });
         }
 

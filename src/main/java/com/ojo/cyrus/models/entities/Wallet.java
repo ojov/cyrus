@@ -5,12 +5,14 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
-import java.math.BigInteger;
+import com.ojo.cyrus.utils.MoneyUtil;
+
+import java.math.BigDecimal;
 
 /**
- * A merchant's balance of funds settled into Cyrus's Nomba account, held in integer kobo — one wallet
- * per merchant. Mutated only via balanced {@link LedgerEntry} postings; {@code @Version} guards
- * concurrent credit/debit with optimistic locking.
+ * A merchant's balance of funds settled into Cyrus's Nomba account, held in kobo at scale 4 — one
+ * wallet per merchant. Mutated only via balanced {@link LedgerEntry} postings; {@code @Version}
+ * guards concurrent credit/debit with optimistic locking.
  */
 @Entity
 @Table(name = "wallets")
@@ -25,9 +27,9 @@ public class Wallet extends BaseEntity {
     @JoinColumn(name = "merchant_id", nullable = false, unique = true)
     private Merchant merchant;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 38, scale = 4)
     @Builder.Default
-    private BigInteger availableBalance = BigInteger.ZERO; // integer kobo
+    private BigDecimal availableBalance = MoneyUtil.ZERO_KOBO; // kobo, scale 4
 
     @Version
     private Long version;

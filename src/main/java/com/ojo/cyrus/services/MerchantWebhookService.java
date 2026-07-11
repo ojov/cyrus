@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.jobrunr.scheduling.JobScheduler;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.ObjectMapper;
@@ -93,7 +95,7 @@ public class MerchantWebhookService {
     }
 
     /**
-     * Builds the JSON body. Money stays in kobo (integer minor units) — see the money convention;
+     * Builds the JSON body. Money stays in kobo (scale-4 minor units — may carry fractional kobo);
      * the developer converts to naira at their display edge.
      */
     private String buildPayload(Transaction tx, MerchantWebhookEventType type) {
@@ -104,8 +106,9 @@ public class MerchantWebhookService {
         ObjectNode data = root.putObject("data");
         data.put("transactionId", tx.getId().toString());
         data.put("amountKobo", tx.getAmount());
-        if (tx.getFee() != null) {
-            data.put("feeKobo", tx.getFee());
+        BigDecimal webhookFee = tx.getMerchantFeeKobo() != null ? tx.getMerchantFeeKobo() : tx.getFee();
+        if (webhookFee != null) {
+            data.put("feeKobo", webhookFee);
         } else {
             data.putNull("feeKobo");
         }

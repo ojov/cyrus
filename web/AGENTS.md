@@ -43,7 +43,8 @@ prototype. Separate from the Java backend at the repo root.
   `.doctable`, `.steps`, `.doc-prose`.
 - **Dependency-free UI:** inline SVG icons in `components/icons.tsx` (no lucide); `cn`, `naira`,
   `statusClass` in `lib/utils.ts` (no clsx/tailwind-merge). No shadcn, react-query, or sonner.
-- **Money is kobo** (`BigInteger` on the backend); render with `naira()` at the display edge only.
+- **Money is kobo** (`BigDecimal` scale 4 on the backend — JSON numbers may carry sub-kobo decimals
+  like `1500.015`); render with `naira()` at the display edge only.
 - **Data:** `lib/api.ts` is real backend for everything now — auth, stats, api-keys, wallet,
   beneficiaries (incl. the bank picker), payouts, webhook config + delivery history, customers/list/
   statement, and transactions (merchant-wide + per-customer). There is no `lib/mock.ts` any more —

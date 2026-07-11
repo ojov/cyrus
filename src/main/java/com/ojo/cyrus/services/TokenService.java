@@ -16,6 +16,7 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -81,6 +82,7 @@ public class TokenService {
      * Rotates a refresh token: revokes the old one and issues a new pair.
      * Returns the new token pair (refresh token is set as a cookie by the controller).
      */
+    @Transactional
     public TokenPair refreshAccessToken(String refreshTokenValue, String userAgent, String ipAddress) {
         String hashed = CryptoUtil.sha256(refreshTokenValue);
         RefreshToken oldRefreshToken = refreshTokenRepository.findByTokenAndRevokedFalse(hashed)

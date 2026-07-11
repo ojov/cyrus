@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -65,14 +65,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
             WHERE t.merchant.id = :merchantId AND t.status = :status
             """)
-    BigInteger sumAmountByMerchantAndStatus(@Param("merchantId") UUID merchantId,
+    BigDecimal sumAmountByMerchantAndStatus(@Param("merchantId") UUID merchantId,
                                             @Param("status") TransactionStatus status);
 
     @Query("""
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
             WHERE t.customer.id = :customerId AND t.status = :status
             """)
-    BigInteger sumAmountByCustomerAndStatus(@Param("customerId") UUID customerId,
+    BigDecimal sumAmountByCustomerAndStatus(@Param("customerId") UUID customerId,
                                             @Param("status") TransactionStatus status);
 
     // Batch lifetime totals for a page of customers at once — one grouped query regardless of page
@@ -132,6 +132,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
             WHERE t.type = :type AND t.status = :status
             """)
-    BigInteger sumAmountByTypeAndStatus(@Param("type") TransactionType type,
+    BigDecimal sumAmountByTypeAndStatus(@Param("type") TransactionType type,
                                         @Param("status") TransactionStatus status);
 }

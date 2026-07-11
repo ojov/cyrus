@@ -143,6 +143,12 @@ public class GlobalExceptionHandler {
         return serverError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public CyrusApiResponse<ErrorDetails> handleIllegalArgument(IllegalArgumentException ex) {
+        return clientError(ResponseCode.INVALID_REQUEST, ex.getMessage(), ex);
+    }
+
     @ExceptionHandler(NoSuchElementException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public CyrusApiResponse<ErrorDetails> handleNoSuchElement(NoSuchElementException ex) {

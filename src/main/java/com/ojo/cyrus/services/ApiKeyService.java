@@ -58,6 +58,11 @@ public class ApiKeyService {
         apiKeyRepository.delete(key);
     }
 
+    @Transactional
+    public void markUsed(UUID keyId) {
+        apiKeyRepository.markUsed(keyId, Instant.now());
+    }
+
     public GeneratedApiKeysResponse createApiKey(Merchant merchant) {
         String rawKey = generateKey();
         ApiKey apiKey = ApiKey.builder()

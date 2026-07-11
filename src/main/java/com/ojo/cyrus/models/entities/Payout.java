@@ -6,11 +6,13 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
-import java.math.BigInteger;
+import com.ojo.cyrus.utils.MoneyUtil;
+
+import java.math.BigDecimal;
 
 /**
  * A merchant withdrawal from their Cyrus {@link Wallet} to a bank {@link Beneficiary}, executed via
- * Nomba's transfer API. Amounts are integer kobo. The wallet is debited (with a matching
+ * Nomba's transfer API. Amounts are kobo at scale 4. The wallet is debited (with a matching
  * {@link LedgerEntry}) when the payout is initiated; a permanent failure returns the funds. The
  * paired {@code PAYOUT}-type {@link Transaction} carries this movement on the transaction ledger.
  */
@@ -47,11 +49,12 @@ public class Payout extends BaseEntity {
     /** Nomba's transfer identifier once accepted. */
     private String providerReference;
 
-    @Column(nullable = false)
-    private BigInteger amount; // integer kobo
+    @Column(nullable = false, precision = 38, scale = 4)
+    private BigDecimal amount; // kobo, scale 4 (whole-kobo valued — enforced at the API edge)
 
+    @Column(precision = 38, scale = 4)
     @Builder.Default
-    private BigInteger fee = BigInteger.ZERO; // integer kobo
+    private BigDecimal fee = MoneyUtil.ZERO_KOBO; // kobo, scale 4
 
     @Column(length = 500)
     private String narration;

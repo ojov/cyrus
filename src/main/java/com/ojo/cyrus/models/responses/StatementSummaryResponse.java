@@ -1,6 +1,6 @@
 package com.ojo.cyrus.models.responses;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -8,10 +8,10 @@ import java.time.Instant;
  * from/to/matchStatus filter is applied to the paginated transaction list alongside it.
  */
 public record StatementSummaryResponse(
-        BigInteger lifetimeKobo,
+        BigDecimal lifetimeKobo,
         long transactionCount,
         long pendingCount,
-        BigInteger pendingKobo,
+        BigDecimal pendingKobo,
         long manualReviewCount,
         long discrepancyCount,
         Instant lastTransactionAt

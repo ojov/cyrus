@@ -20,7 +20,8 @@ export default function PaymentsReferencePage() {
         Cyrus verifies the provider&apos;s webhook signature, discards duplicates, and matches the credited account
         number to a customer. The webhook alone is never treated as proof of payment — Cyrus independently requeries
         the provider to confirm the transfer before your wallet is credited and <code>payment.succeeded</code> fires.
-        Amounts are always integer kobo (₦50,000.00 = 5,000,000 kobo).
+        Amounts are always kobo (₦50,000.00 = 5,000,000 kobo) and may carry sub-kobo decimals
+        (e.g. a computed fee of <code>1500.015</code>) — parse them as decimals, not integers.
       </p>
       <Code>{`{
   "event": "payment.succeeded",

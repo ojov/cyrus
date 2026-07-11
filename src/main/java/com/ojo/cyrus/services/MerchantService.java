@@ -25,6 +25,7 @@ import com.ojo.cyrus.repositories.NombaPaymentEventRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import com.ojo.cyrus.utils.CryptoUtil;
+import com.ojo.cyrus.utils.MoneyUtil;
 import com.ojo.cyrus.utils.Mapper;
 import com.ojo.cyrus.utils.WebhookUrlValidator;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +36,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -112,25 +112,26 @@ public class MerchantService {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         Instant since = today.minusDays(INFLOW_SERIES_DAYS - 1L).atStartOfDay(ZoneOffset.UTC).toInstant();
 
-        Map<LocalDate, BigInteger> byDay = new HashMap<>();
+        Map<LocalDate, BigDecimal> byDay = new HashMap<>();
         for (Object[] row : transactionRepository.sumDailyInflowSince(merchantId, since)) {
-            byDay.put(LocalDate.parse((String) row[0]), toBigInteger(row[1]));
+            byDay.put(LocalDate.parse((String) row[0]), toKoboDecimal(row[1]));
         }
 
         List<MerchantStatsResponse.DailyInflow> series = new ArrayList<>();
         for (int i = INFLOW_SERIES_DAYS - 1; i >= 0; i--) {
             LocalDate day = today.minusDays(i);
-            series.add(new MerchantStatsResponse.DailyInflow(day, byDay.getOrDefault(day, BigInteger.ZERO)));
+            series.add(new MerchantStatsResponse.DailyInflow(day, byDay.getOrDefault(day, MoneyUtil.ZERO_KOBO)));
         }
         return series;
     }
 
-    private static BigInteger toBigInteger(Object value) {
+    // Native-query SUM columns come back as whatever the JDBC driver picks for the SQL type —
+    // BigDecimal for numeric, but be liberal in what we accept.
+    private static BigDecimal toKoboDecimal(Object value) {
         return switch (value) {
-            case BigDecimal bd -> bd.toBigInteger();
-            case BigInteger bi -> bi;
-            case Long l -> BigInteger.valueOf(l);
-            default -> new BigDecimal(value.toString()).toBigInteger();
+            case BigDecimal bd -> MoneyUtil.normalize(bd);
+            case Long l -> MoneyUtil.normalize(BigDecimal.valueOf(l));
+            default -> MoneyUtil.normalize(new BigDecimal(value.toString()));
         };
     }
 

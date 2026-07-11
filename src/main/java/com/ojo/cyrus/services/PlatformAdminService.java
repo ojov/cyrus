@@ -32,7 +32,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.math.BigInteger;
+import com.ojo.cyrus.utils.MoneyUtil;
+
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -71,7 +73,7 @@ public class PlatformAdminService {
     }
 
     /** Everything the DB can tell us, materialized to plain values so no tx is held across the Nomba call. */
-    private record DbAggregates(BigInteger walletLiabilitiesKobo, Totals totals, ReconciliationHealth reconciliation,
+    private record DbAggregates(BigDecimal walletLiabilitiesKobo, Totals totals, ReconciliationHealth reconciliation,
                                 OrphansAndStuck orphansAndStuck, LedgerIntegrity ledgerIntegrity) {}
 
     /**
@@ -84,9 +86,9 @@ public class PlatformAdminService {
         readTx.setReadOnly(true);
         DbAggregates db = readTx.execute(status -> buildDbAggregates());
 
-        BigInteger nombaBalanceKobo = fetchNombaBalanceOrNull();
+        BigDecimal nombaBalanceKobo = fetchNombaBalanceOrNull();
         boolean available = nombaBalanceKobo != null;
-        BigInteger coverage = available ? nombaBalanceKobo.subtract(db.walletLiabilitiesKobo()) : null;
+        BigDecimal coverage = available ? nombaBalanceKobo.subtract(db.walletLiabilitiesKobo()) : null;
         Custody custody = new Custody(db.walletLiabilitiesKobo(), nombaBalanceKobo, coverage, available);
 
         return new PlatformOverviewResponse(
@@ -94,7 +96,7 @@ public class PlatformAdminService {
     }
 
     private DbAggregates buildDbAggregates() {
-        BigInteger liabilities = walletRepository.sumAllBalances();
+        BigDecimal liabilities = walletRepository.sumAllBalances();
 
         Totals totals = new Totals(
                 merchantRepository.count(),
@@ -124,15 +126,15 @@ public class PlatformAdminService {
     }
 
     private LedgerIntegrity buildLedgerIntegrity() {
-        Map<UUID, BigInteger> ledgerByWallet = new HashMap<>();
+        Map<UUID, BigDecimal> ledgerByWallet = new HashMap<>();
         for (Object[] row : ledgerEntryRepository.sumAmountGroupedByWallet()) {
-            ledgerByWallet.put((UUID) row[0], (BigInteger) row[1]);
+            ledgerByWallet.put((UUID) row[0], (BigDecimal) row[1]);
         }
 
         List<Wallet> wallets = walletRepository.findAll();
         List<LedgerIntegrity.WalletMismatch> mismatches = new ArrayList<>();
         for (Wallet w : wallets) {
-            BigInteger ledgerSum = ledgerByWallet.getOrDefault(w.getId(), BigInteger.ZERO);
+            BigDecimal ledgerSum = ledgerByWallet.getOrDefault(w.getId(), MoneyUtil.ZERO_KOBO);
             if (ledgerSum.compareTo(w.getAvailableBalance()) != 0) {
                 mismatches.add(new LedgerIntegrity.WalletMismatch(
                         w.getId(),
@@ -144,7 +146,7 @@ public class PlatformAdminService {
     }
 
     /** Live provider balance (kobo), or {@code null} if the Nomba call fails — the snapshot degrades. */
-    private BigInteger fetchNombaBalanceOrNull() {
+    private BigDecimal fetchNombaBalanceOrNull() {
         try {
             String sub = nombaProperties.subAccountId();
             NombaBalanceData data = (sub != null && !sub.isBlank())

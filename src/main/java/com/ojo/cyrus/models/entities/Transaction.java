@@ -9,12 +9,12 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
  * A money movement on Cyrus's books: an inbound {@code CUSTOMER_PAYMENT} attributed to a customer's
- * virtual account, or an outbound {@code PAYOUT}. Amounts are integer kobo (minor units).
+ * virtual account, or an outbound {@code PAYOUT}. Amounts are kobo at scale 4 (sub-kobo precision).
  *
  * <p>The reconciliation fields ({@code sessionId}, {@code matchStatus}, {@code reconciliationAttempts},
  * …) drive the requery-based reconciliation engine and are the judged surface — they are retained
@@ -69,20 +69,32 @@ public class Transaction extends BaseEntity {
     /** Nomba session id — used to reconcile/confirm via GET /v1/transactions/requery/{sessionId}. */
     private String sessionId;
 
-    @Column(nullable = false)
-    private BigInteger amount; // integer kobo (minor units). For CUSTOMER_PAYMENT: gross amount
+    @Column(nullable = false, precision = 38, scale = 4)
+    private BigDecimal amount; // kobo, scale 4. For CUSTOMER_PAYMENT: gross amount
     // the payer sent. For PAYOUT: the transfer amount to the beneficiary — NOT the total wallet
     // debit (see Payout.fee for Cyrus's ₦30 flat fee, which is debited on top of this amount).
 
     /** Nomba's own confirmed fee (kobo) — set authoritatively at reconciliation via {@code fixedCharge}. */
-    private BigInteger fee;
+    @Column(precision = 38, scale = 4)
+    private BigDecimal fee;
 
     /**
      * Cyrus's markup-only fee (kobo): {@code fee * markupMultiplier - fee}. Together with {@code fee}
      * this is deducted from {@code amount} before crediting the merchant wallet — see
      * {@link com.ojo.cyrus.services.ReconciliationService}. Null until reconciliation confirms a fee.
      */
-    private BigInteger platformFeeKobo;
+    @Column(precision = 38, scale = 4)
+    private BigDecimal platformFeeKobo;
+
+    /**
+     * Merchant-facing total fee (kobo) — the fee actually charged to the merchant on this
+     * transaction. For CUSTOMER_PAYMENT: {@code inflowPercent} of the gross amount, clamped to
+     * {@code [inflowMinKobo, inflowMaxKobo]} (i.e. {@code fee + platformFeeKobo}). For PAYOUT:
+     * Cyrus's flat {@code payoutFlatFeeKobo}. This is the value exposed in
+     * {@link com.ojo.cyrus.models.responses.TransactionResponse#feeKobo()}.
+     */
+    @Column(precision = 38, scale = 4)
+    private BigDecimal merchantFeeKobo;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

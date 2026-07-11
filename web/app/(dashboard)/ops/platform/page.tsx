@@ -1,18 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, platformApi, type PlatformOverview } from "@/lib/api";
-import { naira } from "@/lib/utils";
+import { ApiError, platformApi, type PlatformOverview, type PlatformProfitSummary } from "@/lib/api";
+import { naira, statusClass } from "@/lib/utils";
 
 export default function PlatformPage() {
   const [data, setData] = useState<PlatformOverview | null>(null);
+  const [profit, setProfit] = useState<PlatformProfitSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profitError, setProfitError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setProfitError(null);
     try {
       const res = await platformApi.overview();
       setData(res.data);
@@ -21,6 +24,16 @@ export default function PlatformPage() {
       else setError(e instanceof Error ? e.message : "Failed to load platform overview");
     } finally {
       setLoading(false);
+    }
+    try {
+      const res = await platformApi.profit();
+      setProfit(res.data);
+    } catch (e) {
+      // A 403 here is already handled by the overview call above (same auth gate) — don't
+      // duplicate the forbidden screen, just surface a scoped error for this one section.
+      if (!(e instanceof ApiError && e.status === 403)) {
+        setProfitError(e instanceof Error ? e.message : "Failed to load profit summary");
+      }
     }
   }, []);
 
@@ -89,6 +102,85 @@ export default function PlatformPage() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Profit ledger */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-primary">Profit ledger</p>
+              {profit && (
+                <span className={`db dot ${statusClass(profit.reconciliationStatus)}`}>
+                  {profit.reconciliationStatus}
+                </span>
+              )}
+            </div>
+
+            {profitError && (
+              <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+                {profitError}
+              </div>
+            )}
+
+            {!profit && !profitError ? (
+              <p className="mt-3 text-sm text-muted-foreground">Loading&hellip;</p>
+            ) : profit ? (
+              <>
+                <div className="mt-3 grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Expected pool balance (liabilities + profit)</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums">
+                      {naira(profit.expectedProviderBalanceKobo)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Actual pool balance (Nomba, live)</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums">
+                      {profit.actualProviderBalanceKobo != null ? naira(profit.actualProviderBalanceKobo) : "—"}
+                    </div>
+                    {profit.actualProviderBalanceKobo == null && (
+                      <div className="text-xs text-muted-foreground">provider balance unavailable</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Delta (expected − actual)</div>
+                    <div
+                      className={`mt-1 text-2xl font-bold tabular-nums ${
+                        profit.deltaKobo == null
+                          ? ""
+                          : Math.abs(profit.deltaKobo) <= 100
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-destructive"
+                      }`}
+                    >
+                      {profit.deltaKobo != null ? naira(profit.deltaKobo) : "—"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-border px-4 py-3">
+                    <div className="text-xs text-muted-foreground">Net inflows</div>
+                    <div className="mt-1 text-lg font-semibold tabular-nums">{naira(profit.totalInflowsKobo)}</div>
+                  </div>
+                  <div className="rounded-lg border border-border px-4 py-3">
+                    <div className="text-xs text-muted-foreground">Net outflows</div>
+                    <div className="mt-1 text-lg font-semibold tabular-nums">{naira(profit.totalOutflowsKobo)}</div>
+                  </div>
+                  <div className="rounded-lg border border-border px-4 py-3">
+                    <div className="text-xs text-muted-foreground">Accrued profit (fees earned)</div>
+                    <div className="mt-1 text-lg font-semibold tabular-nums text-green-600 dark:text-green-400">
+                      {naira(profit.totalFeeAccrualsKobo)}
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {profit.lastSyncAt
+                    ? `Last provider sync: ${new Date(profit.lastSyncAt).toLocaleString()}`
+                    : "No provider sync has run yet."}
+                </p>
+              </>
+            ) : null}
           </div>
 
           {/* Totals */}

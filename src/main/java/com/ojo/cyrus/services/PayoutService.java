@@ -1,6 +1,5 @@
 package com.ojo.cyrus.services;
 
-import com.ojo.cyrus.config.properties.FeeProperties;
 import com.ojo.cyrus.enums.CurrencyCode;
 import com.ojo.cyrus.enums.LedgerEntryType;
 import com.ojo.cyrus.enums.MatchStatus;
@@ -22,6 +21,7 @@ import com.ojo.cyrus.repositories.BeneficiaryRepository;
 import com.ojo.cyrus.repositories.PayoutRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.utils.Mapper;
+import com.ojo.cyrus.utils.MoneyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -33,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -57,7 +57,8 @@ public class PayoutService {
     private final LedgerService ledgerService;
     private final NombaTransferClient nombaTransferClient;
     private final PlatformTransactionManager transactionManager;
-    private final FeeProperties feeProperties;
+    private final FeeConfigService feeConfigService;
+    private final PlatformProfitService platformProfitService;
 
     /** Materialized snapshot carried from the reserve phase (managed entities) across the Nomba call. */
     private record Reserved(UUID payoutId, UUID transactionId, String reference, String senderName,
@@ -137,9 +138,11 @@ public class PayoutService {
                 // The status guard above ensures this can't double-refund a payout already refunded
                 // synchronously.
                 if (tx != null) {
-                    BigInteger totalRefund = payout.getAmount().add(payout.getFee());
+                    BigDecimal totalRefund = payout.getAmount().add(payout.getFee());
                     ledgerService.credit(payout.getMerchant(), totalRefund, tx,
                             LedgerEntryType.REVERSAL, "Refund of failed payout " + payout.getReference());
+                    // Reverse the expected outflow on the profit ledger.
+                    platformProfitService.reverseOutflow(payout);
                     tx.setStatus(TransactionStatus.FAILED);
                 } else {
                     log.error("Payout {} has no paired transaction — cannot post refund ledger entry",
@@ -230,9 +233,11 @@ public class PayoutService {
 
                 Transaction tx = locked.getTransaction();
                 if (tx != null) {
-                    BigInteger totalRefund = locked.getAmount().add(locked.getFee());
+                    BigDecimal totalRefund = locked.getAmount().add(locked.getFee());
                     ledgerService.credit(locked.getMerchant(), totalRefund, tx,
                             LedgerEntryType.REVERSAL, "Refund of failed payout " + locked.getReference());
+                    // Reverse the expected outflow on the profit ledger.
+                    platformProfitService.reverseOutflow(locked);
                     tx.setStatus(TransactionStatus.FAILED);
                 } else {
                     log.error("Payout {} has no paired transaction — cannot post refund ledger entry",
@@ -256,11 +261,12 @@ public class PayoutService {
                     .orElseThrow(() -> new EntityNotFoundException("Beneficiary not found"));
 
             String reference = Mapper.generateReference("pyt");
+            BigDecimal amount = MoneyUtil.normalize(request.amount());
             Transaction tx = transactionRepository.save(Transaction.builder()
                     .merchant(merchant)
                     .type(TransactionType.PAYOUT)
                     .reference(reference)
-                    .amount(request.amount())
+                    .amount(amount)
                     .currency(CurrencyCode.NGN)
                     .narration(request.narration())
                     .status(TransactionStatus.PENDING)
@@ -271,20 +277,25 @@ public class PayoutService {
             // Debit the transfer amount + flat fee up front (throws InsufficientFundsException if the
             // balance is too low). The fee is Cyrus's fixed charge (₦30); Nomba's ₦20 is deducted
             // from the transfer itself and is never visible in the merchant's wallet.
-            BigInteger payoutFee = feeProperties.payoutFlatFeeKobo();
-            ledgerService.debit(merchant, request.amount().add(payoutFee), tx,
+            BigDecimal payoutFee = MoneyUtil.normalize(feeConfigService.current().getPayoutFlatFeeKobo());
+            ledgerService.debit(merchant, amount.add(payoutFee), tx,
                     LedgerEntryType.PAYOUT, "Payout " + reference);
+
+            tx.setMerchantFeeKobo(payoutFee);
 
             Payout payout = payoutRepository.save(Payout.builder()
                     .merchant(merchant)
                     .beneficiary(beneficiary)
                     .transaction(tx)
                     .reference(reference)
-                    .amount(request.amount())
+                    .amount(amount)
                     .fee(payoutFee)
                     .narration(request.narration())
                     .status(PayoutStatus.PENDING)
                     .build());
+
+            // Mirror to platform profit ledger: expected outflow from Nomba.
+            platformProfitService.recordOutflow(payout);
 
             return new Reserved(payout.getId(), tx.getId(), reference, merchant.getBusinessName(),
                     beneficiary.getAccountNumber(), beneficiary.getAccountName(), beneficiary.getBankCode());
@@ -332,9 +343,12 @@ public class PayoutService {
 
             // Refund the reserved amount + fee — the provider rejected the transfer, so the money
             // never left. Payout.fee was set at reserve() to Cyrus's flat fee.
-            BigInteger totalRefund = payout.getAmount().add(payout.getFee());
+            BigDecimal totalRefund = payout.getAmount().add(payout.getFee());
             ledgerService.credit(payout.getMerchant(), totalRefund, tx,
                     LedgerEntryType.REVERSAL, "Refund of failed payout " + payout.getReference());
+
+            // Reverse the expected outflow on the profit ledger.
+            platformProfitService.reverseOutflow(payout);
 
             payout.setStatus(PayoutStatus.FAILED);
             payout.setFailureReason(reason);
@@ -343,9 +357,15 @@ public class PayoutService {
         });
     }
 
-    /** kobo (integer) → naira decimal string, Nomba's provider-boundary representation. */
-    private static String koboToNaira(BigInteger kobo) {
-        return new BigDecimal(kobo).movePointLeft(2).toPlainString();
+    /**
+     * kobo → naira decimal string, Nomba's provider-boundary representation. This is the ONE place
+     * money is rounded to whole kobo: Nomba's transfer API settles in whole kobo, so a fractional
+     * balance can't be wired out. The {@code @Digits(fraction = 0)} guard on
+     * {@code CreatePayoutRequest.amount} means the setScale here never actually rounds in practice —
+     * it is a defensive belt so the ledger debit can never silently diverge from what Nomba is sent.
+     */
+    private static String koboToNaira(BigDecimal kobo) {
+        return kobo.setScale(0, MoneyUtil.ROUNDING).movePointLeft(2).toPlainString();
     }
 
     static PayoutResponse toResponse(Payout p) {

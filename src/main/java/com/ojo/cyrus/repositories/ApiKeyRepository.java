@@ -2,8 +2,12 @@ package com.ojo.cyrus.repositories;
 
 import com.ojo.cyrus.models.entities.ApiKey;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,4 +18,8 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, UUID> {
     List<ApiKey> findByMerchantIdOrderByCreatedAtDesc(UUID merchantId);
 
     Optional<ApiKey> findByIdAndMerchantId(UUID id, UUID merchantId);
+
+    @Modifying
+    @Query("UPDATE ApiKey k SET k.lastUsedAt = :usedAt WHERE k.id = :id")
+    void markUsed(@Param("id") UUID id, @Param("usedAt") Instant usedAt);
 }

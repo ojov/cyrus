@@ -40,6 +40,7 @@ export function statusClass(status: string): string {
     case "RETRYING":
     case "INACTIVE_CUSTOMER":
     case "PROVIDER_UNCONFIRMED":
+    case "PROVIDER_UNAVAILABLE":
       return "db-warn";
     case "ORPHANED":
     case "REVOKED":
@@ -53,6 +54,7 @@ export function statusClass(status: string): string {
     case "DUPLICATE":
     case "SIGNATURE_MISMATCH":
     case "AMOUNT_MISMATCH":
+    case "LEDGER_READ_FAILED":
       return "db-crit";
     case "TIER_2":
     case "TIER_3":

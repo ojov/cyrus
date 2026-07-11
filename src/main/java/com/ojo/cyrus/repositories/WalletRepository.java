@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,7 +21,7 @@ public interface WalletRepository extends JpaRepository<Wallet, UUID> {
 
     /** Total Cyrus liabilities: the sum of every merchant wallet's available balance (kobo). */
     @Query("SELECT COALESCE(SUM(w.availableBalance), 0) FROM Wallet w")
-    BigInteger sumAllBalances();
+    BigDecimal sumAllBalances();
 
     /**
      * Pessimistic-write lock for balance mutation — serializes concurrent credit/debit on the same

@@ -3,12 +3,13 @@ package com.ojo.cyrus.services;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.entities.Wallet;
 import com.ojo.cyrus.repositories.WalletRepository;
+import com.ojo.cyrus.utils.MoneyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
@@ -30,15 +31,15 @@ public class WalletService {
                     log.info("Provisioning wallet for merchant {}", merchant.getId());
                     return walletRepository.save(Wallet.builder()
                             .merchant(merchant)
-                            .availableBalance(BigInteger.ZERO)
+                            .availableBalance(MoneyUtil.ZERO_KOBO)
                             .build());
                 });
     }
 
     @Transactional(readOnly = true)
-    public BigInteger getBalance(UUID merchantId) {
+    public BigDecimal getBalance(UUID merchantId) {
         return walletRepository.findByMerchantId(merchantId)
                 .map(Wallet::getAvailableBalance)
-                .orElse(BigInteger.ZERO);
+                .orElse(MoneyUtil.ZERO_KOBO);
     }
 }

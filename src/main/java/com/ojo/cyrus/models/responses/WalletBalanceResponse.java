@@ -1,8 +1,8 @@
 package com.ojo.cyrus.models.responses;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 
-/** A merchant wallet's available balance, in integer kobo. */
+/** A merchant wallet's available balance, in kobo at scale 4. */
 public record WalletBalanceResponse(
-        BigInteger availableBalance
+        BigDecimal availableBalance
 ) {}

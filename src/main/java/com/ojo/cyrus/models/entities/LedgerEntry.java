@@ -6,13 +6,13 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 
 /**
  * One leg of a double-entry posting against a merchant {@link Wallet}, tied to the {@link Transaction}
- * that caused it. {@code amount} is signed integer kobo — positive credits the wallet, negative debits
- * it — and the entries for a single transaction sum to the net balance change. Append-only: the
- * ledger is the immutable audit trail; the wallet balance is a materialized running total of it.
+ * that caused it. {@code amount} is signed kobo at scale 4 — positive credits the wallet, negative
+ * debits it — and the entries for a single transaction sum to the net balance change. Append-only:
+ * the ledger is the immutable audit trail; the wallet balance is a materialized running total of it.
  */
 @Entity
 @Table(name = "ledger_entries",
@@ -36,9 +36,9 @@ public class LedgerEntry extends BaseEntity {
     @JoinColumn(name = "wallet_id", nullable = false)
     private Wallet wallet;
 
-    /** Signed integer kobo: positive = credit to the wallet, negative = debit. */
-    @Column(nullable = false)
-    private BigInteger amount;
+    /** Signed kobo (scale 4): positive = credit to the wallet, negative = debit. */
+    @Column(nullable = false, precision = 38, scale = 4)
+    private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -4,12 +4,13 @@ import com.ojo.cyrus.exception.NombaIntegrationException;
 import com.ojo.cyrus.models.dto.NormalizedPaymentEvent;
 import com.ojo.cyrus.models.dto.NormalizedPayoutEvent;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
+import com.ojo.cyrus.utils.MoneyUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 
@@ -92,10 +93,10 @@ public class NombaWebhookAdapter {
         return value.isMissingNode() || value.isNull() ? null : value.asString();
     }
 
-    /** Nomba reports amounts in naira; Cyrus stores integer kobo via {@link NombaCurrencyUtil#nairaToKobo(String)}. */
-    public static BigInteger toKobo(JsonNode amountNode) {
+    /** Nomba reports amounts in naira; Cyrus stores scale-4 kobo via {@link NombaCurrencyUtil#nairaToKobo(String)}. */
+    public static BigDecimal toKobo(JsonNode amountNode) {
         if (amountNode == null || amountNode.isMissingNode() || amountNode.isNull()) {
-            return BigInteger.ZERO;
+            return MoneyUtil.ZERO_KOBO;
         }
         // Extract the string value from the JsonNode (handles both number and string representations).
         String nairaStr = amountNode.isNumber() ? amountNode.decimalValue().toPlainString() : amountNode.asString();
