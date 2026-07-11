@@ -104,8 +104,8 @@ Developers authenticate programmatic requests with an API key:
 - **Header:** `Authorization: Bearer cyrus_<key>`
 - **Storage (at rest):** The raw key is **shown exactly once** at creation, then **only its SHA-256
   hash is persisted**. The raw key is never stored, logged, or recoverable.
-- **Validation:** Incoming key is SHA-256 hashed and matched against the stored hash. Constant-time
-  comparison via `MessageDigest.isEqual` — no timing side-channel.
+- **Validation:** Incoming key is SHA-256 hashed and matched against the stored hash via a database
+  lookup (`findByKeyHash`). The hash is compared at the DB level, not in-memory byte comparison.
 - **Revocation:** Keys can be revoked (status → `REVOKED`), preventing further use.
 - **Expiry:** Optional `expiresAt` per key.
 
@@ -286,53 +286,30 @@ All API responses use the `CyrusApiResponse<T>` envelope:
 - 404 for "not found" and "not yours" are identical — no information leaking about existence
   of other merchants' resources
 
-### Platform Profit Ledger (Proposed)
+### Platform Profit Ledger (Implemented)
 
-To give the super-admin reliable visibility into actual platform profitability, we propose adding a
-**lightweight, append-only profit ledger** tied to the existing `Transaction` and payout flows. This
-is not a replacement for merchant wallets; it is a separate ledger that tracks the aggregate
-movement of funds through Cyrus's Nomba account.
+A **lightweight, append-only profit ledger** tracks the aggregate movement of funds through Cyrus's
+Nomba account. It is a separate ledger from merchant wallets, giving the super-admin reliable
+visibility into actual platform profitability.
 
-**Current state:**
-- Merchant wallets reflect individual credits/debits but do not answer “how much profit has Cyrus
-  made?”
-- `NombaBalanceClient` can fetch the provider snapshot, but there's no durable ledger to reconcile
-  against it.
-- Super-admin lacks a single view of provider balance, merchant liabilities, pending payouts, and
-  accrued platform fees.
-- Fee configuration is now a single-row `FeeConfig` table (inflow percent with min/max caps,
-  payout flat fee) loaded into `FeeProperties` at startup and refreshed on admin update.
-
-**Proposed model (profit ledger):**
-- Add a `platform_profit_entries` table: `id`, `transaction_id` (nullable), `payout_id` (nullable),
+**Model:**
+- `platform_profit_entries` table: `id`, `transaction_id` (nullable), `payout_id` (nullable),
   `entry_type`, `amount_kobo` (signed), `description`, `created_at`.
 - Entry types: `PROFIT_INFLOW` (confirmed payment received), `PROFIT_OUTFLOW` (payout sent/refunded),
   `PROFIT_FEE_ACCRUAL` (platform fee earned, derived from merchant fee minus provider fee),
   `PROFIT_ADJUSTMENT` (manual correction).
-- The profit ledger's running total is derived (SUM of entries); no mutable balance column needed
-  (though a materialized view may be added for performance).
+- Running total is derived (SUM of entries); no mutable balance column needed.
 - Every inflow/outflow writes to both the merchant wallet and the profit ledger in the **same
   transaction**, ensuring consistency.
-- The `PROFIT_FEE_ACCRUAL` entry uses the margin computed by `FeeCalculator` (merchant fee − Nomba
-  fee), so the profit ledger reflects actual Cyrus earnings, not gross merchant fees.
+- `PROFIT_FEE_ACCRUAL` uses the margin computed by `FeeCalculator` (merchant fee − Nomba fee),
+  so the profit ledger reflects actual Cyrus earnings, not gross merchant fees.
 
 **Reconciliation with provider:**
 - Scheduled sweep: sum profit entries → expected provider balance.
 - Call `NombaBalanceClient` for actual provider balance.
-- Persist a snapshot (`expected`, `actual`, `delta`, `outcome`).
-- If delta outside tolerance → flag discrepancy for review; auto-adjust only for known, rule-based
-  differences (e.g., rounding, undisputed fee variance).
+- Compare expected vs actual; if delta outside tolerance → flag discrepancy for review.
 - The sweep uses the current `FeeProperties` to validate that fee accruals are consistent with
   the active configuration; drift triggers a review rather than an automatic correction.
-
-**Super-admin dashboard:**
-- `GET /v1/platform/profit-summary` (JWT, super-admin only) returns:
-  - `provider_balance_kobo` (last synced)
-  - `merchant_liabilities_kobo` (sum of all merchant wallet balances)
-  - `pending_payouts_kobo` (sum of in-flight payouts)
-  - `platform_profit_kobo` (derived from profit ledger)
-  - `last_sync_at`, `reconciliation_status`
-  - `fee_config_snapshot` (current inflow percent, min/max, payout fee) for transparency
 
 **Why this fits:**
 - Uses existing transaction/payout IDs as anchors, so every profit entry is traceable.
@@ -342,59 +319,6 @@ movement of funds through Cyrus's Nomba account.
   from the margin, not the gross fee.
 - Extensible: if another provider is added later, we just add provider-balance legs; profit model
   stays the same.
-
----
-
-### BigDecimal Migration Review & Bugs Found
-
-The codebase has been migrated from `BigInteger` (integer kobo) to `BigDecimal` (kobo at scale 4)
-across all entities, services, repositories, and API surfaces. Schema migration `V12__money_to_numeric_38_4.sql`
-widened all money columns from `numeric(38)` to `numeric(38,4)`. A new `MoneyUtil` utility provides
-canonical normalization (`HALF_EVEN`, scale 4) and a `ZERO_KOBO` constant.
-
-**Bugs found during review:**
-
-1. **`WalletBalanceResponse` stale javadoc** (`models/responses/WalletBalanceResponse.java:5`):
-   Says "integer kobo" but the value is now `BigDecimal` at scale 4. Documentation only — not a
-   runtime bug, but misleading for API consumers.
-
-2. **`LedgerService.post` — `newBalance` not normalized** (`services/LedgerService.java:51`):
-   `wallet.getAvailableBalance().add(delta)` — `delta` is normalized, but the loaded balance
-   *could* theoretically arrive at a different scale from the JDBC driver. The sum is set on the
-   wallet without a defensive `MoneyUtil.normalize()`. In practice PostgreSQL `numeric(38,4)` always
-   returns scale 4, and all writes go through this path, so this is a **latent risk, not a live
-   bug** — but should be hardened.
-
-3. **`PlatformAdminService.buildLedgerIntegrity` — `BigDecimal.ZERO` instead of
-   `MoneyUtil.ZERO_KOBO`** (`services/PlatformAdminService.java:135`): The default value for a
-   missing wallet in the ledger map is `BigDecimal.ZERO` (scale 0). `compareTo` ignores scale, so
-   the comparison is correct, but it's inconsistent with the rest of the codebase which uses
-   `MoneyUtil.ZERO_KOBO`.
-
-4. **`TransactionIngestionService.handleReversal` — `BigDecimal.ZERO` fallback**
-   (`services/TransactionIngestionService.java:244-245`): The null-guard fallback for `tx.getFee()`
-   and `tx.getPlatformFeeKobo()` uses `BigDecimal.ZERO` (scale 0) instead of `MoneyUtil.ZERO_KOBO`.
-   Functionally correct (the subsequent `ledgerService.debit` normalizes), but inconsistent.
-
-5. **Merchant webhook payload contract change** (`services/MerchantWebhookService.java:108-113`):
-   JSON money fields (`amountKobo`, `feeKobo`) now serialize as scale-4 BigDecimal values (e.g.
-   `1500.0150`) instead of plain integers. Merchants parsing these as integers will silently
-   truncate fractional kobo. This is a **breaking API contract change** that should be communicated
-   in release notes.
-
-6. **`FeeProperties` defaults at scale 0** (`config/properties/FeeProperties.java:35-39`):
-   `inflowMinKobo`, `inflowMaxKobo`, `payoutFlatFeeKobo` are initialized as `new BigDecimal("1500")`
-   (scale 0). They're normalized downstream before use, so this is safe — but ideally should be
-   created at scale 4 or normalized in `FeeConfigService.applyToProperties()` for consistency.
-
-**Plan adjustments for the profit ledger (BigDecimal):**
-- All `platform_profit_entries` columns must use `@Column(precision = 38, scale = 4)`.
-- The profit ledger's running total is a `BigDecimal` sum, always normalized via `MoneyUtil.normalize()`.
-- The scheduled reconciliation sweep compares `BigDecimal` values using `compareTo`, never `equals`.
-- The profit summary endpoint returns `BigDecimal` amounts at scale 4 — same contract as the rest
-  of the API.
-- The migration for the profit ledger should use `numeric(38,4)` for all money columns, matching
-  `V12__money_to_numeric_38_4.sql`.
 
 ---
 
@@ -428,7 +352,7 @@ the payment is attributed retroactively without the merchant or customer needing
 - **Test/LIVE** is determined by the Nomba credentials used (sandbox vs. live client ID/secret
   from env vars), not by separate deployments or API keys
 - Each merchant has one API key — the environment is a platform config, not a per-key concern
-- Wallets are per-merchant per-environment (a single merchant has a test wallet and a live wallet)
+- Each merchant has one wallet (not per-environment); the environment is determined by the Nomba credentials used at call time
 
 ---
 
@@ -437,7 +361,7 @@ the payment is attributed retroactively without the merchant or customer needing
 | Area | Approach |
 |---|---|
 | **Password auth** | BCrypt, JWT in httpOnly cookie |
-| **API auth** | Bearer token, SHA-256 hashed at rest, constant-time validation |
+| **API auth** | Bearer token, SHA-256 hashed at rest, DB hash lookup validation |
 | **Inbound webhook security** | HMAC-SHA256 signature, canonical string, constant-time comparison |
 | **Outbound webhook security** | Stripe-style HMAC (`timestamp.payload`), merchant `whsec_` secret encrypted at rest |
 | **Data encryption at rest** | AES-256-GCM for webhook secrets |
