@@ -168,6 +168,15 @@ public class GlobalExceptionHandler {
                 ErrorDetails.ofFieldErrors(fieldErrors));
     }
 
+    @ExceptionHandler(FieldValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public CyrusApiResponse<ErrorDetails> handleFieldValidation(FieldValidationException ex) {
+        log.warn("{} -> {}: {} | field={}", ex.getClass().getSimpleName(), ResponseCode.INVALID_INPUT.name(),
+                ex.getMessage(), ex.getField(), ex);
+        return CyrusApiResponse.failure(ResponseCode.INVALID_INPUT, ex.getMessage(),
+                ErrorDetails.ofFieldErrors(List.of(new ErrorDetails.FieldError(ex.getField(), ex.getMessage()))));
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public CyrusApiResponse<ErrorDetails> handleUnreadableBody(HttpMessageNotReadableException ex) {

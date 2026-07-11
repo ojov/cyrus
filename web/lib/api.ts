@@ -111,6 +111,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 const api = {
   post: <T>(path: string, data: unknown) => request<T>(path, { method: "POST", body: JSON.stringify(data) }),
   put: <T>(path: string, data: unknown) => request<T>(path, { method: "PUT", body: JSON.stringify(data) }),
+  patch: <T>(path: string, data: unknown) => request<T>(path, { method: "PATCH", body: JSON.stringify(data) }),
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
@@ -190,6 +191,22 @@ export const dashboardApi = {
   createApiKey: () => api.post<CreatedApiKeyResponse>("/v1/merchants/me/api-keys", {}),
   revokeApiKey: (id: string) => api.post<{ data: null }>(`/v1/merchants/me/api-keys/${id}/revoke`, {}),
   deleteApiKey: (id: string) => api.delete<{ data: null }>(`/v1/merchants/me/api-keys/${id}`),
+};
+
+// ---- Profile ----
+export interface ProfileData {
+  merchantId: string;
+  businessName: string;
+  businessEmail: string;
+  businessType: string | null;
+  phone: string | null;
+  bankVerificationNumber: string | null;
+}
+
+export const profileApi = {
+  get: () => api.get<{ data: ProfileData }>("/v1/merchants/me/profile"),
+  update: (payload: { businessName?: string; businessType?: string; phone?: string; bankVerificationNumber?: string }) =>
+    api.patch<{ data: ProfileData }>("/v1/merchants/me/profile", payload),
 };
 
 // ---- Wallet ----

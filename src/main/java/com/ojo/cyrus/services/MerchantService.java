@@ -7,6 +7,7 @@ import com.ojo.cyrus.enums.NombaPaymentEventStatus;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.exception.AlreadyExistsException;
 import com.ojo.cyrus.exception.EntityNotFoundException;
+import com.ojo.cyrus.exception.FieldValidationException;
 import com.ojo.cyrus.models.WebhookConfig;
 import com.ojo.cyrus.models.entities.Merchant;
 import com.ojo.cyrus.models.requests.MerchantRegistrationRequest;
@@ -144,7 +145,12 @@ public class MerchantService {
     public MerchantProfileResponse updateProfile(String email, UpdateMerchantProfileRequest request) {
         Merchant m = findByBusinessEmail(email);
 
-        if (request.businessName() != null) m.setBusinessName(request.businessName());
+        if (request.businessName() != null) {
+            if (request.businessName().isBlank()) {
+                throw new FieldValidationException("businessName", "Business name cannot be blank");
+            }
+            m.setBusinessName(request.businessName());
+        }
         if (request.businessType() != null) m.setBusinessType(request.businessType());
         if (request.phone() != null) m.setPhone(request.phone());
         if (request.bankVerificationNumber() != null) m.setBankVerificationNumber(request.bankVerificationNumber());
