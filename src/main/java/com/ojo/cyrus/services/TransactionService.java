@@ -81,6 +81,6 @@ public class TransactionService {
                 tx.getStatus(),
                 tx.getMatchStatus(),
                 tx.getAmount(),
-                tx.getFee());
+                tx.getMerchantFeeKobo() != null ? tx.getMerchantFeeKobo() : tx.getFee());
     }
 }

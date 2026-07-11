@@ -8,11 +8,12 @@ import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.Wallet;
 import com.ojo.cyrus.repositories.LedgerEntryRepository;
 import com.ojo.cyrus.repositories.WalletRepository;
+import com.ojo.cyrus.utils.MoneyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 
 /**
  * The single writer of wallet balances: every change goes through a balanced double-entry posting so
@@ -29,23 +30,25 @@ public class LedgerService {
     private final LedgerEntryRepository ledgerEntryRepository;
 
     /** Credits the merchant's wallet by {@code amount} (kobo) and records the ledger entry. */
-    public LedgerEntry credit(Merchant merchant, BigInteger amount, Transaction transaction,
+    public LedgerEntry credit(Merchant merchant, BigDecimal amount, Transaction transaction,
                               LedgerEntryType type, String description) {
         return post(merchant, amount.abs(), transaction, type, description);
     }
 
     /** Debits the merchant's wallet by {@code amount} (kobo); throws if it would go negative. */
-    public LedgerEntry debit(Merchant merchant, BigInteger amount, Transaction transaction,
+    public LedgerEntry debit(Merchant merchant, BigDecimal amount, Transaction transaction,
                              LedgerEntryType type, String description) {
         return post(merchant, amount.abs().negate(), transaction, type, description);
     }
 
-    private LedgerEntry post(Merchant merchant, BigInteger delta, Transaction transaction,
+    private LedgerEntry post(Merchant merchant, BigDecimal rawDelta, Transaction transaction,
                              LedgerEntryType type, String description) {
         Wallet wallet = walletRepository.findForUpdate(merchant.getId())
                 .orElseThrow(() -> new IllegalStateException("No wallet for merchant " + merchant.getId()));
 
-        BigInteger newBalance = wallet.getAvailableBalance().add(delta);
+        // Normalize to canonical scale 4 so persisted deltas and balances never drift in scale.
+        BigDecimal delta = MoneyUtil.normalize(rawDelta);
+        BigDecimal newBalance = MoneyUtil.normalize(wallet.getAvailableBalance().add(delta));
         if (newBalance.signum() < 0) {
             throw new InsufficientFundsException("Insufficient wallet balance for this operation");
         }

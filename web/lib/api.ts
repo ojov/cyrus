@@ -545,8 +545,32 @@ export interface PlatformOverview {
   };
 }
 
+export interface FeeConfig {
+  inflowPercent: number;
+  inflowMinKobo: number;
+  inflowMaxKobo: number;
+  payoutFlatFeeKobo: number;
+  updatedAt: string;
+}
+
+export interface PlatformProfitSummary {
+  expectedProviderBalanceKobo: number;
+  actualProviderBalanceKobo: number | null;
+  deltaKobo: number | null;
+  totalInflowsKobo: number;
+  totalOutflowsKobo: number;
+  totalFeeAccrualsKobo: number;
+  merchantLiabilitiesKobo: number;
+  lastSyncAt: string | null;
+  reconciliationStatus: string;
+}
+
 export const platformApi = {
   overview: () => api.get<{ data: PlatformOverview }>("/v1/platform/overview"),
+  profit: () => api.get<{ data: PlatformProfitSummary }>("/v1/platform/profit"),
+  getFees: () => api.get<{ data: FeeConfig }>("/v1/platform/fees"),
+  updateFees: (feeConfig: Omit<FeeConfig, "updatedAt">) =>
+    api.put<{ data: FeeConfig }>("/v1/platform/fees", feeConfig),
 };
 
 export const API_BASE_URL = API_URL;

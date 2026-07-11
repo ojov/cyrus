@@ -7,8 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
-import java.math.BigInteger;
-
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 class NombaWebhookAdapterTest {
@@ -66,8 +65,8 @@ class NombaWebhookAdapterTest {
         assertEquals("API-VACT_TRA-613BB-eeae578a-cdd4-459c-8bd5-XXXXXX", event.getProviderTransactionId());
         assertEquals("1000042602061021531516XXXXXX", event.getSessionId());
         assertEquals("967913XXX", event.getVirtualAccountNumber());
-        assertEquals(new BigInteger("12000"), event.getAmount()); // 120 * 100 = 12000 kobo
-        assertEquals(new BigInteger("60"), event.getFee()); // 0.6 * 100 = 60 kobo
+        assertThat(event.getAmount()).isEqualByComparingTo("12000"); // 120 * 100 = 12000 kobo
+        assertThat(event.getFee()).isEqualByComparingTo("60"); // 0.6 * 100 = 60 kobo
         assertEquals("NGN", event.getCurrency());
         assertNotNull(event.getPayer());
         assertEquals("JOHN GRASS", event.getPayer().getName());
@@ -75,6 +74,41 @@ class NombaWebhookAdapterTest {
         assertEquals("305", event.getPayer().getBankCode());
         assertEquals("Paycom (Opay)", event.getPayer().getBankName());
         assertTrue(event.isVirtualAccountCredit());
+    }
+
+    @Test
+    void testToCyrusEvent_FractionalKoboPreserved() {
+        // Nomba reports naira with arbitrary decimals — sub-kobo amounts must survive conversion
+        // instead of being rounded to a whole kobo (the pre-BigDecimal behaviour rounded
+        // 120.005 naira to 12000 kobo; it is now kept as 12000.5 kobo).
+        String payload = """
+                {
+                  "event_type": "payment_success",
+                  "requestId": "frac-test-request",
+                  "data": {
+                    "merchant": {},
+                    "terminal": {},
+                    "transaction": {
+                      "aliasAccountNumber": "967913XXX",
+                      "fee": 0.605,
+                      "sessionId": "session-frac",
+                      "type": "vact_transfer",
+                      "transactionId": "API-VACT-FRAC-1",
+                      "originatingFrom": "api",
+                      "transactionAmount": 120.005,
+                      "time": "2026-02-06T10:21:56Z",
+                      "aliasAccountType": "VIRTUAL"
+                    },
+                    "customer": {}
+                  }
+                }
+                """;
+
+        NormalizedPaymentEvent event = adapter.toCyrusEvent(payload);
+
+        assertThat(event.getAmount()).isEqualByComparingTo("12000.5"); // 120.005 * 100
+        assertThat(event.getFee()).isEqualByComparingTo("60.5"); // 0.605 * 100
+        assertThat(event.getAmount().scale()).isEqualTo(4); // canonical scale
     }
 
     @Test
@@ -120,8 +154,8 @@ class NombaWebhookAdapterTest {
         assertEquals("POS-PURCHASE-71KD9-ae67-91fe-4b6a-a45b-689e9XXXXXXX", event.getProviderTransactionId());
         assertNull(event.getSessionId());
         assertNull(event.getVirtualAccountNumber());
-        assertEquals(new BigInteger("2500000"), event.getAmount()); // 25000 * 100 = 2500000 kobo
-        assertEquals(new BigInteger("15000"), event.getFee()); // 150 * 100 = 15000 kobo
+        assertThat(event.getAmount()).isEqualByComparingTo("2500000"); // 25000 * 100 = 2500000 kobo
+        assertThat(event.getFee()).isEqualByComparingTo("15000"); // 150 * 100 = 15000 kobo
         assertFalse(event.isVirtualAccountCredit());
     }
 
@@ -169,8 +203,8 @@ class NombaWebhookAdapterTest {
         assertEquals("20260212130PM", event.merchantTxRef()); // matches back to Payout.reference
         assertEquals("API-TRANSFER-057A0-21e353c0-4168-4275-8355-XXXXXX", event.providerTransactionId());
         assertEquals("09FG260206111644XXXXXX", event.sessionId());
-        assertEquals(new BigInteger("2000"), event.feeKobo()); // 20 * 100
-        assertEquals(new BigInteger("5000"), event.amountKobo()); // 50 * 100
+        assertThat(event.feeKobo()).isEqualByComparingTo("2000"); // 20 * 100
+        assertThat(event.amountKobo()).isEqualByComparingTo("5000"); // 50 * 100
         assertTrue(event.isSuccess());
         assertFalse(event.isFailureOrRefund());
     }
@@ -201,7 +235,7 @@ class NombaWebhookAdapterTest {
 
         assertEquals("payout_refund", event.eventType());
         assertEquals("5TDL0CL7CP", event.merchantTxRef());
-        assertEquals(new BigInteger("4500000"), event.amountKobo()); // 45000 * 100
+        assertThat(event.amountKobo()).isEqualByComparingTo("4500000"); // 45000 * 100
         assertFalse(event.isSuccess());
         assertTrue(event.isFailureOrRefund());
     }

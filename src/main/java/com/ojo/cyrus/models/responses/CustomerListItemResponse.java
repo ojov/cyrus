@@ -4,7 +4,7 @@ import com.ojo.cyrus.enums.KycTier;
 import com.ojo.cyrus.enums.MerchantCustomerStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -26,7 +26,7 @@ public record CustomerListItemResponse(
         CustomerResponse.VirtualAccountSummary virtualAccount,
 
         @Schema(description = "Total received (SUCCESSFUL customer payments), integer kobo")
-        BigInteger lifetimeKobo,
+        BigDecimal lifetimeKobo,
 
         Instant createdAt
 

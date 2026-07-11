@@ -3,7 +3,7 @@ package com.ojo.cyrus.models.dto;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Builder
@@ -19,8 +19,8 @@ public class NormalizedPaymentEvent {
     // what lets an orphan payment (unknown VA) still be scoped to the right merchant for recovery.
     private String walletId;
     private String virtualAccountNumber;
-    private BigInteger amount; // minor units (kobo)
-    private BigInteger fee; // minor units (kobo)
+    private BigDecimal amount; // minor units (kobo)
+    private BigDecimal fee; // minor units (kobo)
     private String currency;
     private Payer payer;
     private Instant eventTime;

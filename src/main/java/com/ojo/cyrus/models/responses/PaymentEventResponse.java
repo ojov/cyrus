@@ -5,7 +5,7 @@ import com.ojo.cyrus.enums.NombaPaymentEventType;
 import com.ojo.cyrus.enums.ReconciliationFailureReason;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -26,7 +26,7 @@ public record PaymentEventResponse(
         @Schema(description = "Human-readable details about the outcome")
         String statusDetails,
         @Schema(description = "Amount in kobo")
-        BigInteger amount,
+        BigDecimal amount,
         @Schema(description = "Virtual account number the payment was sent to (if identifiable)")
         String accountNumber,
         @Schema(description = "Customer reference this event was attributed to (null if orphaned)")

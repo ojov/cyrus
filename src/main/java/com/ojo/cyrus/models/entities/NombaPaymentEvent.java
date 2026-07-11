@@ -8,7 +8,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
-import java.math.BigInteger;
+import com.ojo.cyrus.utils.MoneyUtil;
+
+import java.math.BigDecimal;
 
 /**
  * The idempotent, deduplicated record of a raw inbound Nomba webhook (idempotent by {@code requestId}).
@@ -58,12 +60,13 @@ public class NombaPaymentEvent extends BaseEntity {
     /** Nomba's aliasAccountReference — echoes the VA's accountRef (the customer's externalCustomerId). */
     private String customerReference;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 38, scale = 4)
     @Builder.Default
-    private BigInteger amount = BigInteger.ZERO; // integer kobo
+    private BigDecimal amount = MoneyUtil.ZERO_KOBO; // kobo, scale 4
 
+    @Column(precision = 38, scale = 4)
     @Builder.Default
-    private BigInteger fee = BigInteger.ZERO; // integer kobo
+    private BigDecimal fee = MoneyUtil.ZERO_KOBO; // kobo, scale 4
 
     private String providerWalletId;
 

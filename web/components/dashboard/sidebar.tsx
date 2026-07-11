@@ -15,8 +15,6 @@ import {
   IconKey,
   IconSettings,
   IconLogOut,
-  IconWallet,
-  IconBank,
   IconSend,
   IconShield,
 } from "@/components/icons";
@@ -34,8 +32,6 @@ const BASE_NAV: Omit<NavItem, "badge">[] = [
   { href: "/ops/customers", label: "Customers", Icon: IconUsers },
   { href: "/ops/transactions", label: "Transactions", Icon: IconSwap },
   { href: "/ops/reconciliation", label: "Reconciliation", Icon: IconChecklist },
-  { href: "/ops/wallet", label: "Wallet", Icon: IconWallet },
-  { href: "/ops/beneficiaries", label: "Beneficiaries", Icon: IconBank },
   { href: "/ops/payouts", label: "Payouts", Icon: IconSend },
   { href: "/ops/api-keys", label: "API keys", Icon: IconKey },
   { href: "/ops/settings", label: "Settings", Icon: IconSettings },
@@ -50,9 +46,10 @@ export function DashboardSidebar() {
   // Reconciliation badge tracks the same real "needs attention" count (orphaned + manual review)
   // the Overview and Reconciliation pages themselves compute, so the sidebar can't drift from it.
   const needsAttention = stats ? stats.reconciliation.orphaned + stats.reconciliation.manualReview : 0;
-  // Platform link only for super-admins. Cosmetic — the /v1/platform/** endpoints 403 regardless.
+  // Platform links only for super-admins. Cosmetic — the /v1/platform/** endpoints 403 regardless.
   const baseNav: Omit<NavItem, "badge">[] = session?.superAdmin
-    ? [...BASE_NAV, { href: "/ops/platform", label: "Platform", Icon: IconShield }]
+    ? [...BASE_NAV, { href: "/ops/platform", label: "Platform", Icon: IconShield },
+                     { href: "/ops/platform/fees", label: "Fees", Icon: IconSettings }]
     : BASE_NAV;
   const nav: NavItem[] = baseNav.map((item) =>
     item.href === "/ops/reconciliation" && needsAttention > 0

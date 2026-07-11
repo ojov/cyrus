@@ -1,6 +1,6 @@
 package com.ojo.cyrus.models.dto;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 
 /**
  * A Nomba {@code payout_success}/{@code payout_failed}/{@code payout_refund} webhook, normalized off
@@ -23,8 +23,8 @@ public record NormalizedPayoutEvent(
         String merchantTxRef,
         String providerTransactionId,
         String sessionId,
-        BigInteger feeKobo,
-        BigInteger amountKobo
+        BigDecimal feeKobo,
+        BigDecimal amountKobo
 ) {
     public boolean isSuccess() {
         return "payout_success".equalsIgnoreCase(eventType);

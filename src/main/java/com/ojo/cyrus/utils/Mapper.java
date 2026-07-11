@@ -23,7 +23,7 @@ import com.ojo.cyrus.nomba.dto.NombaCreateVirtualAccountRequest;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
 import lombok.experimental.UtilityClass;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @UtilityClass
@@ -85,7 +85,7 @@ public class Mapper {
         );
     }
 
-    public static CustomerListItemResponse toCustomerListItemResponse(MerchantCustomer customer, BigInteger lifetimeKobo) {
+    public static CustomerListItemResponse toCustomerListItemResponse(MerchantCustomer customer, BigDecimal lifetimeKobo) {
         VirtualAccount va = customer.getVirtualAccount();
         return new CustomerListItemResponse(
                 customer.getId(),

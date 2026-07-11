@@ -28,6 +28,16 @@ spring:
   threads:
     virtual:
       enabled: true
+  jackson:
+    # This app is on Spring Boot 4 / Jackson 3 (tools.jackson, not com.fasterxml.jackson) —
+    # JacksonProperties has no "generator"/"parser" groups any more; the equivalent of Jackson 2's
+    # spring.jackson.generator.* is spring.jackson.write.* (binds tools.jackson.core.StreamWriteFeature).
+    write:
+      # Money is BigDecimal kobo — always emit plain decimal notation,gv gt5 never scientific, so API
+      # consumers parsing JSON numbers are never surprised at extreme magnitudes. Verified this
+      # actually changes output (Jackson 2's WRITE_BIGDECIMAL_AS_PLAIN moved from JsonGenerator.Feature
+      # to plain StreamWriteFeature in Jackson 3, not the JSON-specific JsonWriteFeature).
+      write-bigdecimal-as-plain: true
 
 springdoc:
   packages-to-scan: com.ojo.cyrus.controllers.developer
@@ -39,18 +49,53 @@ scalar:
   url: /v3/api-docs
   path: /docs
   page-title: Cyrus Developer API
-  theme: purple
+  theme: deep_space
   layout: modern
+  # Palette matches web/app/globals.css exactly (converted from its oklch tokens) so the Scalar
+  # docs UI and the dashboard/landing page read as the same product.
   custom-css: |-
     :root {
-      --scalar-color-accent: #7c3aed;
-      --scalar-background-accent: #7c3aed1f;
-    }
-    .dark-mode {
-      --scalar-color-accent: #a78bfa;
-      --scalar-background-accent: #a78bfa1f;
+      --scalar-color-accent: #5c29c2;
+      --scalar-background-accent: #5c29c212;
+      --scalar-border-color: #dddceb;
     }
 
+    .light-mode {
+      --scalar-color-1: #06081a;
+      --scalar-color-2: #5a5966;
+      --scalar-color-3: #8b8998;
+      --scalar-background-1: #ffffff;
+      --scalar-background-2: #f4f3ff;
+      --scalar-background-3: #e7e5fb;
+      --scalar-border-color: #dddceb;
+    }
+
+    .dark-mode {
+      --scalar-color-1: #ebeaf3;
+      --scalar-color-2: #a3a2b7;
+      --scalar-color-3: #7d7c8f;
+      --scalar-color-accent: #a692fb;
+      --scalar-background-1: #13131f;
+      --scalar-background-2: #0a0a14;
+      --scalar-background-3: #27263a;
+      --scalar-background-accent: #a692fb0f;
+      --scalar-border-color: #2a293a;
+    }
+
+    .sidebar {
+      --scalar-sidebar-item-active-background: var(--scalar-background-accent);
+      --scalar-sidebar-item-active-border-left: 3px solid var(--scalar-color-accent);
+    }
+
+    .dark-mode .sidebar {
+      --scalar-sidebar-item-active-border-left: 3px solid var(--scalar-color-accent);
+    }
+
+  hide-dark-mode-toggle: false
+  hide-models: true
+  hide-search: false
+  hide-test-request-button: false
+  dark-mode: true
 # Cyrus's single platform Nomba account. accountId + subAccountId are SHARED across TEST/LIVE;
 # only clientId/clientSecret differ per environment. Sandbox creds are required to boot; LIVE creds
 # are optional (leave the LIVE env vars unset until you go live).

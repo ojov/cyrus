@@ -205,14 +205,21 @@ merchant can verify both the authenticity and freshness of the webhook. A replay
 
 ### Money Model
 
-All monetary amounts are stored and computed as **BigInteger kobo** (minor units). ₦1 = 100 kobo.
+All monetary amounts are stored and computed as **BigDecimal kobo at scale 4** (`numeric(38,4)`,
+minor units with sub-kobo precision). ₦1 = 100 kobo.
 
 - **Never store naira or floating-point money** in the database
 - Nomba reports amounts as naira decimal strings (e.g. `"281946.0"`) — converted to kobo at the
-  provider boundary via `NombaCurrencyUtil.nairaToKobo()` (×100, `HALF_EVEN` rounding)
+  provider boundary via `NombaCurrencyUtil.nairaToKobo()` (×100, normalized to scale 4); sub-kobo
+  remainders are preserved, not rounded away
+- Fractional kobo flows through fee math, ledger entries and wallet balances; rounding to whole
+  kobo happens only at the payout settlement edge (`PayoutService.koboToNaira`), where Nomba's
+  transfer API requires whole kobo
+- Money is never compared with `equals()` (BigDecimal equality is scale-sensitive) — always
+  `compareTo`/`signum`
 - Display conversion (kobo → naira) happens **only at the frontend display edge** (`naira()` in
   the Next.js app)
-- All arithmetic is integer — no rounding errors, no floating-point drift
+- All arithmetic is exact decimal — no floating-point drift
 
 ### Wallet & Ledger (Double-Entry)
 
@@ -253,7 +260,7 @@ Format: `Base64([12-byte IV][ciphertext + 128-bit tag])` — IV is prepended, no
 - **Flyway-managed migrations** (`ddl-auto: validate`) — schema changes are explicit SQL files,
   not auto-generated from entities
 - All tables use UUID primary keys, with `created_at`/`updated_at` auditing via JPA entity listeners
-- Money columns are `BIGINT` (kobo), never `DECIMAL` or `FLOAT`
+- Money columns are `NUMERIC(38,4)` (kobo with sub-kobo precision), never `FLOAT` or `DOUBLE`
 - Indexes: unique constraints on `(merchant_id, reference)` for customers, `(merchant_id, environment)`
   for wallets, `key_hash` for API keys, `request_id` for idempotency, `(merchant_id, status)` for
   webhook event queries
@@ -278,6 +285,118 @@ All API responses use the `CyrusApiResponse<T>` envelope:
   correlation; no raw provider payloads or stack traces leaked
 - 404 for "not found" and "not yours" are identical — no information leaking about existence
   of other merchants' resources
+
+### Platform Profit Ledger (Proposed)
+
+To give the super-admin reliable visibility into actual platform profitability, we propose adding a
+**lightweight, append-only profit ledger** tied to the existing `Transaction` and payout flows. This
+is not a replacement for merchant wallets; it is a separate ledger that tracks the aggregate
+movement of funds through Cyrus's Nomba account.
+
+**Current state:**
+- Merchant wallets reflect individual credits/debits but do not answer “how much profit has Cyrus
+  made?”
+- `NombaBalanceClient` can fetch the provider snapshot, but there's no durable ledger to reconcile
+  against it.
+- Super-admin lacks a single view of provider balance, merchant liabilities, pending payouts, and
+  accrued platform fees.
+- Fee configuration is now a single-row `FeeConfig` table (inflow percent with min/max caps,
+  payout flat fee) loaded into `FeeProperties` at startup and refreshed on admin update.
+
+**Proposed model (profit ledger):**
+- Add a `platform_profit_entries` table: `id`, `transaction_id` (nullable), `payout_id` (nullable),
+  `entry_type`, `amount_kobo` (signed), `description`, `created_at`.
+- Entry types: `PROFIT_INFLOW` (confirmed payment received), `PROFIT_OUTFLOW` (payout sent/refunded),
+  `PROFIT_FEE_ACCRUAL` (platform fee earned, derived from merchant fee minus provider fee),
+  `PROFIT_ADJUSTMENT` (manual correction).
+- The profit ledger's running total is derived (SUM of entries); no mutable balance column needed
+  (though a materialized view may be added for performance).
+- Every inflow/outflow writes to both the merchant wallet and the profit ledger in the **same
+  transaction**, ensuring consistency.
+- The `PROFIT_FEE_ACCRUAL` entry uses the margin computed by `FeeCalculator` (merchant fee − Nomba
+  fee), so the profit ledger reflects actual Cyrus earnings, not gross merchant fees.
+
+**Reconciliation with provider:**
+- Scheduled sweep: sum profit entries → expected provider balance.
+- Call `NombaBalanceClient` for actual provider balance.
+- Persist a snapshot (`expected`, `actual`, `delta`, `outcome`).
+- If delta outside tolerance → flag discrepancy for review; auto-adjust only for known, rule-based
+  differences (e.g., rounding, undisputed fee variance).
+- The sweep uses the current `FeeProperties` to validate that fee accruals are consistent with
+  the active configuration; drift triggers a review rather than an automatic correction.
+
+**Super-admin dashboard:**
+- `GET /v1/platform/profit-summary` (JWT, super-admin only) returns:
+  - `provider_balance_kobo` (last synced)
+  - `merchant_liabilities_kobo` (sum of all merchant wallet balances)
+  - `pending_payouts_kobo` (sum of in-flight payouts)
+  - `platform_profit_kobo` (derived from profit ledger)
+  - `last_sync_at`, `reconciliation_status`
+  - `fee_config_snapshot` (current inflow percent, min/max, payout fee) for transparency
+
+**Why this fits:**
+- Uses existing transaction/payout IDs as anchors, so every profit entry is traceable.
+- Same-atomicity with merchant wallets keeps both ledgers consistent.
+- Lightweight (single small table, no new domain service beyond posting + sweep).
+- Aligns with the updated fee model (single-row config, min/max caps) by deriving profit entries
+  from the margin, not the gross fee.
+- Extensible: if another provider is added later, we just add provider-balance legs; profit model
+  stays the same.
+
+---
+
+### BigDecimal Migration Review & Bugs Found
+
+The codebase has been migrated from `BigInteger` (integer kobo) to `BigDecimal` (kobo at scale 4)
+across all entities, services, repositories, and API surfaces. Schema migration `V12__money_to_numeric_38_4.sql`
+widened all money columns from `numeric(38)` to `numeric(38,4)`. A new `MoneyUtil` utility provides
+canonical normalization (`HALF_EVEN`, scale 4) and a `ZERO_KOBO` constant.
+
+**Bugs found during review:**
+
+1. **`WalletBalanceResponse` stale javadoc** (`models/responses/WalletBalanceResponse.java:5`):
+   Says "integer kobo" but the value is now `BigDecimal` at scale 4. Documentation only — not a
+   runtime bug, but misleading for API consumers.
+
+2. **`LedgerService.post` — `newBalance` not normalized** (`services/LedgerService.java:51`):
+   `wallet.getAvailableBalance().add(delta)` — `delta` is normalized, but the loaded balance
+   *could* theoretically arrive at a different scale from the JDBC driver. The sum is set on the
+   wallet without a defensive `MoneyUtil.normalize()`. In practice PostgreSQL `numeric(38,4)` always
+   returns scale 4, and all writes go through this path, so this is a **latent risk, not a live
+   bug** — but should be hardened.
+
+3. **`PlatformAdminService.buildLedgerIntegrity` — `BigDecimal.ZERO` instead of
+   `MoneyUtil.ZERO_KOBO`** (`services/PlatformAdminService.java:135`): The default value for a
+   missing wallet in the ledger map is `BigDecimal.ZERO` (scale 0). `compareTo` ignores scale, so
+   the comparison is correct, but it's inconsistent with the rest of the codebase which uses
+   `MoneyUtil.ZERO_KOBO`.
+
+4. **`TransactionIngestionService.handleReversal` — `BigDecimal.ZERO` fallback**
+   (`services/TransactionIngestionService.java:244-245`): The null-guard fallback for `tx.getFee()`
+   and `tx.getPlatformFeeKobo()` uses `BigDecimal.ZERO` (scale 0) instead of `MoneyUtil.ZERO_KOBO`.
+   Functionally correct (the subsequent `ledgerService.debit` normalizes), but inconsistent.
+
+5. **Merchant webhook payload contract change** (`services/MerchantWebhookService.java:108-113`):
+   JSON money fields (`amountKobo`, `feeKobo`) now serialize as scale-4 BigDecimal values (e.g.
+   `1500.0150`) instead of plain integers. Merchants parsing these as integers will silently
+   truncate fractional kobo. This is a **breaking API contract change** that should be communicated
+   in release notes.
+
+6. **`FeeProperties` defaults at scale 0** (`config/properties/FeeProperties.java:35-39`):
+   `inflowMinKobo`, `inflowMaxKobo`, `payoutFlatFeeKobo` are initialized as `new BigDecimal("1500")`
+   (scale 0). They're normalized downstream before use, so this is safe — but ideally should be
+   created at scale 4 or normalized in `FeeConfigService.applyToProperties()` for consistency.
+
+**Plan adjustments for the profit ledger (BigDecimal):**
+- All `platform_profit_entries` columns must use `@Column(precision = 38, scale = 4)`.
+- The profit ledger's running total is a `BigDecimal` sum, always normalized via `MoneyUtil.normalize()`.
+- The scheduled reconciliation sweep compares `BigDecimal` values using `compareTo`, never `equals`.
+- The profit summary endpoint returns `BigDecimal` amounts at scale 4 — same contract as the rest
+  of the API.
+- The migration for the profit ledger should use `numeric(38,4)` for all money columns, matching
+  `V12__money_to_numeric_38_4.sql`.
+
+---
 
 ### Misattributed Payment Recovery
 
@@ -322,7 +441,7 @@ the payment is attributed retroactively without the merchant or customer needing
 | **Inbound webhook security** | HMAC-SHA256 signature, canonical string, constant-time comparison |
 | **Outbound webhook security** | Stripe-style HMAC (`timestamp.payload`), merchant `whsec_` secret encrypted at rest |
 | **Data encryption at rest** | AES-256-GCM for webhook secrets |
-| **Money** | BigInteger kobo everywhere, never floating-point |
+| **Money** | BigDecimal kobo (scale 4) everywhere, never floating-point |
 | **Wallet** | Double-entry append-only ledger, pessimistic locking |
 | **Error handling** | Structured envelope, no stack/data leaks to client |
 | **Schema changes** | Flyway migrations, no auto-DDL |

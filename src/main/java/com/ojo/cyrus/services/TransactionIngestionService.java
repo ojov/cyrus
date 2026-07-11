@@ -20,6 +20,7 @@ import com.ojo.cyrus.repositories.MerchantCustomerRepository;
 import com.ojo.cyrus.repositories.MerchantRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
+import com.ojo.cyrus.utils.MoneyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -28,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -61,6 +62,7 @@ public class TransactionIngestionService {
     private final ReconciliationService reconciliationService;
     private final MerchantWebhookService merchantWebhookService;
     private final LedgerService ledgerService;
+    private final PlatformProfitService platformProfitService;
 
     /**
      * @return the created {@link Transaction} only when this event is a genuine VA credit —
@@ -240,11 +242,22 @@ public class TransactionIngestionService {
             // Only the NET amount (gross minus Nomba's fee and Cyrus's markup, both already debited
             // out at reconciliation) was ever added to the wallet — refund that, not the gross amount,
             // or the reversal would drain more than this payment actually put in.
-            BigInteger netCredited = tx.getAmount()
-                    .subtract(tx.getFee() != null ? tx.getFee() : BigInteger.ZERO)
-                    .subtract(tx.getPlatformFeeKobo() != null ? tx.getPlatformFeeKobo() : BigInteger.ZERO);
+            BigDecimal netCredited = tx.getAmount()
+                    .subtract(tx.getFee() != null ? tx.getFee() : MoneyUtil.ZERO_KOBO)
+                    .subtract(tx.getPlatformFeeKobo() != null ? tx.getPlatformFeeKobo() : MoneyUtil.ZERO_KOBO);
             ledgerService.debit(tx.getMerchant(), netCredited, tx,
                     LedgerEntryType.REVERSAL, "Reversal of transaction " + tx.getReference());
+
+            // Reverse the inflow on the platform profit ledger, and claw back the FULL merchant fee
+            // (margin + Nomba's fee), not just the margin: the pool repays the payer the gross, but
+            // the merchant only refunds the net it was credited — Cyrus absorbs both its own margin
+            // AND the provider fee it already paid Nomba. Without the provider-fee leg, the pool
+            // identity (expected balance = merchant liabilities + accrued profit) breaks on every
+            // reversal.
+            platformProfitService.reverseInflow(tx, tx.getAmount());
+            if (tx.getMerchantFeeKobo() != null) {
+                platformProfitService.recordFeeAccrual(tx, tx.getMerchantFeeKobo().negate());
+            }
         }
 
         paymentEvent.setMerchant(tx.getMerchant());

@@ -1,6 +1,6 @@
 package com.ojo.cyrus.models.responses;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -8,7 +8,7 @@ import java.util.List;
 public record MerchantStatsResponse(
         long customers,
         long virtualAccounts,
-        BigInteger walletBalance,
+        BigDecimal walletBalance,
         ReconciliationSummary reconciliation,
         List<DailyInflow> inflowLast7Days
 ) {
@@ -27,6 +27,6 @@ public record MerchantStatsResponse(
     /** One day's total confirmed inbound volume (kobo), for the last-7-days sparkline. */
     public record DailyInflow(
             LocalDate date,
-            BigInteger amountKobo
+            BigDecimal amountKobo
     ) {}
 }

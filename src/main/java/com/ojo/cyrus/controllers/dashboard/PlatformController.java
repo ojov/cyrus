@@ -3,7 +3,9 @@ package com.ojo.cyrus.controllers.dashboard;
 import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.models.responses.PlatformOverviewResponse;
+import com.ojo.cyrus.models.responses.PlatformProfitSummaryResponse;
 import com.ojo.cyrus.services.PlatformAdminService;
+import com.ojo.cyrus.services.PoolReconciliationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlatformController {
 
     private final PlatformAdminService platformAdminService;
+    private final PoolReconciliationService poolReconciliationService;
 
     @Operation(
             summary = "Platform overview",
@@ -37,5 +40,17 @@ public class PlatformController {
         platformAdminService.requireSuperAdmin(jwt.getSubject());
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Platform overview retrieved",
                 platformAdminService.getOverview());
+    }
+
+    @Operation(
+            summary = "Platform profit summary",
+            description = "Expected vs actual provider balance, total inflows/outflows, accrued fees, " +
+                    "merchant liabilities, and reconciliation status. Super-admin only.",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @GetMapping("/profit")
+    public CyrusApiResponse<PlatformProfitSummaryResponse> profitSummary(@AuthenticationPrincipal Jwt jwt) {
+        platformAdminService.requireSuperAdmin(jwt.getSubject());
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Profit summary retrieved",
+                poolReconciliationService.getSummary());
     }
 }

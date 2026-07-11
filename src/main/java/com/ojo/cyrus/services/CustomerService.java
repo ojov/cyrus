@@ -27,6 +27,7 @@ import com.ojo.cyrus.repositories.MerchantCustomerRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
 import com.ojo.cyrus.utils.Mapper;
+import com.ojo.cyrus.utils.MoneyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -40,7 +41,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -106,12 +107,12 @@ public class CustomerService {
         Page<MerchantCustomer> customers = merchantCustomerRepository.findByMerchantId(merchantId, sorted);
 
         List<UUID> customerIds = customers.getContent().stream().map(MerchantCustomer::getId).toList();
-        Map<UUID, BigInteger> lifetimeByCustomerId = customerIds.isEmpty() ? Map.of()
+        Map<UUID, BigDecimal> lifetimeByCustomerId = customerIds.isEmpty() ? Map.of()
                 : transactionRepository.sumAmountByCustomerIdsAndStatus(merchantId, customerIds, TransactionStatus.SUCCESSFUL)
-                        .stream().collect(Collectors.toMap(row -> (UUID) row[0], row -> (BigInteger) row[1]));
+                        .stream().collect(Collectors.toMap(row -> (UUID) row[0], row -> (BigDecimal) row[1]));
 
         return customers.map(customer -> Mapper.toCustomerListItemResponse(customer,
-                lifetimeByCustomerId.getOrDefault(customer.getId(), BigInteger.ZERO)));
+                lifetimeByCustomerId.getOrDefault(customer.getId(), MoneyUtil.ZERO_KOBO)));
     }
 
     /**

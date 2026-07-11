@@ -25,7 +25,7 @@ import java.time.Instant;
 @RequiredArgsConstructor
 @Tag(name = "Transactions", description = """
         Your transaction history — inbound customer payments and outbound payouts, across all customers.
-        For CUSTOMER_PAYMENT transactions, feeKobo is Nomba's processing fee (1% min ₦10, max ₦150).
+        For CUSTOMER_PAYMENT transactions, feeKobo is the total merchant fee (inflowPercent of gross, min ₦15, max ₦225).
         For PAYOUT transactions, feeKobo is Cyrus's flat ₦30 fee.""")
 public class TransactionController {
 

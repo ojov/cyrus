@@ -1,6 +1,5 @@
 package com.ojo.cyrus.services;
 
-import com.ojo.cyrus.config.properties.FeeProperties;
 import com.ojo.cyrus.config.properties.ReconciliationProperties;
 import com.ojo.cyrus.enums.LedgerEntryType;
 import com.ojo.cyrus.enums.MatchStatus;
@@ -14,6 +13,7 @@ import com.ojo.cyrus.nomba.dto.NombaTransactionData;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.utils.FeeCalculator;
+import com.ojo.cyrus.utils.MoneyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +50,8 @@ public class ReconciliationService {
     private final ReconciliationProperties reconciliationProperties;
     private final MerchantWebhookService merchantWebhookService;
     private final LedgerService ledgerService;
-    private final FeeProperties feeProperties;
+    private final FeeConfigService feeConfigService;
+    private final PlatformProfitService platformProfitService;
 
     /**
      * Fire-and-forget entry point called right after a transaction is committed. Exceptions are
@@ -142,9 +143,10 @@ public class ReconciliationService {
                 tx.setStatus(TransactionStatus.SUCCESSFUL);
             }
 
-            BigInteger providerAmount = NombaCurrencyUtil.nairaToKobo(providerTx.transactionAmount());
+            // compareTo, not equals — BigDecimal.equals is scale-sensitive (12000 ≠ 12000.0000).
+            BigDecimal providerAmount = NombaCurrencyUtil.nairaToKobo(providerTx.transactionAmount());
             List<String> diffs = new ArrayList<>();
-            if (!providerAmount.equals(tx.getAmount())) {
+            if (providerAmount.compareTo(tx.getAmount()) != 0) {
                 diffs.add("Webhook amount=" + tx.getAmount() + ", Nomba requery amount=" + providerAmount);
             }
 
@@ -152,7 +154,7 @@ public class ReconciliationService {
             // response — see NombaTransactionData) — the webhook's transaction.fee, captured into
             // tx.fee at ingestion, is the only fee Nomba ever reports. Once requery confirms the
             // transaction is real, that webhook fee is trusted for the platform-fee calculation below.
-            BigInteger confirmedFee = tx.getFee();
+            BigDecimal confirmedFee = tx.getFee();
 
             String txCurrency = tx.getCurrency() != null ? tx.getCurrency().name() : null;
             if (providerTx.currency() != null && txCurrency != null && !providerTx.currency().equalsIgnoreCase(txCurrency)) {
@@ -187,8 +189,8 @@ public class ReconciliationService {
             if (promoted) {
                 // Use the Nomba-confirmed amount for crediting. On DISCREPANCY, update the transaction
                 // amount to reflect what Nomba actually confirmed — this is the source of truth.
-                BigInteger creditAmount = providerAmount;
-                if (!providerAmount.equals(tx.getAmount())) {
+                BigDecimal creditAmount = providerAmount;
+                if (providerAmount.compareTo(tx.getAmount()) != 0) {
                     log.warn("Transaction {} amount corrected: webhook={} → confirmed={}",
                             tx.getId(), tx.getAmount(), providerAmount);
                     tx.setAmount(providerAmount);
@@ -197,10 +199,14 @@ public class ReconciliationService {
                 ledgerService.credit(tx.getMerchant(), creditAmount, tx,
                         LedgerEntryType.MERCHANT_WALLET_CREDIT, "Payment " + tx.getReference());
 
+                // Mirror to platform profit ledger: confirmed inflow into Nomba.
+                platformProfitService.recordInflow(tx);
+
                 if (confirmedFee != null && confirmedFee.signum() > 0) {
-                    BigInteger merchantFee = FeeCalculator.computeInflowMerchantFee(creditAmount, feeProperties);
-                    BigInteger cyrusMargin = merchantFee.subtract(confirmedFee).max(BigInteger.ZERO);
+                    BigDecimal merchantFee = FeeCalculator.computeInflowMerchantFee(creditAmount, feeConfigService.current());
+                    BigDecimal cyrusMargin = merchantFee.subtract(confirmedFee).max(BigDecimal.ZERO);
                     tx.setPlatformFeeKobo(cyrusMargin);
+                    tx.setMerchantFeeKobo(merchantFee);
 
                     ledgerService.debit(tx.getMerchant(), confirmedFee, tx,
                             LedgerEntryType.PROVIDER_FEE, "Nomba fee for " + tx.getReference());
@@ -208,7 +214,11 @@ public class ReconciliationService {
                         ledgerService.debit(tx.getMerchant(), cyrusMargin, tx,
                                 LedgerEntryType.PLATFORM_FEE, "Cyrus platform fee for " + tx.getReference());
                     }
+
+                    // Record the platform fee earned on the profit ledger.
+                    platformProfitService.recordFeeAccrual(tx, cyrusMargin);
                 } else {
+                    tx.setMerchantFeeKobo(MoneyUtil.ZERO_KOBO);
                     log.warn("Transaction {} confirmed with no fee reported by the webhook — " +
                             "crediting full gross with no platform fee applied", tx.getId());
                 }

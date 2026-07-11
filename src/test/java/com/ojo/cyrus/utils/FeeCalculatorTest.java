@@ -4,75 +4,98 @@ import com.ojo.cyrus.config.properties.FeeProperties;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class FeeCalculatorTest {
 
     private final FeeProperties props = new FeeProperties(
             new BigDecimal("1.5"),
-            new BigInteger("1500"),
-            new BigInteger("22500"),
-            new BigInteger("3000")
+            new BigDecimal("1500"),
+            new BigDecimal("22500"),
+            new BigDecimal("3000")
     );
 
     @Test
     void standardFee() {
-        BigInteger fee = FeeCalculator.computeInflowMerchantFee(new BigInteger("1000000"), props);
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("1000000"), props);
         // 1.5% of ₦10,000 = ₦150 → 15000 kobo (within min/max)
-        assertEquals(new BigInteger("15000"), fee);
+        assertThat(fee).isEqualByComparingTo("15000");
     }
 
     @Test
     void belowMinimumClamps() {
-        BigInteger fee = FeeCalculator.computeInflowMerchantFee(new BigInteger("50000"), props);
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("50000"), props);
         // 1.5% of ₦500 = ₦7.50 → clamped to ₦15 minimum (1500 kobo)
-        assertEquals(new BigInteger("1500"), fee);
+        assertThat(fee).isEqualByComparingTo("1500");
     }
 
     @Test
     void aboveMaximumClamps() {
-        BigInteger fee = FeeCalculator.computeInflowMerchantFee(new BigInteger("50000000"), props);
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("50000000"), props);
         // 1.5% of ₦500,000 = ₦7,500 → clamped to ₦225 maximum (22500 kobo)
-        assertEquals(new BigInteger("22500"), fee);
+        assertThat(fee).isEqualByComparingTo("22500");
     }
 
     @Test
     void zeroAmount() {
-        assertEquals(BigInteger.ZERO, FeeCalculator.computeInflowMerchantFee(BigInteger.ZERO, props));
+        assertThat(FeeCalculator.computeInflowMerchantFee(BigDecimal.ZERO, props))
+                .isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test
     void nullAmount() {
-        assertEquals(BigInteger.ZERO, FeeCalculator.computeInflowMerchantFee(null, props));
+        assertThat(FeeCalculator.computeInflowMerchantFee(null, props))
+                .isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test
     void exactlyMinimum() {
-        BigInteger fee = FeeCalculator.computeInflowMerchantFee(new BigInteger("100000"), props);
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("100000"), props);
         // 1.5% of ₦1,000 = ₦15 → exactly minimum (1500 kobo)
-        assertEquals(new BigInteger("1500"), fee);
+        assertThat(fee).isEqualByComparingTo("1500");
     }
 
     @Test
     void exactlyMaximum() {
-        BigInteger fee = FeeCalculator.computeInflowMerchantFee(new BigInteger("15000000"), props);
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("15000000"), props);
         // 1.5% of ₦150,000 = ₦2,250 → exactly maximum (22500 kobo)
-        assertEquals(new BigInteger("22500"), fee);
+        assertThat(fee).isEqualByComparingTo("22500");
     }
 
     @Test
-    void roundingHalfEven() {
-        BigInteger fee = FeeCalculator.computeInflowMerchantFee(new BigInteger("500000"), props);
+    void withinBoundsNoClamping() {
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("500000"), props);
         // 1.5% of ₦5,000 = ₦75 = 7500 kobo. Within bounds, no clamping.
-        assertEquals(new BigInteger("7500"), fee);
+        assertThat(fee).isEqualByComparingTo("7500");
     }
 
     @Test
-    void largeAmountWithinCaps() {
-        BigInteger fee = FeeCalculator.computeInflowMerchantFee(new BigInteger("12500000"), props);
+    void largeAmountClampsToMax() {
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("12500000"), props);
         // 1.5% of ₦125,000 = ₦1,875 → clamped to ₦225 max (22500 kobo)
-        assertEquals(new BigInteger("22500"), fee);
+        assertThat(fee).isEqualByComparingTo("22500");
+    }
+
+    // ---- Sub-kobo precision: fractional fees survive instead of rounding to whole kobo ----
+
+    @Test
+    void fractionalFeePreserved() {
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("100001"), props);
+        // 1.5% of 100,001 kobo = 1500.015 kobo — the fractional remainder is kept, not rounded away.
+        assertThat(fee).isEqualByComparingTo("1500.015");
+    }
+
+    @Test
+    void fractionalInputAmountPreserved() {
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("500033.5"), props);
+        // 1.5% of 500,033.5 kobo = 7500.5025 kobo, within bounds.
+        assertThat(fee).isEqualByComparingTo("7500.5025");
+    }
+
+    @Test
+    void resultIsCanonicalScale4() {
+        BigDecimal fee = FeeCalculator.computeInflowMerchantFee(new BigDecimal("1000000"), props);
+        assertThat(fee.scale()).isEqualTo(MoneyUtil.KOBO_SCALE);
     }
 }
