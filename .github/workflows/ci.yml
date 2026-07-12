@@ -7,12 +7,6 @@ on:
       - main
     paths-ignore:
       - "sdk/**"
-  push:
-    branches:
-      - dev
-    paths-ignore:
-      - "sdk/**"
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

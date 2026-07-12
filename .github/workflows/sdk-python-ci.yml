@@ -7,11 +7,6 @@ on:
       - main
     paths:
       - "sdk/python/**"
-  push:
-    branches:
-      - dev
-    paths:
-      - "sdk/python/**"
 
 concurrency:
   group: sdk-python-${{ github.ref }}
