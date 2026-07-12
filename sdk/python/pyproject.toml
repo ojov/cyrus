@@ -1,0 +1,26 @@
+[project]
+name = "cyrus-payments"
+version = "0.1.0"
+description = "Python SDK for the Cyrus Payments API"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.27,<1",
+    "pydantic>=2.0,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "pytest-asyncio>=0.24,<1",
+    "respx>=0.22,<1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cyrus"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
