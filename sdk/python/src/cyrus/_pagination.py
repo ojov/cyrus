@@ -1,25 +1,23 @@
 from __future__ import annotations
 
-from typing import Any, Iterator, TypeVar
-
-from pydantic import TypeAdapter
+from typing import Any, Generic, Iterator, TypeVar
 
 from cyrus._http import HttpClient
+from cyrus._utils import parse_model
 from cyrus.models.responses import PageResponse
 
 T = TypeVar("T")
 
 
-class Page:
+class Page(Generic[T]):
     """A single page of results from a paginated endpoint."""
 
     def __init__(self, data: dict[str, Any], item_type: type[T]) -> None:
-        self._page = PageResponse.model_validate(data)
-        self._adapter = TypeAdapter(list[item_type])  # type: ignore[type-arg]
-        self.items: list[T] = self._adapter.validate_python(self._page.content)
+        self._page: PageResponse[T] = parse_model(PageResponse[item_type], data)
+        self.items: list[T] = self._page.content
 
     @property
-    def meta(self) -> PageResponse:
+    def meta(self) -> PageResponse[T]:
         return self._page
 
     @property
@@ -56,7 +54,7 @@ class Page:
         return len(self.items)
 
 
-class PageIterator:
+class PageIterator(Generic[T]):
     """Auto-paginating iterator that yields items across all pages."""
 
     def __init__(
@@ -73,14 +71,17 @@ class PageIterator:
         self._item_type = item_type
         self._params = params or {}
         self._page_size = page_size
-        self._current_page = 0
 
     def __iter__(self) -> Iterator[T]:
+        # Page cursor is local to each __iter__ call (not instance state), so iterating the same
+        # PageIterator object more than once always restarts from page 0 instead of silently
+        # resuming from wherever the previous traversal left off.
+        current_page = 0
         while True:
-            params = {**self._params, "page": self._current_page, "size": self._page_size}
+            params = {**self._params, "page": current_page, "size": self._page_size}
             data = self._client.get(self._path, params=params)
             page = Page(data, self._item_type)
             yield from page.items
             if page.is_last or page.is_empty:
                 break
-            self._current_page += 1
+            current_page += 1

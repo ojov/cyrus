@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -14,10 +15,12 @@ from cyrus._exceptions import (
     UnauthorizedError,
     ValidationError,
 )
+from cyrus._utils import query_value
 
 _DEFAULT_BASE_URL = "https://api.trycyrus.app"
 _MAX_RETRIES = 3
 _RETRY_BACKOFF = 0.5  # seconds, doubled each attempt
+_RETRYABLE_METHODS = frozenset({"GET", "DELETE"})  # only retry HTTP-idempotent methods
 
 
 class HttpClient:
@@ -36,9 +39,12 @@ class HttpClient:
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=timeout,
         )
-        self._max_retries = max_retries
+        # Always at least one real attempt — max_retries=0 must not mean "never call the server".
+        self._max_retries = max(1, max_retries)
 
     def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
+        if params:
+            params = {key: query_value(value) for key, value in params.items()}
         return self._request("GET", path, params=params)
 
     def post(self, path: str, *, json: dict[str, Any] | None = None) -> Any:
@@ -51,25 +57,40 @@ class HttpClient:
         return self._request("DELETE", path)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        # POST/PATCH aren't idempotent and the API has no idempotency-key mechanism, so retrying
+        # them on a connection-level failure risks double-submitting a write whose response was
+        # merely lost — only retry methods that are safe to repeat.
+        attempts = self._max_retries if method in _RETRYABLE_METHODS else 1
         last_exc: Exception | None = None
-        for attempt in range(self._max_retries):
+        for attempt in range(attempts):
             try:
                 resp = self._client.request(method, path, **kwargs)
-                return self._handle_response(resp)
+            except RuntimeError as exc:
+                # httpx raises a bare RuntimeError if the client was already closed — not a
+                # transient failure, so don't retry it; just surface it as our own exception type.
+                raise CyrusAPIError(code="99", message=str(exc), status_code=None) from exc
             except (httpx.TimeoutException, httpx.ConnectError, httpx.RemoteProtocolError) as exc:
                 last_exc = exc
-                if attempt < self._max_retries - 1:
+                if attempt < attempts - 1:
                     time.sleep(_RETRY_BACKOFF * (2 ** attempt))
+                continue
+            return self._handle_response(resp)
         raise CyrusAPIError(
             code="99",
-            message=f"Connection failed after {self._max_retries} attempts: {last_exc}",
+            message=f"Connection failed after {attempts} attempt(s): {last_exc}",
             status_code=None,
         )
 
     @staticmethod
     def _handle_response(resp: httpx.Response) -> Any:
         try:
-            body: dict[str, Any] = resp.json()
+            # parse_float=Decimal preserves exact sub-kobo precision on money fields — the stdlib
+            # json module's default float parsing round-trips fractional numbers through float64
+            # first, silently truncating exactly the precision this API's money fields guarantee
+            # (and note: pydantic's own JSON parser has the same float64 round-trip, so re-parsing
+            # via model_validate_json instead of model_validate(resp.json()) would NOT fix this —
+            # the fix has to happen here, at the json.loads level).
+            body: dict[str, Any] = resp.json(parse_float=Decimal)
         except ValueError:
             # The api-key chain rejects missing/invalid keys before the request ever reaches a
             # controller, so there's no CyrusApiResponse envelope to parse — just a bare status.

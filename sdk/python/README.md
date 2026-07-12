@@ -76,6 +76,8 @@ for row in statement.transactions.content:
     print(row.ref, row.amount_kobo, row.match_status)
 
 # Filter by date range and/or match status
+from cyrus import MatchStatus
+
 filtered = client.customers.statement(
     "cust_123",
     from_date="2025-01-01T00:00:00Z",
