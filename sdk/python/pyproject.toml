@@ -1,6 +1,6 @@
 [project]
 name = "cyrus-payments"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Python SDK for the Cyrus Payments API"
 requires-python = ">=3.10"
 dependencies = [
@@ -18,6 +18,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/cyrus/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cyrus"]
