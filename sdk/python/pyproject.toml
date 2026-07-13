@@ -2,12 +2,29 @@
 name = "cyrus-payments"
 dynamic = ["version"]
 description = "Python SDK for the Cyrus Payments API"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "ojov", email = "oticconsults@gmail.com" },
+]
 requires-python = ">=3.10"
+keywords = ["cyrus", "payments", "nomba", "virtual-accounts", "fintech", "api-client", "sdk"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "httpx>=0.27,<1",
     "pydantic>=2.0,<3",
-    "pytest>=8.4.2",
-    "pytest-asyncio>=0.26.0",
 ]
 
 [project.optional-dependencies]
@@ -16,6 +33,11 @@ dev = [
     "pytest-asyncio>=0.24,<1",
     "respx>=0.22,<1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ojov/cyrus/tree/main/sdk/python"
+Repository = "https://github.com/ojov/cyrus"
+"API Reference" = "https://api.trycyrus.app/docs"
 
 [build-system]
 requires = ["hatchling"]
