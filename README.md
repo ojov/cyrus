@@ -177,7 +177,7 @@ cyrus/
 
 - **Support Email:** [oticconsults@gmail.com](mailto:oticconsults@gmail.com)
 - **Website:** [https://trycyrus.app](https://trycyrus.app)
-- **Status Page:** [https://status.trycyrus.app](https://api.trycyrus.app/actuator/health)
+- **Status Page:** [https://api.trycyrus.app/actuator/health](https://api.trycyrus.app/actuator/health)
 
 ---
 

@@ -20,9 +20,9 @@ to bank beneficiaries — all without holding Nomba credentials.
 │              │     │  │          │  │                  │ │     │  Transfer   │
 │  POST /v1/   │     │  │ POST     │  │ /v1/auth/login   │ │     │  Webhook    │
 │  customers   │     │  │ /v1/     │  │ /v1/merchants/me │ │     │  Requery    │
-│  POST /v1/   │     │  │ customers│  │ /ops/* frontend  │ │     └─────────────┘
-│  payouts     │     │  │ /v1/     │  └──────────────────┘ │
-│              │     │  │ transact.│                       │
+│              │     │  │ customers│  │  /payouts        │ │     └─────────────┘
+│              │     │  │ /v1/     │  │ /ops/* frontend  │ │
+│              │     │  │ transact.│  └──────────────────┘ │
 │              │     │  └──────────┘                       │
 │              │     │                                     │
 │              │     │  ┌─────────────────────────────────┐ │
@@ -61,7 +61,7 @@ The API routes through one of two Spring Security filter chains:
 | **JWT chain** (default) | Everything else — `/v1/merchants/me/**`, `/v1/admin/**` | JWT (RSA-signed, httpOnly cookie or Bearer header) | The authenticated `Merchant` user |
 
 Public (unauthenticated) routes: login, register, password reset, `/docs`, `/actuator/health`, and the
-**Nomba webhook receiver** (`POST /v1/webhooks/nomba` — HMMA-authenticated, see below).
+**Nomba webhook receiver** (`POST /v1/webhooks/nomba` — HMAC-authenticated, see below).
 
 ### Frontend Architecture
 
@@ -100,7 +100,7 @@ without storing sensitive data client-side.
 
 Developers authenticate programmatic requests with an API key:
 
-- **Format:** `cyrus_` + 32 cryptographically random bytes (URL-safe Base64) = 56-char string
+- **Format:** `cyrus_` + 32 cryptographically random bytes (URL-safe Base64, unpadded) = 49-char string
 - **Header:** `Authorization: Bearer cyrus_<key>`
 - **Storage (at rest):** The raw key is **shown exactly once** at creation, then **only its SHA-256
   hash is persisted**. The raw key is never stored, logged, or recoverable.
@@ -223,8 +223,8 @@ minor units with sub-kobo precision). ₦1 = 100 kobo.
 
 ### Wallet & Ledger (Double-Entry)
 
-Each merchant has a wallet (one per environment). The wallet balance is derived from an **append-only,
-double-entry LedgerEntry trail**:
+Each merchant has one wallet (not per-environment — see Environment Separation below). The wallet
+balance is derived from an **append-only, double-entry LedgerEntry trail**:
 
 | Operation | Debit | Credit |
 |---|---|---|
