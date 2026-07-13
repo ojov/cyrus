@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cyrus — Web
 
-## Getting Started
+Next.js 16 frontend for [Cyrus](../README.md) — public developer docs and the merchant ops dashboard,
+both served from this one app. Talks to the Java backend at the repo root over HTTP; has no backend
+logic of its own.
 
-First, run the development server:
+## Tech stack
+
+- **Next.js 16 (App Router), React 19, TypeScript, Tailwind v4**
+- Package manager is **pnpm** — this project does not use npm/yarn
+- Dependency-free UI: inline SVG icons, hand-rolled `cn`/`naira`/`statusClass` helpers, no shadcn/react-query/sonner
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). By default the app points at the backend on
+`http://localhost:8080`; override with:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+NEXT_PUBLIC_API_URL=https://api.trycyrus.app pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Other commands: `pnpm build`, `pnpm lint`.
 
-## Learn More
+> **pnpm 11.0.9 gotcha:** it wrongly errors on the ignored native builds (`sharp`, `unrs-resolver`),
+> which cascades into `build`/`lint` via its pre-run deps check. Already fixed via
+> `pnpm-workspace.yaml → verifyDepsBeforeRun: false` — don't remove that setting.
 
-To learn more about Next.js, take a look at the following resources:
+## Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Two route groups, one app:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **`app/(docs)/`** — public developer docs, no auth required. Getting Started, API Reference
+  (authentication, virtual accounts, payments, transactions, payouts, webhooks, errors), API Keys,
+  Webhook Testing, Changelog, SDKs. Nav order lives in `lib/docs-nav.ts`. A permanent link to the
+  live Scalar API reference (`${NEXT_PUBLIC_API_URL}/docs`) is the actual source of truth for exact
+  request/response shapes — these pages are a narrative walkthrough, not a full schema reference.
+- **`app/(dashboard)/`** — the merchant ops dashboard, login-gated, served at **`/ops`** (not
+  `/dashboard` — see `AGENTS.md` for why). Overview, Customers, Transactions, Reconciliation, API
+  Keys, Settings.
+- **`app/(auth)/`** — `/login`, `/register`.
 
-## Deploy on Vercel
+## Conventions & design
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Full conventions (design tokens, money-as-kobo rendering rules, data-fetching patterns, React 19
+lint rules, etc.) live in [`AGENTS.md`](./AGENTS.md) — read that before making non-trivial changes,
+it's kept current as the codebase evolves. Design spec + interactive prototype are linked from
+[`DESIGN.md`](./DESIGN.md).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Repo layout note
+
+This is a separate Next.js app inside the [Cyrus](../README.md) monorepo — the Java Spring Boot
+backend lives at the repo root and has its own build/test commands (`./mvnw ...`), which don't apply
+here.
