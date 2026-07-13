@@ -2,6 +2,7 @@
 
 > Guidance for AI agents working in this repo. `CLAUDE.md` is a symlink to this file.
 > The `web/` directory is a **separate Next.js 16 frontend** with its own `AGENTS.md`/`CLAUDE.md` — the rules below apply to the Java backend at the repo root, not to `web/`.
+> The `sdk/python/` directory is an **independent Python package** (`cyrus-payments` on PyPI, published from a `sdk-python-v*` git tag) — it has its own `README.md` for usage docs and no separate agent-instructions file; the Java-specific conventions below (money-as-BigDecimal, `CyrusApiResponse` envelope, Lombok style, etc.) don't apply to it, but it should stay in sync with whatever developer (API-key) endpoints exist here.
 >
 > **This is a living document — keep it current as the codebase grows.** Several sections below describe deliberate *current-state* choices that will change as we approach submission (e.g. more API-key endpoints will be added). When you change one of those realities, update this file in the same commit.
 
@@ -171,3 +172,4 @@ Reconciliation accuracy and developer API quality remain the priority surface.
 
 - Root = Spring Boot backend (this file's scope).
 - `web/` = independent Next.js 16 app — has its own agent instructions; don't apply backend build/test commands there.
+- `sdk/python/` = independent Python package (`cyrus-payments`); build/test with `uv`, not Maven — see `sdk/python/README.md`.

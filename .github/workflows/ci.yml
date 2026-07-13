@@ -5,10 +5,8 @@ on:
     branches:
       - dev
       - main
-  push:
-    branches:
-      - dev
-
+    paths-ignore:
+      - "sdk/**"
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

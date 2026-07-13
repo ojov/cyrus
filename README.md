@@ -102,6 +102,19 @@ developer docs at [https://trycyrus.app](https://trycyrus.app).
 
 ---
 
+## 📦 Python SDK
+
+A Python SDK is available on PyPI as [`cyrus-payments`](https://pypi.org/project/cyrus-payments/),
+covering the developer (API-key) surface — customers, transactions, and payment events.
+
+```bash
+pip install cyrus-payments
+```
+
+See [`sdk/python/README.md`](./sdk/python/README.md) for usage instructions.
+
+---
+
 ## 📄 Architecture & Security
 
 See [`ARCHITECTURE_AND_SECURITY.md`](./ARCHITECTURE_AND_SECURITY.md) — a high-level overview of the Cyrus architecture,
@@ -141,6 +154,7 @@ cyrus/
 │   │   └── resources/      # App config, migrations, templates
 │   └── test/               # Unit and integration tests
 ├── web/                    # Next.js 16 frontend (dashboard + public developer docs) — own AGENTS.md
+├── sdk/python/             # Python SDK (cyrus-payments on PyPI) — own README
 ├── Dockerfile              # Container definition
 ├── compose.yaml            # Local Postgres
 ├── pom.xml                 # Maven dependencies & build config
@@ -148,48 +162,6 @@ cyrus/
 ```
 
 ---
-
-## ☁️ Production Deployment (GCP Cloud Run)
-
-The API runs on Cloud Run (`cyrus-api`, project `nombacyrus`, region `us-central1`), served at **https://api.trycyrus.app**. CI (`.github/workflows/deploy.yml`) auto-deploys on push to `main`: it builds the image, then applies **`service.yaml`** — the single source of truth for runtime config — via `gcloud run services replace`.
-
-**Required secrets** (Secret Manager, mapped in `service.yaml`): `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `APP_ENCRYPTION_KEY`, `RSA_PRIVATE_KEY`, `RSA_PUBLIC_KEY`, `RESEND_API_KEY`, `NOMBA_WEBHOOK_SECRET`. Non-secret config (`APP_ENV`, `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`) is plain env in the same file.
-
-### Manual deploy (single line — copy the whole block)
-
-```bash
-sed "s|IMAGE_PLACEHOLDER|us-central1-docker.pkg.dev/nombacyrus/cyrus/cyrus-api:latest|g" .github/deploy/service.yaml | gcloud run services replace - --region us-central1
-```
-
-### Restore env/secrets without a code deploy (single line — copy the whole block)
-
-```bash
-gcloud run services update cyrus-api --region us-central1 --set-secrets "DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,APP_ENCRYPTION_KEY=APP_ENCRYPTION_KEY:latest,RSA_PRIVATE_KEY=RSA_PRIVATE_KEY:latest,RSA_PUBLIC_KEY=RSA_PUBLIC_KEY:latest,RESEND_API_KEY=RESEND_API_KEY:latest,NOMBA_WEBHOOK_SECRET=NOMBA_WEBHOOK_SECRET:latest" --set-env-vars "^@^APP_ENV=prod@APP_BASE_URL=https://api.trycyrus.app@CORS_ALLOWED_ORIGINS=https://trycyrus.app,http://localhost:3000"
-```
-
-> These are **one physical line each** — no backslashes — so they paste cleanly (the earlier failure was a trailing space after a `\` line-continuation).
-
-> **Note:** `service.yaml` uses the Knative schema (`serving.knative.dev/v1`) — that's just Cloud Run's declarative config format. **We are not running Kubernetes.**
-
-### Adding a new secret
-
-```bash
-# 1. Create the secret (or add a new version to an existing one)
-echo -n "the-value" | gcloud secrets create SOME_NEW_KEY --data-file=- --replication-policy=automatic
-
-# 2. Grant the runtime service account read access
-gcloud secrets add-iam-policy-binding SOME_NEW_KEY \
-  --member="serviceAccount:cyrus-api-runtime@nombacyrus.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
-```
-
-3. Add it to `service.yaml` under the container's `env:`
-   ```yaml
-   - name: SOME_NEW_KEY
-     valueFrom:
-       secretKeyRef: { name: SOME_NEW_KEY, key: latest }
-   ```
-4. Reference `${SOME_NEW_KEY}` in `application.yaml`, then deploy (push to `main`, or the manual replace above).
 
 ## 🤝 Contributing
 
