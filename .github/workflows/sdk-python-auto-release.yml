@@ -70,4 +70,6 @@ jobs:
     name: Build and publish to PyPI
     needs: check-version-and-tag
     if: needs.check-version-and-tag.outputs.released == 'true'
+    permissions:
+      id-token: write
     uses: ./.github/workflows/sdk-python-build-publish.yml

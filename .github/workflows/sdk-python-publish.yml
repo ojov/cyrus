@@ -42,4 +42,6 @@ jobs:
   publish:
     name: Build and publish to PyPI
     needs: verify-tag-on-dev
+    permissions:
+      id-token: write
     uses: ./.github/workflows/sdk-python-build-publish.yml
