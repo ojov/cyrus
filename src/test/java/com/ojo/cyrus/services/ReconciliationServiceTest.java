@@ -167,6 +167,87 @@ class ReconciliationServiceTest {
     }
 
     @Test
+    void discrepancyOnCurrency() {
+        var txId = UUID.randomUUID();
+        var tx = Transaction.builder()
+                .id(txId)
+                .merchant(merchant)
+                .amount(new BigDecimal("250000"))
+                .fee(new BigDecimal("1000"))
+                .sessionId("session-cur")
+                .providerTransactionId("API-VACT-TEST-CUR")
+                .status(TransactionStatus.PENDING)
+                .matchStatus(MatchStatus.UNMATCHED)
+                .type(TransactionType.CUSTOMER_PAYMENT)
+                .reference("ref-cur")
+                .currency(com.ojo.cyrus.enums.CurrencyCode.NGN)
+                .build();
+
+        when(transactionRepository.findById(txId)).thenReturn(Optional.of(tx));
+
+        // Amount agrees (2500.0 naira == 250000 kobo); only the currency disagrees.
+        var providerTx = new NombaTransactionData(
+                "API-VACT-TEST-CUR", "session-cur", "2500.0", "USD", "SUCCESSFUL"
+        );
+        when(nombaTransactionClient.requeryTransaction("session-cur")).thenReturn(providerTx);
+
+        var outcome = service.reconcileTransactionById(txId);
+
+        assertThat(outcome).isEqualTo(ReconciliationOutcome.DISCREPANCY);
+        assertThat(tx.getStatus()).isEqualTo(TransactionStatus.SUCCESSFUL);
+        assertThat(tx.getMatchStatus()).isEqualTo(MatchStatus.DISCREPANCY);
+        assertThat(tx.getMatchStatusDetails()).contains("Webhook currency=NGN", "Nomba requery currency=USD");
+
+        // A currency-only discrepancy still settles the money — Nomba's requery is still trusted as
+        // confirmation that a transfer happened, independent of the currency-field mismatch.
+        verify(ledgerService).credit(eq(merchant), koboEq("250000"), eq(tx), any(), any());
+        verify(platformProfitService).recordInflow(eq(tx));
+    }
+
+    @Test
+    void discrepancyOnAlreadyReversedTransaction_doesNotDoubleCreditOrCorrectAmount() {
+        var txId = UUID.randomUUID();
+        // A reversal webhook already flipped this to REVERSED (clawing back the wallet credit)
+        // before a late/sweep-triggered reconcile attempt requeries Nomba for the ORIGINAL transfer.
+        var tx = Transaction.builder()
+                .id(txId)
+                .merchant(merchant)
+                .amount(new BigDecimal("250000"))
+                .fee(new BigDecimal("1000"))
+                .sessionId("session-rev")
+                .providerTransactionId("API-VACT-TEST-REV")
+                .status(TransactionStatus.REVERSED)
+                .matchStatus(MatchStatus.UNMATCHED)
+                .type(TransactionType.CUSTOMER_PAYMENT)
+                .reference("ref-rev")
+                .build();
+
+        when(transactionRepository.findById(txId)).thenReturn(Optional.of(tx));
+
+        var providerTx = new NombaTransactionData(
+                "API-VACT-TEST-REV", "session-rev", "2400.0", "NGN", "SUCCESSFUL"
+        );
+        when(nombaTransactionClient.requeryTransaction("session-rev")).thenReturn(providerTx);
+
+        var outcome = service.reconcileTransactionById(txId);
+
+        // The mismatch is still recorded for visibility...
+        assertThat(outcome).isEqualTo(ReconciliationOutcome.DISCREPANCY);
+        assertThat(tx.getMatchStatus()).isEqualTo(MatchStatus.DISCREPANCY);
+        assertThat(tx.getMatchStatusDetails()).contains("Webhook amount=250000", "Nomba requery amount=240000");
+
+        // ...but confirming the ORIGINAL transfer must never undo the clawback: status stays
+        // REVERSED (not re-promoted to SUCCESSFUL), the amount is not "corrected" onto a reversed
+        // transaction, and nothing is credited to the wallet a second time.
+        assertThat(tx.getStatus()).isEqualTo(TransactionStatus.REVERSED);
+        assertThat(tx.getAmount()).isEqualByComparingTo("250000");
+
+        verifyNoInteractions(ledgerService);
+        verifyNoInteractions(platformProfitService);
+        verifyNoInteractions(merchantWebhookService);
+    }
+
+    @Test
     void fractionalKoboFromNombaIsPreserved() {
         var txId = UUID.randomUUID();
         var tx = Transaction.builder()
