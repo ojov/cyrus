@@ -131,6 +131,9 @@ public class PayoutService {
                 // visible in the requery response's fixedCharge field if needed for audit.
                 if (tx != null) {
                     tx.setStatus(TransactionStatus.SUCCESSFUL);
+                    // Nomba's own webhook confirming the transfer IS the match — there's no separate
+                    // requery to compare against for a payout, unlike an inbound CUSTOMER_PAYMENT.
+                    tx.setMatchStatus(MatchStatus.MATCHED);
                 }
                 log.info("Payout {} confirmed SUCCESS by webhook", payout.getReference());
             } else if (event.isFailureOrRefund()) {
@@ -216,6 +219,8 @@ public class PayoutService {
                 Transaction tx = locked.getTransaction();
                 if (tx != null) {
                     tx.setStatus(TransactionStatus.SUCCESSFUL);
+                    // Nomba's requery confirming the transfer IS the match, same as the webhook path.
+                    tx.setMatchStatus(MatchStatus.MATCHED);
                 }
                 log.info("Payout {} confirmed SUCCESS by requery sweep", locked.getReference());
             });
@@ -318,8 +323,14 @@ public class PayoutService {
             payout.setStatus(succeeded ? PayoutStatus.SUCCESS : PayoutStatus.PROCESSING);
             payout.setProviderReference(result != null ? result.id() : null);
 
-            transactionRepository.findById(transactionId).ifPresent(tx ->
-                    tx.setStatus(succeeded ? TransactionStatus.SUCCESSFUL : TransactionStatus.PENDING));
+            transactionRepository.findById(transactionId).ifPresent(tx -> {
+                tx.setStatus(succeeded ? TransactionStatus.SUCCESSFUL : TransactionStatus.PENDING);
+                if (succeeded) {
+                    // Nomba's synchronous accept response IS the match here — no PROCESSING
+                    // window, no separate webhook/requery to compare against.
+                    tx.setMatchStatus(MatchStatus.MATCHED);
+                }
+            });
 
             log.info("Payout {} accepted by Nomba: status={}", payout.getReference(), payout.getStatus());
             return toResponse(payout);
