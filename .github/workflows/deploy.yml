@@ -27,8 +27,29 @@ env:
 
   IMAGE_NAME: cyrus-api
 jobs:
+  # ci.yml only runs on pull_request, so it never fires for a direct push to main (bypassing the
+  # normal dev→main PR flow). This job re-runs the same build/test gate on every push to main so a
+  # direct push still can't reach the deploy job without passing tests first.
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: "25"
+          cache: maven
+
+      - name: Build & test
+        run: ./mvnw clean verify --batch-mode
+
   deploy:
     name: Docker Build, Push & Deploy
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
