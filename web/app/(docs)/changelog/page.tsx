@@ -16,6 +16,13 @@ export default function ChangelogPage() {
           <tr>
             <td className="font-mono text-muted-foreground">2026-07-13</td>
             <td>
+              Python SDK <code>0.1.2</code> — fixed a packaging bug where <code>pytest</code>/<code>pytest-asyncio</code> were
+              installed as unconditional runtime dependencies. Run <code>pip install --upgrade cyrus-payments</code> to pick it up.
+            </td>
+          </tr>
+          <tr>
+            <td className="font-mono text-muted-foreground">2026-07-13</td>
+            <td>
               Added an official Python SDK — <code>pip install cyrus-payments</code>, covering customers,
               transactions, and payment events. See the{" "}
               <Link href="/sdks" className="text-primary underline underline-offset-2">SDKs</Link> page.

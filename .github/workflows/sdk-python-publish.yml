@@ -1,23 +1,40 @@
 name: SDK — Python — Publish
 
+# Two ways this fires, both handled in ONE file: PyPI's Trusted Publishing does not support
+# reusable workflows (job_workflow_ref must match what's registered on PyPI as the trusted
+# publisher, and a workflow_call indirection breaks that match — confirmed live, not a guess).
+# So the actual build/publish job below is defined directly in this file, not split out.
+#
+# 1. Tag push (sdk-python-v*) — manual escape hatch. verify-tag-on-dev guards that the tagged
+#    commit is reachable from dev before anything builds.
+#    NOTE: this guard's own logic lives in this same file, and GitHub resolves an on:push (tag)
+#    workflow from the YAML at the pushed commit itself — so a tagged commit could in principle
+#    ship a modified copy of this job with the check removed. Accepted for now: only the repo
+#    owner can push tags here. Revisit (e.g. a tag-protection ruleset restricting who can create
+#    sdk-python-v* tags) if that access model ever changes.
+#
+# 2. Push to dev — the normal path. check-version-and-tag compares __version__ before/after the
+#    push; if it changed, it tags the commit that just landed and the same run publishes it. No
+#    manual `git tag` step, and no way to tag a commit that isn't already on dev, since this only
+#    ever runs in response to a push that already happened. The tag it pushes uses the default
+#    GITHUB_TOKEN, which — by GitHub's own documented recursion-prevention rule — will NOT
+#    re-trigger this workflow's own tag-push branch; that's fine, since publish runs inline here
+#    in the same run rather than depending on the tag push to kick off anything separately.
+#
+# Checked against dev, not main: main is reserved for urgent/admin-only production changes to the
+# Java backend (it's what deploy.yml deploys from) — normal work, including SDK releases, goes
+# through dev first. main stays fully decoupled from SDK releases.
 on:
   push:
     tags:
       - "sdk-python-v*"
+    branches:
+      - dev
 
 jobs:
-  # NOTE: this guard's own logic lives in this same file, and GitHub resolves an on:push (tag)
-  # workflow from the YAML at the pushed commit itself — so a tagged commit could in principle
-  # ship a modified copy of this job with the check removed. Accepted for now: only the repo
-  # owner can push tags here. Revisit (e.g. a tag-protection ruleset restricting who can create
-  # sdk-python-v* tags) if that access model ever changes.
-  #
-  # Checked against dev, not main: main is reserved for urgent/admin-only production changes to
-  # the Java backend (it's what deploy.yml deploys from) — normal work, including SDK releases,
-  # goes through dev first. A release tag is expected to be created from dev, then merged to main
-  # later as a separate, decoupled step that doesn't gate the release.
   verify-tag-on-dev:
     name: Verify tag is reachable from dev
+    if: startsWith(github.ref, 'refs/tags/sdk-python-v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,7 +56,90 @@ jobs:
           fi
           echo "OK: $TAG_NAME is on dev."
 
+  check-version-and-tag:
+    name: Tag a new version if bumped
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      released: ${{ steps.check.outputs.released }}
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check version and tag if it changed
+        id: check
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          NEW_VERSION=$(grep -m1 '^__version__' sdk/python/src/cyrus/__init__.py | sed -E 's/__version__ = "(.*)"/\1/')
+
+          OLD_VERSION=""
+          if git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+            OLD_VERSION=$(git show "$BEFORE_SHA:sdk/python/src/cyrus/__init__.py" 2>/dev/null | grep -m1 '^__version__' | sed -E 's/__version__ = "(.*)"/\1/' || true)
+          fi
+
+          echo "Previous version: ${OLD_VERSION:-<none>} — current version: $NEW_VERSION"
+
+          if [ "$NEW_VERSION" = "$OLD_VERSION" ]; then
+            echo "Version unchanged — nothing to release."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          TAG="sdk-python-v$NEW_VERSION"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists on origin — was the version bump not applied, or already released?"
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Tagged and pushed $TAG"
+
   publish:
     name: Build and publish to PyPI
-    needs: verify-tag-on-dev
-    uses: ./.github/workflows/sdk-python-build-publish.yml
+    needs: [verify-tag-on-dev, check-version-and-tag]
+    if: |
+      always() &&
+      (needs.verify-tag-on-dev.result == 'success' ||
+       (needs.check-version-and-tag.result == 'success' && needs.check-version-and-tag.outputs.released == 'true'))
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    defaults:
+      run:
+        working-directory: sdk/python
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run tests
+        run: uv run pytest -v
+
+      - name: Build
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk/python/dist
+          skip-existing: true
