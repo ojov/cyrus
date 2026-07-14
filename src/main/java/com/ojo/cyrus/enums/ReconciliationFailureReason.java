@@ -26,5 +26,13 @@ public enum ReconciliationFailureReason {
     AMOUNT_MISMATCH,
 
     /** Nomba could not confirm the session after the maximum reconciliation attempts. */
-    PROVIDER_UNCONFIRMED
+    PROVIDER_UNCONFIRMED,
+
+    /**
+     * Detected by {@link com.ojo.cyrus.services.MissingWebhookSweepService}: Nomba's sub-account
+     * transaction list shows a transaction Cyrus has no local record of at all — the webhook for it
+     * was never delivered (or never arrived). Recorded as a merchant-less orphan so it surfaces
+     * through the existing super-admin orphan-recovery flow instead of staying invisible forever.
+     */
+    MISSING_WEBHOOK
 }

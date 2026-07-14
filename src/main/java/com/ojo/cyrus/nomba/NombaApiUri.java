@@ -45,7 +45,20 @@ public enum NombaApiUri {
      * Only the sub-account variant has been verified against Nomba's API docs; there is no known
      * non-sub-account equivalent endpoint — if none is configured, the client throws.
      */
-    TRANSFER_REQUERY_UNDER_SUBACCOUNT("/v1/transactions/accounts/{subAccountId}/single");
+    TRANSFER_REQUERY_UNDER_SUBACCOUNT("/v1/transactions/accounts/{subAccountId}/single"),
+    /**
+     * Lists/filters all transactions on a sub-account — {@code POST /v1/transactions/accounts/{subAccountId}}
+     * with {@code dateFrom}/{@code dateTo}/{@code limit}/{@code cursor} as query params and optional
+     * filters (type/status/source/...) in the body. Confirmed to exist against
+     * https://developer.nomba.com/nomba-api-reference/transactions/filter-sub-account-transactions —
+     * used by {@link com.ojo.cyrus.services.MissingWebhookSweepService} to catch a payment whose
+     * webhook was never delivered at all. Unlike {@link #TRANSFER_REQUERY_UNDER_SUBACCOUNT}, the full
+     * response item schema (specifically whether it carries the destination VA account number) is
+     * NOT confirmed against a real response — items are walked as raw {@code JsonNode}s rather than
+     * bound to a strict DTO, so nothing Nomba actually sends is silently dropped before it can be
+     * inspected (see {@link com.ojo.cyrus.services.MissingWebhookSweepService}).
+     */
+    SUBACCOUNT_TRANSACTIONS_FILTER("/v1/transactions/accounts/{subAccountId}");
 
     private final String path;
 
