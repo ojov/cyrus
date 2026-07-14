@@ -117,6 +117,7 @@ app:
   # default — set APP_SUPER_ADMIN_EMAILS to grant the first admin(s).
   super-admin-emails: ${APP_SUPER_ADMIN_EMAILS}
   jwt:
+
     issuer: cyrus
     refresh-expiry-days: 30
   # The dashboard JWT is delivered as an httpOnly cookie, never in a JSON response body — the
@@ -150,6 +151,23 @@ app:
     # How often the payout requery sweep runs (processing payouts with a provider reference are
     # polled against Nomba's transfer requery endpoint to catch missed webhooks).
     delay-seconds: ${APP_PAYOUT_REQUERY_DELAY_SECONDS:120}
+  missing-webhook-sweep:
+    # How often MissingWebhookSweepService diffs Nomba's sub-account transaction list against local
+    # records to catch a payment whose webhook was never delivered at all. This is a BACKSTOP for a
+    # rare event (webhooks are the primary path and deliver near-instantly with their own retries),
+    # so it runs infrequently — 6h, tuned for current low volume. The lookback window (not this
+    # interval) is what guarantees no gap is missed; the interval only governs how quickly a lost
+    # payment is noticed (worst case ~6h). Lower it as traction grows and faster recovery matters.
+    delay-seconds: ${APP_MISSING_WEBHOOK_SWEEP_DELAY_SECONDS:21600}
+    # Trailing window pulled each run, deliberately overlapping the previous run.
+    lookback-hours: ${APP_MISSING_WEBHOOK_SWEEP_LOOKBACK_HOURS:48}
+    # true = log detected gaps (with the raw Nomba item) but write nothing. Flip to false only after
+    # verifying the logged field mapping against a real Nomba response.
+    dry-run: ${APP_MISSING_WEBHOOK_SWEEP_DRY_RUN:true}
+    # true = also log the first item scanned each run in full, regardless of match status — a
+    # verification aid to see the real response schema. Defaults OFF: the raw item contains payer PII
+    # (sender name/account) and the schema is already verified. Enable via env only when debugging.
+    log-sample-item: ${APP_MISSING_WEBHOOK_SWEEP_LOG_SAMPLE_ITEM:false}
   cors:
     # Comma-separated origins (Spring binds a comma-separated value to the list). No trailing
     # slashes — each must match the browser Origin header exactly. Override via CORS_ALLOWED_ORIGINS

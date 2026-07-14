@@ -27,4 +27,9 @@ public enum ReconciliationFailureReason {
 
     /** Nomba could not confirm the session after the maximum reconciliation attempts. */
     PROVIDER_UNCONFIRMED
+    // NOTE: MISSING_WEBHOOK was added here (and to the DB CHECK constraint via V14) for an earlier
+    // design where MissingWebhookSweepService recorded gaps as merchant-less orphans. That service now
+    // replays gaps through the normal ingestion pipeline instead, so no code writes MISSING_WEBHOOK —
+    // the value was removed. V14 remains applied (the CHECK constraint permitting an extra, never-
+    // written value is harmless); don't re-add the constant without a writer for it.
 }
