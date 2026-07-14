@@ -117,21 +117,35 @@ public class ReconciliationService {
     }
 
     /**
-     * "Found" is inferred from a non-blank {@code transactionId} in the response, not the response's
-     * own status field — live testing showed Nomba returns a generic success envelope with a zeroed
-     * transaction for a session it doesn't recognize.
+     * A transaction is confirmed (and eligible to be promoted + credited) only when the requery is
+     * BOTH recognized AND successful:
+     * <ul>
+     *   <li><strong>Recognized</strong> — a non-blank {@code transactionId}. Nomba returns a generic
+     *       success envelope with a <em>zeroed</em> transaction for a session it doesn't recognize, so
+     *       a non-blank id is the "this session is real" signal (not the envelope's own status).</li>
+     *   <li><strong>Successful</strong> — the transaction's own {@code status} is a success token
+     *       ({@code "SUCCESS"}, verified against a real requery; {@code "SUCCESSFUL"} also accepted
+     *       defensively). This is what stops a <em>recognized-but-failed/reversed</em> requery
+     *       ({@code PAYMENT_FAILED} / {@code REVERSED_BY_VENDOR} / …) from being promoted and credited.
+     *       The webhook and sweep ingestion gates only keep non-success events out on the way IN;
+     *       enforcing it here means the guarantee holds for every caller, not just those two.</li>
+     * </ul>
+     * Anything else (unrecognized, or recognized-but-not-success) is treated as not-yet-confirmed —
+     * attempts increment and it retries, ageing to {@code MANUAL_REVIEW} after the cap rather than
+     * ever auto-crediting.
      */
     private RequeryApplication applyRequeryResult(UUID transactionId, NombaTransactionData providerTx) {
         return new TransactionTemplate(transactionManager).execute(status -> {
             Transaction tx = transactionRepository.findById(transactionId).orElseThrow();
             tx.setLastReconciledAt(Instant.now());
 
-            boolean found = providerTx.transactionId() != null && !providerTx.transactionId().isBlank();
-            if (!found) {
+            boolean recognized = providerTx.transactionId() != null && !providerTx.transactionId().isBlank();
+            boolean confirmedSuccessful = recognized && isSuccessStatus(providerTx.status());
+            if (!confirmedSuccessful) {
                 int attempts = tx.getReconciliationAttempts() + 1;
                 tx.setReconciliationAttempts(attempts);
-                log.debug("Transaction {} not yet confirmed by Nomba (session={}, attempt={})",
-                        tx.getId(), tx.getSessionId(), attempts);
+                log.debug("Transaction {} not confirmed successful by Nomba (session={}, requeryStatus={}, attempt={})",
+                        tx.getId(), tx.getSessionId(), providerTx.status(), attempts);
                 return new RequeryApplication(ReconciliationOutcome.NOT_FOUND, attempts);
             }
 
@@ -228,6 +242,17 @@ public class ReconciliationService {
 
             return new RequeryApplication(outcome, tx.getReconciliationAttempts());
         });
+    }
+
+    /**
+     * True only for a requery status Nomba reports on a genuinely successful transfer. {@code "SUCCESS"}
+     * is the verified value from a live requery; {@code "SUCCESSFUL"} is accepted too (defensive against
+     * token variance across Nomba's endpoints). Any other value — {@code PAYMENT_FAILED},
+     * {@code REVERSED_BY_VENDOR}, {@code CANCELLED}, {@code REFUND}, {@code PENDING_BILLING}, or a blank/
+     * unknown token — is NOT treated as confirmation, so the transaction is never credited on it.
+     */
+    private static boolean isSuccessStatus(String status) {
+        return "SUCCESS".equalsIgnoreCase(status) || "SUCCESSFUL".equalsIgnoreCase(status);
     }
 
     private void markManualReview(UUID transactionId, String details) {

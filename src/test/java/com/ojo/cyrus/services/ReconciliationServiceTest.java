@@ -289,6 +289,44 @@ class ReconciliationServiceTest {
     }
 
     @Test
+    void requeryRecognizedButNotSuccess_isNotCredited() {
+        var txId = UUID.randomUUID();
+        var tx = Transaction.builder()
+                .id(txId)
+                .merchant(merchant)
+                .amount(new BigDecimal("250000"))
+                .fee(new BigDecimal("1000"))
+                .sessionId("session-failed")
+                .providerTransactionId("API-VACT-TEST-FAILED")
+                .status(TransactionStatus.PENDING)
+                .matchStatus(MatchStatus.UNMATCHED)
+                .type(TransactionType.CUSTOMER_PAYMENT)
+                .reference("ref-failed")
+                .reconciliationAttempts(0)
+                .build();
+
+        when(transactionRepository.findById(txId)).thenReturn(Optional.of(tx));
+        when(reconciliationProperties.maxAttempts()).thenReturn(5);
+
+        // Nomba RECOGNIZES the session (non-blank id) but reports it as failed — a non-blank id alone
+        // must NOT be treated as confirmation. The transaction stays PENDING and nothing is credited.
+        var providerTx = new NombaTransactionData(
+                "API-VACT-TEST-FAILED", "session-failed", "2500.0", "NGN", "PAYMENT_FAILED"
+        );
+        when(nombaTransactionClient.requeryTransaction("session-failed")).thenReturn(providerTx);
+
+        var outcome = service.reconcileTransactionById(txId);
+
+        assertThat(outcome).isEqualTo(ReconciliationOutcome.NOT_FOUND);
+        assertThat(tx.getStatus()).isEqualTo(TransactionStatus.PENDING);
+        assertThat(tx.getReconciliationAttempts()).isEqualTo(1);
+
+        verifyNoInteractions(ledgerService);
+        verifyNoInteractions(platformProfitService);
+        verifyNoInteractions(merchantWebhookService);
+    }
+
+    @Test
     void noSessionId_marksManualReview() {
         var txId = UUID.randomUUID();
         var tx = Transaction.builder()
