@@ -8,6 +8,7 @@ import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.repositories.PlatformProfitEntryRepository;
 import com.ojo.cyrus.repositories.WalletRepository;
 import com.ojo.cyrus.utils.MoneyUtil;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -30,6 +31,7 @@ import java.time.Instant;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Getter
 public class PoolReconciliationService {
 
     private final PlatformProfitEntryRepository profitEntryRepository;
@@ -40,15 +42,8 @@ public class PoolReconciliationService {
 
     /** Last sync result — in-memory only; persisted via the profit entry trail. */
     private volatile Instant lastSyncAt;
+
     private volatile String lastReconciliationStatus = "PENDING";
-
-    public Instant getLastSyncAt() {
-        return lastSyncAt;
-    }
-
-    public String getLastReconciliationStatus() {
-        return lastReconciliationStatus;
-    }
 
     /**
      * The expected provider balance is NOT the raw sum of all profit entries — that would
