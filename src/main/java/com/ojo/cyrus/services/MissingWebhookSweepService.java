@@ -16,6 +16,7 @@ import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Catches a payment whose webhook was never delivered at all — the "known gap" AGENTS.md previously
@@ -32,12 +33,13 @@ import java.time.Instant;
  * {@code type="transfer"}, {@code entryType="DEBIT"} and a {@code merchantTxRef}, and are tracked
  * separately via {@code Payout} + its own requery sweep — so only VA credits are considered here.
  *
- * <p><strong>Matching is by {@code sessionId} as well as the provider id.</strong> The list item's
- * {@code id} ({@code "API-VACT_TRA-..."}) is not confirmed to equal the webhook's {@code transactionId}
- * (which is what {@code Transaction.providerTransactionId} stores), so matching on {@code id} alone
- * would risk flagging already-ingested payments as gaps. {@code sessionId} is Nomba's reconciliation
- * key, always captured on the {@code Transaction}, and is identical across the webhook, requery and
- * list endpoints — so it's the reliable dedup key.
+ * <p><strong>Matching is by both the provider id and {@code sessionId}.</strong> Verified against a
+ * real paired webhook + list entry for the same payment: the list item's {@code id}
+ * ({@code "API-VACT_TRA-..."}) is exactly the webhook's {@code transaction.transactionId} — the value
+ * stored as {@code Transaction.providerTransactionId} — and the {@code sessionId} is identical too.
+ * So {@code existsByProviderTransactionId} on its own already dedupes an already-ingested payment
+ * (even one whose {@code sessionId} was never captured); the {@code sessionId} check is kept as a
+ * redundant second key.
  *
  * <p><strong>Recovery feeds the normal ingestion pipeline.</strong> A gap is mapped into a synthetic
  * {@link NormalizedPaymentEvent} — the same provider-agnostic shape the webhook adapter produces —
@@ -59,6 +61,10 @@ import java.time.Instant;
 public class MissingWebhookSweepService {
 
     private static final int PAGE_LIMIT = 100;
+    // Safety bound on cursor pagination — a non-advancing/perpetually-non-empty cursor (provider bug)
+    // or an over-large window must not spin the scheduler thread forever. 50 pages * 100 = 5000 txns
+    // per sweep; if a window genuinely holds more, shorten the lookback rather than paginate unbounded.
+    private static final int MAX_PAGES = 50;
 
     private final NombaTransactionClient nombaTransactionClient;
     private final TransactionRepository transactionRepository;
@@ -73,6 +79,7 @@ public class MissingWebhookSweepService {
 
         int scanned = 0;
         int gaps = 0;
+        int pages = 0;
         boolean sampleLogged = false;
         String cursor = null;
         do {
@@ -84,7 +91,10 @@ public class MissingWebhookSweepService {
                         from, to, e);
                 return;
             }
-            for (JsonNode item : page.results()) {
+            // Defensive: requireData only guarantees data != null, not data.results — an edge/error
+            // response with no `results` key would otherwise NPE here (the loop is outside the try above).
+            List<JsonNode> results = page.results() != null ? page.results() : List.of();
+            for (JsonNode item : results) {
                 scanned++;
                 if (!sampleLogged && props.logSampleItem()) {
                     log.info("Missing-webhook sweep [SCHEMA SAMPLE] first item scanned this run "
@@ -96,7 +106,14 @@ public class MissingWebhookSweepService {
                 }
             }
             cursor = page.cursor();
-        } while (cursor != null && !cursor.isBlank());
+            pages++;
+        } while (cursor != null && !cursor.isBlank() && pages < MAX_PAGES);
+
+        if (cursor != null && !cursor.isBlank()) {
+            log.warn("Missing-webhook sweep: stopped after {} pages with a cursor still remaining — window {} -> {} "
+                    + "holds more than {} transactions; shorten app.missing-webhook-sweep.lookback-hours",
+                    pages, from, to, MAX_PAGES * PAGE_LIMIT);
+        }
 
         if (!sampleLogged && props.logSampleItem()) {
             log.info("Missing-webhook sweep [SCHEMA SAMPLE] 0 items in window {} -> {} — nothing to sample", from, to);
@@ -118,22 +135,28 @@ public class MissingWebhookSweepService {
             return false;
         }
 
-        // Only an inbound credit to one of our virtual accounts is a payment that should have arrived
-        // as a payment_success webhook. Outbound payouts (entryType DEBIT, no virtualAccountReference)
-        // are tracked via Payout + its own requery sweep — skip them so they're never mistaken for a
-        // missing payment.
-        boolean isVaCredit = "CREDIT".equalsIgnoreCase(text(item, "entryType"))
+        // Only a SUCCESSFUL inbound credit to one of our virtual accounts is a payment that should
+        // have arrived as a payment_success webhook. This mirrors the webhook path's
+        // eventType=='payment_success' gate — which the sweep would otherwise bypass. Without the
+        // status check, a non-success credit leg (REFUND / REVERSED_BY_VENDOR / PAYMENT_FAILED, all
+        // valid Nomba statuses) would be ingested and then wrongly credited, because reconciliation
+        // promotes PENDING→SUCCESSFUL on any requery it recognizes without re-checking success.
+        // Outbound payouts (entryType DEBIT, no virtualAccountReference) are tracked via Payout + its
+        // own requery sweep — skip them too.
+        boolean isSuccessfulVaCredit = "SUCCESS".equalsIgnoreCase(text(item, "status"))
+                && "CREDIT".equalsIgnoreCase(text(item, "entryType"))
                 && text(item, "virtualAccountReference") != null;
-        if (!isVaCredit) {
+        if (!isSuccessfulVaCredit) {
             return false;
         }
 
         String sessionId = text(item, "sessionId");
 
-        // Already recorded? Match on the provider id first, then the reliable sessionId key (see the
-        // class javadoc — the list `id` may not equal the webhook's transactionId). The "sweep:<id>"
-        // requestId check also catches a prior sweep that already ingested this (whatever outcome
-        // ingest reached — recovered Transaction, or orphan for an unknown/inactive VA).
+        // Already recorded? The list `id` IS the webhook's transactionId (verified against a real
+        // paired webhook+list entry), so existsByProviderTransactionId dedupes reliably; sessionId is
+        // a redundant second key. The "sweep:<id>" requestId check also catches a prior sweep that
+        // already ingested this (whatever outcome ingest reached — recovered Transaction, or orphan
+        // for an unknown/inactive VA).
         if (transactionRepository.existsByProviderTransactionId(id)
                 || (sessionId != null && !sessionId.isBlank() && transactionRepository.existsBySessionId(sessionId))
                 || paymentEventRepository.existsByRequestId("sweep:" + id)) {

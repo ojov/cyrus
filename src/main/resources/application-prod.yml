@@ -1,6 +1,9 @@
 logging:
   level:
     root: info
+spring:
+  jpa:
+    show-sql: false
 server:
   forward-headers-strategy: framework
 resend:

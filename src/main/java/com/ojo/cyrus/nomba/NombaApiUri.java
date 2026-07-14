@@ -50,13 +50,13 @@ public enum NombaApiUri {
      * Lists/filters all transactions on a sub-account — {@code POST /v1/transactions/accounts/{subAccountId}}
      * with {@code dateFrom}/{@code dateTo}/{@code limit}/{@code cursor} as query params and optional
      * filters (type/status/source/...) in the body. Confirmed to exist against
-     * https://developer.nomba.com/nomba-api-reference/transactions/filter-sub-account-transactions —
+     * <a href="https://developer.nomba.com/nomba-api-reference/transactions/filter-sub-account-transactions">...</a> —
      * used by {@link com.ojo.cyrus.services.MissingWebhookSweepService} to catch a payment whose
-     * webhook was never delivered at all. Unlike {@link #TRANSFER_REQUERY_UNDER_SUBACCOUNT}, the full
-     * response item schema (specifically whether it carries the destination VA account number) is
-     * NOT confirmed against a real response — items are walked as raw {@code JsonNode}s rather than
-     * bound to a strict DTO, so nothing Nomba actually sends is silently dropped before it can be
-     * inspected (see {@link com.ojo.cyrus.services.MissingWebhookSweepService}).
+     * webhook was never delivered at all. The response item schema is verified against real responses
+     * (a VA credit carries {@code id}/{@code sessionId}/{@code amount}/{@code fixedCharge}/
+     * {@code entryType}/{@code recipientAccountNumber}/{@code virtualAccountReference}/{@code status},
+     * and the {@code id} equals the webhook's {@code transactionId}); items are still walked as raw
+     * {@code JsonNode}s so any additional/rare field Nomba sends isn't silently dropped.
      */
     SUBACCOUNT_TRANSACTIONS_FILTER("/v1/transactions/accounts/{subAccountId}");
 
