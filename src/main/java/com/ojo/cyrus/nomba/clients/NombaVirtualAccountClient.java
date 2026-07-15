@@ -10,6 +10,9 @@ import com.ojo.cyrus.nomba.dto.NombaExpireVirtualAccountResponse;
 import com.ojo.cyrus.nomba.dto.NombaUpdateVirtualAccountRequest;
 import com.ojo.cyrus.nomba.dto.NombaUpdateVirtualAccountResponse;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
+import com.ojo.cyrus.nomba.dto.NombaVirtualAccountDetail;
+import com.ojo.cyrus.nomba.dto.NombaVirtualAccountFilterRequest;
+import com.ojo.cyrus.nomba.dto.NombaVirtualAccountListPage;
 import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -90,6 +93,44 @@ public class NombaVirtualAccountClient {
             throw new NombaIntegrationException("Nomba did not confirm expiry for account " + accountRef);
         }
         log.info("Expired virtual account {} on Nomba", accountRef);
+    }
+
+    /**
+     * Fetches a virtual account's live state directly from Nomba, bypassing Cyrus's own
+     * {@code VirtualAccount} table entirely. Not used by any request-serving path today — Cyrus's
+     * local record is authoritative for normal operation — but useful for an admin spot-check
+     * ("what does Nomba actually think this VA's status is right now") or a drift audit.
+     */
+    public NombaVirtualAccountDetail getVirtualAccount(String accountRef) {
+        NombaApiResponse<NombaVirtualAccountDetail> response = nombaRestClient.get()
+                .uri(NombaApiUri.VIRTUAL_ACCOUNT_BY_REF.path(), accountRef)
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+
+        return NombaResponseSupport.requireData(response, "virtual account fetch for " + accountRef);
+    }
+
+    /**
+     * Lists/filters virtual accounts directly from Nomba. Same "not on any request-serving path"
+     * caveat as {@link #getVirtualAccount(String)} — this exists for admin tooling (e.g. auditing
+     * Cyrus's local {@code VirtualAccount} table against what Nomba actually has, to catch a VA that
+     * leaked on Nomba's side without a matching local row).
+     */
+    public NombaVirtualAccountListPage listVirtualAccounts(NombaVirtualAccountFilterRequest filter, int limit, String cursor) {
+        NombaApiResponse<NombaVirtualAccountListPage> response = nombaRestClient.post()
+                .uri(uriBuilder -> {
+                    uriBuilder.path(NombaApiUri.VIRTUAL_ACCOUNT_LIST.path())
+                            .queryParam("limit", limit);
+                    if (cursor != null && !cursor.isBlank()) {
+                        uriBuilder.queryParam("cursor", cursor);
+                    }
+                    return uriBuilder.build();
+                })
+                .body(filter)
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+
+        return NombaResponseSupport.requireData(response, "virtual account list");
     }
 
     /**

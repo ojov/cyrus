@@ -6,8 +6,10 @@ import com.ojo.cyrus.enums.MerchantRole;
 import com.ojo.cyrus.enums.PayoutStatus;
 import com.ojo.cyrus.enums.TransactionStatus;
 import com.ojo.cyrus.enums.TransactionType;
+import com.ojo.cyrus.enums.VirtualAccountStatus;
 import com.ojo.cyrus.exception.ForbiddenException;
 import com.ojo.cyrus.models.entities.Merchant;
+import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.entities.Wallet;
 import com.ojo.cyrus.models.responses.PlatformOverviewResponse;
 import com.ojo.cyrus.models.responses.PlatformOverviewResponse.Custody;
@@ -15,8 +17,14 @@ import com.ojo.cyrus.models.responses.PlatformOverviewResponse.LedgerIntegrity;
 import com.ojo.cyrus.models.responses.PlatformOverviewResponse.OrphansAndStuck;
 import com.ojo.cyrus.models.responses.PlatformOverviewResponse.ReconciliationHealth;
 import com.ojo.cyrus.models.responses.PlatformOverviewResponse.Totals;
+import com.ojo.cyrus.models.responses.VirtualAccountAuditResponse;
+import com.ojo.cyrus.models.responses.VirtualAccountAuditResponse.VirtualAccountAuditItem;
 import com.ojo.cyrus.nomba.clients.NombaBalanceClient;
+import com.ojo.cyrus.nomba.clients.NombaVirtualAccountClient;
 import com.ojo.cyrus.nomba.dto.NombaBalanceData;
+import com.ojo.cyrus.nomba.dto.NombaVirtualAccountDetail;
+import com.ojo.cyrus.nomba.dto.NombaVirtualAccountFilterRequest;
+import com.ojo.cyrus.nomba.dto.NombaVirtualAccountListPage;
 import com.ojo.cyrus.nomba.utils.NombaCurrencyUtil;
 import com.ojo.cyrus.repositories.LedgerEntryRepository;
 import com.ojo.cyrus.repositories.MerchantCustomerRepository;
@@ -35,6 +43,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.ojo.cyrus.utils.MoneyUtil;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -61,8 +70,15 @@ public class PlatformAdminService {
     private final PayoutRepository payoutRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final NombaBalanceClient nombaBalanceClient;
+    private final NombaVirtualAccountClient nombaVirtualAccountClient;
     private final NombaProperties nombaProperties;
     private final PlatformTransactionManager transactionManager;
+
+    private static final int VA_AUDIT_PAGE_LIMIT = 100;
+    // Mirrors MissingWebhookSweepService's guard: a non-advancing/perpetually-non-empty cursor
+    // (provider bug) must not spin the request thread forever.
+    private static final int VA_AUDIT_MAX_PAGES = 50;
+    private static final int VA_AUDIT_MAX_ITEMS_PER_BUCKET = 100;
 
     /** Authorizes the caller as a super-admin, or throws {@link ForbiddenException} (→ 403). */
     public void requireSuperAdmin(String email) {
@@ -93,6 +109,100 @@ public class PlatformAdminService {
 
         return new PlatformOverviewResponse(
                 custody, db.totals(), db.reconciliation(), db.orphansAndStuck(), db.ledgerIntegrity());
+    }
+
+    /**
+     * Diffs Cyrus's local {@code VirtualAccount} table against Nomba's live list. Read-only and
+     * on-demand (an admin action, not a scheduled sweep) — same two-phase shape as
+     * {@link #getOverview()}: local rows are read (with the association fetch-joined so nothing is
+     * read lazily after the tx closes) in one short read-only tx, then the Nomba list call runs with
+     * no tx open.
+     */
+    public VirtualAccountAuditResponse auditVirtualAccounts() {
+        TransactionTemplate readTx = new TransactionTemplate(transactionManager);
+        readTx.setReadOnly(true);
+        List<VirtualAccount> localVAs = readTx.execute(status -> virtualAccountRepository.findAllWithCustomerAndMerchant());
+
+        Map<String, NombaVirtualAccountDetail> nombaByRef = new HashMap<>();
+        boolean nombaListTruncated = fetchAllNombaVirtualAccounts(nombaByRef);
+
+        Map<String, VirtualAccount> localByRef = new HashMap<>();
+        for (VirtualAccount va : localVAs) {
+            localByRef.put(va.getMerchantCustomer().getExternalCustomerId(), va);
+        }
+
+        List<VirtualAccountAuditItem> leaked = new ArrayList<>();
+        for (Map.Entry<String, NombaVirtualAccountDetail> entry : nombaByRef.entrySet()) {
+            if (!localByRef.containsKey(entry.getKey())) {
+                NombaVirtualAccountDetail d = entry.getValue();
+                leaked.add(new VirtualAccountAuditItem(
+                        d.accountRef(), d.bankAccountNumber(), null, null, nombaStatus(d)));
+            }
+        }
+        boolean leakedTruncated = leaked.size() > VA_AUDIT_MAX_ITEMS_PER_BUCKET;
+        if (leakedTruncated) leaked = new ArrayList<>(leaked.subList(0, VA_AUDIT_MAX_ITEMS_PER_BUCKET));
+
+        List<VirtualAccountAuditItem> missing = new ArrayList<>();
+        List<VirtualAccountAuditItem> drift = new ArrayList<>();
+        for (VirtualAccount va : localVAs) {
+            String ref = va.getMerchantCustomer().getExternalCustomerId();
+            String merchantName = va.getMerchantCustomer().getMerchant().getBusinessName();
+            NombaVirtualAccountDetail nomba = nombaByRef.get(ref);
+            if (nomba == null) {
+                missing.add(new VirtualAccountAuditItem(
+                        ref, va.getAccountNumber(), merchantName, va.getStatus().name(), null));
+                continue;
+            }
+            // CLOSED is the only local status that should ever correspond to Nomba's `expired`
+            // (ACTIVE/SUSPENDED/PENDING are all "not expired" on Nomba's side) — see
+            // CustomerService.updateStatus, which expires the Nomba VA before persisting CLOSED locally.
+            boolean localClosed = va.getStatus() == VirtualAccountStatus.CLOSED;
+            if (localClosed != nomba.expired()) {
+                drift.add(new VirtualAccountAuditItem(
+                        ref, va.getAccountNumber(), merchantName, va.getStatus().name(), nombaStatus(nomba)));
+            }
+        }
+        boolean missingTruncated = missing.size() > VA_AUDIT_MAX_ITEMS_PER_BUCKET;
+        if (missingTruncated) missing = new ArrayList<>(missing.subList(0, VA_AUDIT_MAX_ITEMS_PER_BUCKET));
+        boolean driftTruncated = drift.size() > VA_AUDIT_MAX_ITEMS_PER_BUCKET;
+        if (driftTruncated) drift = new ArrayList<>(drift.subList(0, VA_AUDIT_MAX_ITEMS_PER_BUCKET));
+
+        if (leakedTruncated || missingTruncated || driftTruncated) {
+            log.warn("Virtual account audit: result truncated at {} items/bucket (leakedOnNomba={}, missingOnNomba={}, statusDrift={})",
+                    VA_AUDIT_MAX_ITEMS_PER_BUCKET, leakedTruncated, missingTruncated, driftTruncated);
+        }
+
+        return new VirtualAccountAuditResponse(
+                localVAs.size(), nombaByRef.size(),
+                leaked, leakedTruncated, missing, missingTruncated, drift, driftTruncated,
+                nombaListTruncated, Instant.now());
+    }
+
+    private static String nombaStatus(NombaVirtualAccountDetail detail) {
+        return detail.expired() ? "EXPIRED" : "ACTIVE";
+    }
+
+    /** @return true if Nomba's list was cut off by the page cap with more data remaining */
+    private boolean fetchAllNombaVirtualAccounts(Map<String, NombaVirtualAccountDetail> byRef) {
+        String cursor = null;
+        int pages = 0;
+        do {
+            NombaVirtualAccountListPage page = nombaVirtualAccountClient.listVirtualAccounts(
+                    NombaVirtualAccountFilterRequest.empty(), VA_AUDIT_PAGE_LIMIT, cursor);
+            List<NombaVirtualAccountDetail> results = page.results() != null ? page.results() : List.of();
+            for (NombaVirtualAccountDetail d : results) {
+                byRef.put(d.accountRef(), d);
+            }
+            cursor = page.cursor();
+            pages++;
+        } while (cursor != null && !cursor.isBlank() && pages < VA_AUDIT_MAX_PAGES);
+
+        boolean truncated = cursor != null && !cursor.isBlank();
+        if (truncated) {
+            log.warn("Virtual account audit: stopped after {} pages with a cursor still remaining — "
+                    + "Nomba holds more than {} virtual accounts", pages, VA_AUDIT_MAX_PAGES * VA_AUDIT_PAGE_LIMIT);
+        }
+        return truncated;
     }
 
     private DbAggregates buildDbAggregates() {

@@ -4,6 +4,7 @@ import com.ojo.cyrus.enums.ResponseCode;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.models.responses.PlatformOverviewResponse;
 import com.ojo.cyrus.models.responses.PlatformProfitSummaryResponse;
+import com.ojo.cyrus.models.responses.VirtualAccountAuditResponse;
 import com.ojo.cyrus.services.PlatformAdminService;
 import com.ojo.cyrus.services.PoolReconciliationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,5 +53,19 @@ public class PlatformController {
         platformAdminService.requireSuperAdmin(jwt.getSubject());
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Profit summary retrieved",
                 poolReconciliationService.getSummary());
+    }
+
+    @Operation(
+            summary = "Virtual account audit",
+            description = "Diffs Cyrus's local virtual-account records against Nomba's live list: VAs that "
+                    + "leaked on Nomba with no local record (the known non-atomic-create failure mode), local "
+                    + "records missing on Nomba, and status drift (expired on one side but not the other). "
+                    + "Read-only, on-demand. Super-admin only.",
+            security = @SecurityRequirement(name = "BearerAuth"))
+    @GetMapping("/virtual-accounts/audit")
+    public CyrusApiResponse<VirtualAccountAuditResponse> auditVirtualAccounts(@AuthenticationPrincipal Jwt jwt) {
+        platformAdminService.requireSuperAdmin(jwt.getSubject());
+        return CyrusApiResponse.success(ResponseCode.SUCCESS, "Virtual account audit complete",
+                platformAdminService.auditVirtualAccounts());
     }
 }
