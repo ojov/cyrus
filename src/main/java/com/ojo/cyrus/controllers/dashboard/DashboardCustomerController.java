@@ -2,8 +2,8 @@ package com.ojo.cyrus.controllers.dashboard;
 
 import com.ojo.cyrus.enums.MatchStatus;
 import com.ojo.cyrus.enums.ResponseCode;
+import com.ojo.cyrus.models.responses.CustomerDetailResponse;
 import com.ojo.cyrus.models.responses.CustomerListItemResponse;
-import com.ojo.cyrus.models.responses.CustomerResponse;
 import com.ojo.cyrus.models.responses.CustomerStatementResponse;
 import com.ojo.cyrus.models.responses.CyrusApiResponse;
 import com.ojo.cyrus.services.CustomerService;
@@ -53,12 +53,17 @@ public class DashboardCustomerController {
                 customerService.list(merchantId, pageable));
     }
 
-    @Operation(summary = "Get a customer", security = @SecurityRequirement(name = "BearerAuth"))
+    @Operation(
+            summary = "Get a customer",
+            description = "Customer identity plus a live authenticity check of the virtual account directly " +
+                    "against Nomba (cached briefly to avoid hitting Nomba on every view) — this is what the " +
+                    "developer-facing API-key endpoint deliberately skips, kept fast and local-only there.",
+            security = @SecurityRequirement(name = "BearerAuth"))
     @GetMapping("/{reference}")
-    public CyrusApiResponse<CustomerResponse> get(@AuthenticationPrincipal Jwt jwt, @PathVariable String reference) {
+    public CyrusApiResponse<CustomerDetailResponse> get(@AuthenticationPrincipal Jwt jwt, @PathVariable String reference) {
         UUID merchantId = merchantService.findByBusinessEmail(jwt.getSubject()).getId();
         return CyrusApiResponse.success(ResponseCode.SUCCESS, "Customer retrieved",
-                customerService.getByReference(merchantId, reference));
+                customerService.getByReferenceWithNombaVerification(merchantId, reference));
     }
 
     @Operation(

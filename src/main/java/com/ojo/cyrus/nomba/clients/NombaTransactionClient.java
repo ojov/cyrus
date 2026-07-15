@@ -4,7 +4,6 @@ import com.ojo.cyrus.config.properties.NombaProperties;
 import com.ojo.cyrus.nomba.NombaApiUri;
 import com.ojo.cyrus.nomba.NombaResponseSupport;
 import com.ojo.cyrus.nomba.dto.NombaApiResponse;
-import com.ojo.cyrus.nomba.dto.NombaSubAccountTransactionFilterRequest;
 import com.ojo.cyrus.nomba.dto.NombaSubAccountTransactionPage;
 import com.ojo.cyrus.nomba.dto.NombaTransactionData;
 import lombok.RequiredArgsConstructor;
@@ -63,7 +62,7 @@ public class NombaTransactionClient {
         String dateFrom = QUERY_DATE_FORMAT.format(from.atZone(ZoneOffset.UTC));
         String dateTo = QUERY_DATE_FORMAT.format(to.atZone(ZoneOffset.UTC));
 
-        NombaApiResponse<NombaSubAccountTransactionPage> response = nombaRestClient.post()
+        NombaApiResponse<NombaSubAccountTransactionPage> response = nombaRestClient.get()
                 .uri(uriBuilder -> {
                     uriBuilder.path(NombaApiUri.SUBACCOUNT_TRANSACTIONS_FILTER.path())
                             .queryParam("dateFrom", dateFrom)
@@ -74,7 +73,6 @@ public class NombaTransactionClient {
                     }
                     return uriBuilder.build(sub);
                 })
-                .body(NombaSubAccountTransactionFilterRequest.empty())
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});
 

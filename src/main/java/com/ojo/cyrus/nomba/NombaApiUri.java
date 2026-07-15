@@ -9,7 +9,14 @@ public enum NombaApiUri {
     TOKEN_ISSUE("/v1/auth/token/issue"),
     VIRTUAL_ACCOUNT("/v1/accounts/virtual"),
     VIRTUAL_ACCOUNT_UNDER_SUBACCOUNT("/v1/accounts/virtual/{subAccountId}"),
+    // Also used for GET (fetch a single VA) — same path, {accountRef} doubles as the {identifier}
+    // Nomba's docs describe (accountRef or bankAccountNumber). Confirmed against
+    // https://developer.nomba.com/nomba-api-reference/virtual-accounts/fetch-a-virtual-account.
     VIRTUAL_ACCOUNT_BY_REF("/v1/accounts/virtual/{accountRef}"),
+    // POST /v1/accounts/virtual/list — limit/cursor as query params; optional body filters
+    // (accountRef/accountName/bvn/bankAccountNumber/dateCreatedFrom/dateCreatedTo/expired/resourceAcquired).
+    // Confirmed against https://developer.nomba.com/nomba-api-reference/virtual-accounts/filter-virtual-accounts.
+    VIRTUAL_ACCOUNT_LIST("/v1/accounts/virtual/list"),
     TRANSACTION_REQUERY("/v1/transactions/requery/{sessionId}"),
     BANK_TRANSFER("/v2/transfers/bank"),
     // Sub-account variant of the payout transfer — Cyrus transacts under a sub-account, so a payout
@@ -47,10 +54,12 @@ public enum NombaApiUri {
      */
     TRANSFER_REQUERY_UNDER_SUBACCOUNT("/v1/transactions/accounts/{subAccountId}/single"),
     /**
-     * Lists/filters all transactions on a sub-account — {@code POST /v1/transactions/accounts/{subAccountId}}
-     * with {@code dateFrom}/{@code dateTo}/{@code limit}/{@code cursor} as query params and optional
-     * filters (type/status/source/...) in the body. Confirmed to exist against
-     * <a href="https://developer.nomba.com/nomba-api-reference/transactions/filter-sub-account-transactions">...</a> —
+     * Lists a sub-account's transactions — {@code GET /v1/transactions/accounts/{subAccountId}} with
+     * {@code dateFrom}/{@code dateTo}/{@code limit}/{@code cursor} as query params, no request body
+     * (the sibling {@code POST .../filter-sub-account-transactions} variant accepts additional body
+     * filters — type/status/source/... — but Cyrus never sends any, so GET is the correct verb here).
+     * Confirmed against
+     * <a href="https://developer.nomba.com/nomba-api-reference/transactions/fetch-transactions-on-the-sub-account">...</a> —
      * used by {@link com.ojo.cyrus.services.MissingWebhookSweepService} to catch a payment whose
      * webhook was never delivered at all. The response item schema is verified against real responses
      * (a VA credit carries {@code id}/{@code sessionId}/{@code amount}/{@code fixedCharge}/

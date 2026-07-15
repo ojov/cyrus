@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { customerApi, type CustomerDetail, type StatementSummary, type StatementPage } from "@/lib/api";
+import {
+  customerApi,
+  type CustomerDetail,
+  type NombaVerification,
+  type StatementSummary,
+  type StatementPage,
+} from "@/lib/api";
 import { naira, statusClass } from "@/lib/utils";
 import { IconArrowLeft } from "@/components/icons";
 
@@ -17,6 +23,7 @@ export default function CustomerDetailPage() {
   const reference = decodeURIComponent(params.id);
 
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
+  const [verification, setVerification] = useState<NombaVerification | null>(null);
   const [summary, setSummary] = useState<StatementSummary | null>(null);
   const [transactions, setTransactions] = useState<StatementPage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,6 +73,23 @@ export default function CustomerDetailPage() {
   useEffect(() => {
     Promise.resolve().then(load);
   }, [load]);
+
+  // Independent of the statement/filters above — a live, best-effort check of the virtual
+  // account against Nomba directly, cached backend-side. Fetched once per reference, not on
+  // every filter change. A failure here is silently non-fatal (no verification badge renders);
+  // the customer's core identity already comes from the statement call above.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => customerApi.get(reference))
+      .then((res) => {
+        if (!cancelled) setVerification(res.data.nombaVerification);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [reference]);
 
   function applyFilters(e: React.FormEvent) {
     e.preventDefault();
@@ -140,7 +164,23 @@ export default function CustomerDetailPage() {
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-primary">Virtual account</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-primary">Virtual account</p>
+              {verification && (
+                <span
+                  className={`db dot ${statusClass(
+                    verification.checked ? (verification.matched ? "MATCHED" : "DISCREPANCY") : "PROVIDER_UNAVAILABLE",
+                  )}`}
+                  title={
+                    verification.checked
+                      ? `${verification.matched ? "Matches" : "Differs from"} Nomba as of ${new Date(verification.checkedAt).toLocaleString()}${verification.fromCache ? " (cached)" : ""}`
+                      : "Live check against Nomba unavailable"
+                  }
+                >
+                  {verification.checked ? (verification.matched ? "Verified" : "Discrepancy") : "Unverified"}
+                </span>
+              )}
+            </div>
             <dl className="mt-3 grid grid-cols-[90px_1fr] gap-x-3 gap-y-2.5 text-sm">
               <dt className="text-muted-foreground">Number</dt>
               <dd className="font-mono">{customer.virtualAccount.accountNumber}</dd>
@@ -151,6 +191,13 @@ export default function CustomerDetailPage() {
               <dt className="text-muted-foreground">Status</dt>
               <dd><span className={`db dot ${statusClass(customer.virtualAccount.status)}`}>{customer.virtualAccount.status}</span></dd>
             </dl>
+            {verification?.checked && !verification.matched && (
+              <ul className="mt-3 space-y-1 border-t border-border pt-3 text-xs text-destructive">
+                {verification.discrepancies.map((d) => (
+                  <li key={d}>{d}</li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5">

@@ -21,7 +21,7 @@ import java.util.List;
 /**
  * Catches a payment whose webhook was never delivered at all — the "known gap" AGENTS.md previously
  * documented as impossible to close (Nomba's API was believed to have no transaction-listing
- * endpoint). It does: {@code POST /v1/transactions/accounts/{subAccountId}}
+ * endpoint). It does: {@code GET /v1/transactions/accounts/{subAccountId}}
  * ({@link com.ojo.cyrus.nomba.NombaApiUri#SUBACCOUNT_TRANSACTIONS_FILTER}) lists everything on the
  * sub-account in a trailing window; a VA credit present there with no matching local
  * {@link com.ojo.cyrus.models.entities.Transaction} is a payment whose webhook was lost.

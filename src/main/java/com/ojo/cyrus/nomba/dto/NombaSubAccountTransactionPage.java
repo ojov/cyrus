@@ -6,7 +6,7 @@ import tools.jackson.databind.JsonNode;
 import java.util.List;
 
 /**
- * One page of {@code data} from {@code POST /v1/transactions/accounts/{subAccountId}}
+ * One page of {@code data} from {@code GET /v1/transactions/accounts/{subAccountId}}
  * ({@link com.ojo.cyrus.nomba.NombaApiUri#SUBACCOUNT_TRANSACTIONS_FILTER}). The item schema is
  * verified against real responses (a VA credit carries {@code recipientAccountNumber},
  * {@code virtualAccountReference}, {@code sessionId}, {@code entryType}, {@code amount},
