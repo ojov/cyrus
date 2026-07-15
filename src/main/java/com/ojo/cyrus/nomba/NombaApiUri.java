@@ -54,10 +54,12 @@ public enum NombaApiUri {
      */
     TRANSFER_REQUERY_UNDER_SUBACCOUNT("/v1/transactions/accounts/{subAccountId}/single"),
     /**
-     * Lists/filters all transactions on a sub-account — {@code POST /v1/transactions/accounts/{subAccountId}}
-     * with {@code dateFrom}/{@code dateTo}/{@code limit}/{@code cursor} as query params and optional
-     * filters (type/status/source/...) in the body. Confirmed to exist against
-     * <a href="https://developer.nomba.com/nomba-api-reference/transactions/filter-sub-account-transactions">...</a> —
+     * Lists a sub-account's transactions — {@code GET /v1/transactions/accounts/{subAccountId}} with
+     * {@code dateFrom}/{@code dateTo}/{@code limit}/{@code cursor} as query params, no request body
+     * (the sibling {@code POST .../filter-sub-account-transactions} variant accepts additional body
+     * filters — type/status/source/... — but Cyrus never sends any, so GET is the correct verb here).
+     * Confirmed against
+     * <a href="https://developer.nomba.com/nomba-api-reference/transactions/fetch-transactions-on-the-sub-account">...</a> —
      * used by {@link com.ojo.cyrus.services.MissingWebhookSweepService} to catch a payment whose
      * webhook was never delivered at all. The response item schema is verified against real responses
      * (a VA credit carries {@code id}/{@code sessionId}/{@code amount}/{@code fixedCharge}/

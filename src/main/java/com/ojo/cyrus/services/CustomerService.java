@@ -16,6 +16,7 @@ import com.ojo.cyrus.models.entities.Transaction;
 import com.ojo.cyrus.models.entities.VirtualAccount;
 import com.ojo.cyrus.models.requests.CreateCustomerRequest;
 import com.ojo.cyrus.models.requests.UpdateCustomerRequest;
+import com.ojo.cyrus.models.responses.CustomerDetailResponse;
 import com.ojo.cyrus.models.responses.CustomerListItemResponse;
 import com.ojo.cyrus.models.responses.CustomerResponse;
 import com.ojo.cyrus.models.responses.CustomerStatementResponse;
@@ -23,6 +24,8 @@ import com.ojo.cyrus.models.responses.StatementRowResponse;
 import com.ojo.cyrus.models.responses.StatementSummaryResponse;
 import com.ojo.cyrus.nomba.clients.NombaVirtualAccountClient;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
+import com.ojo.cyrus.nomba.dto.NombaVirtualAccountDetail;
+import com.ojo.cyrus.nomba.dto.NombaVirtualAccountLookup;
 import com.ojo.cyrus.repositories.MerchantCustomerRepository;
 import com.ojo.cyrus.repositories.TransactionRepository;
 import com.ojo.cyrus.repositories.VirtualAccountRepository;
@@ -43,8 +46,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -93,6 +98,64 @@ public class CustomerService {
         MerchantCustomer customer = requireCustomer(merchantId, reference);
         VirtualAccount va = requireVirtualAccount(customer.getId());
         return Mapper.toCustomerResponse(customer, va);
+    }
+
+    /**
+     * Dashboard-only: {@link #getByReference} plus a live authenticity check of the virtual account
+     * against Nomba directly (cached — see {@link NombaVirtualAccountClient#getVirtualAccountCached}).
+     * Local data is read in a short read-only tx that closes before the Nomba call, per the
+     * never-hold-a-tx-across-an-external-call rule. The Nomba call is genuinely best-effort: any
+     * failure (network, Nomba down, the VA missing on Nomba entirely) degrades to
+     * {@code checked=false} rather than failing the whole customer lookup — an ops dashboard should
+     * still show what Cyrus knows locally even when the live check can't complete. A failure here is
+     * a signal for the bulk super-admin VA audit, not something this per-customer check needs to
+     * diagnose itself.
+     */
+    public CustomerDetailResponse getByReferenceWithNombaVerification(UUID merchantId, String reference) {
+        TransactionTemplate readTx = new TransactionTemplate(transactionManager);
+        readTx.setReadOnly(true);
+        CustomerResponse customer = readTx.execute(_ -> {
+            MerchantCustomer c = requireCustomer(merchantId, reference);
+            VirtualAccount va = requireVirtualAccount(c.getId());
+            return Mapper.toCustomerResponse(c, va);
+        });
+
+        return new CustomerDetailResponse(customer, verifyAgainstNomba(customer));
+    }
+
+    private CustomerDetailResponse.NombaVerification verifyAgainstNomba(CustomerResponse customer) {
+        String accountRef = customer.reference();
+        NombaVirtualAccountLookup lookup;
+        try {
+            lookup = nombaVirtualAccountClient.getVirtualAccountCached(accountRef);
+        } catch (RuntimeException e) {
+            log.warn("Nomba VA verification unavailable for customer {}: {}", accountRef, e.getMessage());
+            return new CustomerDetailResponse.NombaVerification(
+                    false, false, List.of("Live verification against Nomba is temporarily unavailable"),
+                    false, Instant.now());
+        }
+
+        NombaVirtualAccountDetail nomba = lookup.detail();
+        CustomerResponse.VirtualAccountSummary local = customer.virtualAccount();
+        List<String> discrepancies = new ArrayList<>();
+
+        if (!Objects.equals(local.accountNumber(), nomba.bankAccountNumber())) {
+            discrepancies.add("Account number differs from Nomba");
+        }
+        if (local.accountName() == null || !local.accountName().equalsIgnoreCase(nomba.bankAccountName())) {
+            discrepancies.add("Account name differs from Nomba");
+        }
+        if (local.bankName() == null || !local.bankName().equalsIgnoreCase(nomba.bankName())) {
+            discrepancies.add("Bank name differs from Nomba");
+        }
+        boolean localClosed = "CLOSED".equals(local.status());
+        if (localClosed != nomba.expired()) {
+            discrepancies.add("Status drift: local is " + local.status() + " but Nomba " +
+                    (nomba.expired() ? "has expired this account" : "still shows it active"));
+        }
+
+        return new CustomerDetailResponse.NombaVerification(
+                true, discrepancies.isEmpty(), discrepancies, lookup.fromCache(), lookup.fetchedAt());
     }
 
     /**

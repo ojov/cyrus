@@ -30,7 +30,30 @@ Jump straight in without creating an account:
 | **API key** | `cyrus_sa4uxH7x9i3akfhnzvWtagjSodBRIM0FsqO5Q25jHtk` |
 | **API Reference** | [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) |
 
-Test the API key directly in the Scalar UI at [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs) 
+Test the API key directly in the Scalar UI at [https://api.trycyrus.app/docs](https://api.trycyrus.app/docs)
+
+**These credentials are a regular merchant account** — they give you the merchant dashboard and an
+API key scoped to `/v1/customers/**`, `/v1/transactions/**`, and `/v1/payment-events/**`. They do
+**not** unlock the separate super-admin role (see below), which isn't exposed as a reviewer credential.
+
+---
+
+## 🛡️ Super Admin
+
+A `Merchant` has a `role`: almost every account is `MERCHANT`; `SUPER_ADMIN` is Cyrus's own platform
+staff, promoted by listing their business email in `APP_SUPER_ADMIN_EMAILS` at startup (no separate
+signup flow). It unlocks platform-wide oversight endpoints (JWT chain, `/v1/platform/**`) that a
+regular merchant gets a 403 from — these look *across* merchants rather than at one merchant's own
+data, which is why they can't just be more fields on the regular dashboard:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /v1/platform/overview` | Custody check — total wallet liabilities vs. the live Nomba balance, reconciliation health, orphaned/stuck items |
+| `GET /v1/platform/profit` | Platform profit ledger — expected vs. actual provider balance, accrued fees |
+| `GET /v1/platform/virtual-accounts/audit` | Diffs Cyrus's local virtual-account records against Nomba's live list — catches a VA that leaked on Nomba's side with no local record |
+| `GET/PUT /v1/platform/fees` | Read/update the platform-wide fee configuration |
+| `GET /v1/platform/orphans`, `POST /v1/platform/orphans/{id}/reattribute` | Payments that couldn't be attributed to *any* merchant's virtual account — reattribute once the right merchant/customer is identified |
+
 ---
 
 ## ✨ Key Features
@@ -77,11 +100,27 @@ docker compose up -d          # starts local Postgres on :5438
 
 Required environment variables are listed in `AGENTS.md` under **Required configuration** (encryption
 key, RSA keypair, DB credentials, Resend key, Nomba credentials). The API fails fast at startup if any
-are missing or malformed.
+are missing or malformed. For the full walkthrough — every env var, generating the RSA keypair
+correctly, auth flow for local testing, project layout, troubleshooting — see
+[`docs/LOCAL_SETUP.md`](./docs/LOCAL_SETUP.md).
 
 Once running:
 - API: `http://localhost:8080`
 - API reference (Scalar): `http://localhost:8080/docs`
+
+---
+
+## 📚 Documentation
+
+Internal reference docs live in [`docs/`](./docs) — start at [`docs/README.md`](./docs/README.md) for
+the full index. Highlights:
+
+- [`docs/LOCAL_SETUP.md`](./docs/LOCAL_SETUP.md) — running the full stack locally, env vars, auth
+  flow, troubleshooting.
+- [`docs/DATABASE_RELATIONSHIPS.md`](./docs/DATABASE_RELATIONSHIPS.md) — entity-relationship diagrams,
+  the money model, and data-flow sequence diagrams for inbound payments and payouts.
+- [`AGENTS.md`](./AGENTS.md) — the living architecture map and conventions doc (also doubles as
+  AI-agent guidance).
 
 ---
 

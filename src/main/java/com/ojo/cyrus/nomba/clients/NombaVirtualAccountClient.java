@@ -13,12 +13,17 @@ import com.ojo.cyrus.nomba.dto.NombaVirtualAccountData;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountDetail;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountFilterRequest;
 import com.ojo.cyrus.nomba.dto.NombaVirtualAccountListPage;
+import com.ojo.cyrus.nomba.dto.NombaVirtualAccountLookup;
 import com.ojo.cyrus.utils.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Virtual-account lifecycle on Cyrus's Nomba account: provision, rename the bank-account holder name,
@@ -30,8 +35,16 @@ import org.springframework.web.client.RestClient;
 @RequiredArgsConstructor
 public class NombaVirtualAccountClient {
 
+    // Bounds how often the customer-detail authenticity check (CustomerService) actually hits Nomba —
+    // long enough that repeatedly opening the same customer in the dashboard doesn't hammer Nomba's
+    // API, short enough that a real drift (e.g. the non-atomic-create leak) surfaces within minutes
+    // rather than being masked indefinitely by a stale cache entry. In-memory, per-instance, cleared
+    // on restart — same tradeoff CacheConfig already accepts for the (permanent) nombaBanks cache.
+    private static final Duration VERIFICATION_CACHE_TTL = Duration.ofMinutes(10);
+
     private final RestClient nombaRestClient;
     private final NombaProperties props;
+    private final ConcurrentHashMap<String, NombaVirtualAccountLookup> verificationCache = new ConcurrentHashMap<>();
 
     /**
      * Provisions a virtual account. The {@code X-Idempotent-key} is deterministic (accountRef), not
@@ -97,9 +110,10 @@ public class NombaVirtualAccountClient {
 
     /**
      * Fetches a virtual account's live state directly from Nomba, bypassing Cyrus's own
-     * {@code VirtualAccount} table entirely. Not used by any request-serving path today — Cyrus's
-     * local record is authoritative for normal operation — but useful for an admin spot-check
-     * ("what does Nomba actually think this VA's status is right now") or a drift audit.
+     * {@code VirtualAccount} table entirely. Cyrus's local record is authoritative for normal
+     * operation — this is for spot-checking authenticity (the dashboard's customer-detail
+     * verification, via {@link #getVirtualAccountCached}) or a bulk drift audit
+     * ({@code PlatformAdminService.auditVirtualAccounts}).
      */
     public NombaVirtualAccountDetail getVirtualAccount(String accountRef) {
         NombaApiResponse<NombaVirtualAccountDetail> response = nombaRestClient.get()
@@ -111,10 +125,29 @@ public class NombaVirtualAccountClient {
     }
 
     /**
-     * Lists/filters virtual accounts directly from Nomba. Same "not on any request-serving path"
-     * caveat as {@link #getVirtualAccount(String)} — this exists for admin tooling (e.g. auditing
-     * Cyrus's local {@code VirtualAccount} table against what Nomba actually has, to catch a VA that
-     * leaked on Nomba's side without a matching local row).
+     * Same as {@link #getVirtualAccount} but served from a {@link #VERIFICATION_CACHE_TTL}-bounded
+     * in-memory cache keyed by {@code accountRef} — repeated lookups within the window return the
+     * cached value instead of re-hitting Nomba. A failed lookup is never cached (an exception simply
+     * propagates), so a transient Nomba error can't wedge a customer into a false "unreachable" state.
+     */
+    public NombaVirtualAccountLookup getVirtualAccountCached(String accountRef) {
+        NombaVirtualAccountLookup cached = verificationCache.get(accountRef);
+        if (cached != null && Duration.between(cached.fetchedAt(), Instant.now()).compareTo(VERIFICATION_CACHE_TTL) < 0) {
+            return new NombaVirtualAccountLookup(cached.detail(), true, cached.fetchedAt());
+        }
+
+        NombaVirtualAccountDetail detail = getVirtualAccount(accountRef);
+        NombaVirtualAccountLookup fresh = new NombaVirtualAccountLookup(detail, false, Instant.now());
+        verificationCache.put(accountRef, fresh);
+        return fresh;
+    }
+
+    /**
+     * Lists/filters virtual accounts directly from Nomba. Not on any request-serving path — this
+     * exists for the bulk super-admin audit ({@code PlatformAdminService.auditVirtualAccounts},
+     * diffing Cyrus's local {@code VirtualAccount} table against what Nomba actually has, to catch a
+     * VA that leaked on Nomba's side without a matching local row). For a single VA on a
+     * request-serving path, see {@link #getVirtualAccountCached}.
      */
     public NombaVirtualAccountListPage listVirtualAccounts(NombaVirtualAccountFilterRequest filter, int limit, String cursor) {
         NombaApiResponse<NombaVirtualAccountListPage> response = nombaRestClient.post()

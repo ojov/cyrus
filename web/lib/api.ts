@@ -396,6 +396,24 @@ export interface CustomerDetail {
   createdAt: string;
 }
 
+// The dashboard-only single-customer GET additionally does a live authenticity check against
+// Nomba directly (cached backend-side ~10min) — the API-key developer endpoint deliberately
+// skips this and stays a plain, fast local-only read.
+export interface NombaVerification {
+  checked: boolean;
+  matched: boolean;
+  discrepancies: string[];
+  fromCache: boolean;
+  checkedAt: string;
+}
+
+export interface CustomerDetailResponse {
+  data: {
+    customer: CustomerDetail;
+    nombaVerification: NombaVerification;
+  };
+}
+
 export interface StatementSummary {
   lifetimeKobo: number;
   transactionCount: number;
@@ -475,7 +493,7 @@ export const customerApi = {
   list: (page = 0, size = 20) =>
     api.get<{ data: CustomerListPage }>(`/v1/merchants/me/customers?page=${page}&size=${size}`),
   get: (reference: string) =>
-    api.get<{ data: CustomerDetail }>(`/v1/merchants/me/customers/${encodeURIComponent(reference)}`),
+    api.get<CustomerDetailResponse>(`/v1/merchants/me/customers/${encodeURIComponent(reference)}`),
   getStatement: (reference: string, filters: StatementFilters = {}) => {
     const qs = new URLSearchParams();
     if (filters.from) qs.set("from", filters.from);
